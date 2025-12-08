@@ -1,0 +1,51 @@
+@import "./styles/design-tokens.css";
+@import "./styles/base.css";
+@import "./styles/theme-robotics.css";
+@import "./styles/animations-robotics.css";
+@import "./styles/components/layout-robotics.css";
+@import "./styles/components/metrics-robotics.css";
+
+/* Legacy imports - Commented out for Robotics Theme */
+/* @import "./styles/components/metrics.css"; */
+/* @import "./styles/components/charts.css"; */
+/* @import "./styles/components/layout.css"; */
+/* @import "./styles/components/glass.css"; */
+/* @import "./styles/components/glass-borders.css"; */
+/* @import "./styles/components/liquid-glass.css"; */
+/* @import "./styles/components/premium-glass.css"; */
+/* @import "./styles/components/ui-themes.css"; */
+/* @import "./styles/components/content-zones.css"; */
+/* @import "./styles/animations.css"; */
+@import "./styles/navigation.css";
+
+/* Theme-aware transcript styles - Robotics Overrides */
+.transcript-message-user {
+  @apply bg-primary/10 border border-primary/30 text-foreground rounded-br-none rounded-bl-xl rounded-tr-xl rounded-tl-xl !important;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.1);
+}
+
+.transcript-message-agent {
+  @apply bg-card border border-border text-foreground rounded-bl-none rounded-br-xl rounded-tr-xl rounded-tl-xl !important;
+}
+
+.dark .transcript-message-user,
+.dark .transcript-message-agent {
+  @apply text-foreground font-mono tracking-tight;
+}
+
+/* Force override for dialog text to white (legacy fix kept for safety) */
+[data-radix-dialog-content],
+[data-radix-dialog-content] * {
+  color: #ffffff !important;
+}
+
+/* Calendar Overrides */
+.rdp {
+  @apply bg-card border border-primary/20 rounded-md text-foreground !important;
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.1) !important;
+}
+
+.rdp-day_selected {
+  @apply bg-primary text-primary-foreground font-bold rounded-sm !important;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.5) !important;
+}

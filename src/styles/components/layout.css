@@ -1,0 +1,68 @@
+.settings-container {
+  @apply bg-card/50 border border-border/50
+         shadow-lg backdrop-blur-sm
+         transition-all duration-300
+         hover:bg-card/60;
+}
+
+.settings-card {
+  @apply bg-card/40 rounded-lg
+         shadow-md backdrop-blur-sm
+         p-6
+         transition-all duration-300
+         hover:shadow-lg
+         border border-border/30
+         space-y-6;
+}
+
+.settings-card-title {
+  @apply text-xl
+         font-medium
+         text-foreground
+         tracking-tight;
+}
+
+.settings-card-description {
+  @apply text-sm
+         text-muted-foreground;
+}
+
+.settings-input {
+  @apply bg-background border border-border
+         focus:border-primary/40 
+         focus:ring-1 focus:ring-primary/20
+         text-foreground
+         placeholder:text-muted-foreground
+         shadow-sm
+         transition-colors;
+}
+
+.settings-label {
+  @apply text-sm
+         font-medium
+         text-foreground
+         mb-3;
+}
+
+/* Tab styling for horizontal tabs */
+.settings-tab {
+  @apply relative 
+         py-3 
+         px-4
+         text-base
+         font-light
+         transition-colors
+         text-muted-foreground
+         hover:text-foreground;
+}
+
+.settings-tab-active {
+  @apply text-foreground 
+         font-medium;
+}
+
+.settings-tab-underline {
+  @apply absolute bottom-0 left-0 right-0 
+         h-0.5 
+         bg-primary;
+}

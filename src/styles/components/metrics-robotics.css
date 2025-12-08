@@ -1,0 +1,56 @@
+/* Futuristic Robotics Metrics Display */
+
+.metric-value-tech {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: hsl(var(--primary));
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.4);
+    letter-spacing: -0.05em;
+}
+
+.metric-label-tech {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: hsl(var(--muted-foreground));
+}
+
+/* Terminating Display Style: [ VALUE ] */
+.metric-bracketed::before {
+    content: '[';
+    margin-right: 0.5em;
+    color: hsl(var(--primary) / 0.5);
+}
+
+.metric-bracketed::after {
+    content: ']';
+    margin-left: 0.5em;
+    color: hsl(var(--primary) / 0.5);
+}
+
+/* Bar Charts (CSS only simple bars) */
+.tech-bar-bg {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    width: 100%;
+    position: relative;
+}
+
+.tech-bar-fill {
+    height: 100%;
+    background: hsl(var(--primary));
+    box-shadow: 0 0 10px hsl(var(--primary));
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* Digital Counter Look */
+.digital-counter {
+    background: #000;
+    color: hsl(var(--primary));
+    padding: 0.2em 0.5em;
+    border: 1px solid hsl(var(--primary) / 0.3);
+    font-family: monospace;
+}

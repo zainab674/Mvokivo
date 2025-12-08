@@ -1,0 +1,571 @@
+import React, { useState, useEffect, useRef } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Phone, Clock, Mic, MicOff, MessageSquare, Users } from "lucide-react";
+import { format, isSameDay } from "date-fns";
+import { Conversation } from "./types";
+import { MessageBubble } from "./MessageBubble";
+import { ModernMessageInput } from "./ModernMessageInput";
+import { SMSMessage } from "@/lib/api/sms/smsService";
+import { fetchAssistants, Assistant } from "@/lib/api/assistants/fetchAssistants";
+import { fetchPhoneNumberMappings, PhoneNumberMapping } from "@/lib/api/phoneNumbers/fetchPhoneNumberMappings";
+import { formatPhoneNumber } from "@/utils/formatUtils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface MessageThreadProps {
+  conversation: Conversation;
+  messageFilter: 'all' | 'calls' | 'sms';
+  onMessageFilterChange: (filter: 'all' | 'calls' | 'sms') => void;
+}
+
+export function MessageThread({ conversation, messageFilter, onMessageFilterChange }: MessageThreadProps) {
+  
+  // Debug: Log when conversation prop changes
+  useEffect(() => {
+    console.log('📱 MessageThread received conversation update:', {
+      conversationId: conversation.id,
+      phoneNumber: conversation.phoneNumber,
+      totalSMS: conversation.totalSMS,
+      totalCalls: conversation.totalCalls,
+      smsMessagesCount: conversation.smsMessages?.length || 0,
+      callsCount: conversation.calls?.length || 0,
+      lastActivity: conversation.lastActivityTimestamp?.toISOString()
+    });
+  }, [conversation]);
+  const [assistants, setAssistants] = useState<Assistant[]>([]);
+  const [loadingAssistants, setLoadingAssistants] = useState(false);
+  const [phoneMappings, setPhoneMappings] = useState<PhoneNumberMapping[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("all");
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [shouldPreserveScroll, setShouldPreserveScroll] = useState(false);
+  const lastScrollPositionRef = useRef(0);
+  const wasAtBottomRef = useRef(false);
+
+  // Load assistants and phone mappings on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoadingAssistants(true);
+      try {
+        const [assistantsResponse, phoneMappingsResponse] = await Promise.all([
+          fetchAssistants(),
+          fetchPhoneNumberMappings()
+        ]);
+        setAssistants(assistantsResponse.assistants);
+        setPhoneMappings(phoneMappingsResponse.mappings);
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        setLoadingAssistants(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Debug message filter changes - moved after allMessages declaration
+
+  // Preserve scroll position when conversation data updates
+  useEffect(() => {
+    if (shouldPreserveScroll && scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        setTimeout(() => {
+          scrollContainer.scrollTop = scrollPosition;
+          setShouldPreserveScroll(false);
+          console.log('📱 Restored scroll position to:', scrollPosition);
+        }, 100);
+      }
+    }
+  }, [conversation, shouldPreserveScroll, scrollPosition]);
+
+  // Check if user is near bottom of scroll area
+  const isNearBottom = () => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+        return scrollHeight - scrollTop - clientHeight < 100; // 100px threshold
+      }
+    }
+    return false;
+  };
+
+  // Auto-scroll to bottom for new messages if user is near bottom
+  useEffect(() => {
+    if (conversation.smsMessages && conversation.smsMessages.length > 0) {
+      // Use a timeout to ensure the DOM has updated
+      setTimeout(() => {
+        console.log('📱 Scroll handling for new messages:', {
+          smsCount: conversation.smsMessages.length,
+          wasAtBottom: wasAtBottomRef.current,
+          lastScrollPosition: lastScrollPositionRef.current
+        });
+        
+        if (wasAtBottomRef.current && scrollAreaRef.current) {
+          const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+          if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            console.log('📱 Auto-scrolled to bottom for new messages');
+          }
+        } else if (!wasAtBottomRef.current && lastScrollPositionRef.current > 0) {
+          // Restore previous scroll position
+          const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          if (scrollContainer) {
+            scrollContainer.scrollTop = lastScrollPositionRef.current;
+            console.log('📱 Restored scroll position to:', lastScrollPositionRef.current);
+          }
+        }
+      }, 200); // Increased timeout to ensure DOM is ready
+    }
+  }, [conversation.smsMessages?.length, conversation.calls?.length]);
+
+  // Helper function to scroll to bottom
+  const scrollToBottom = () => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        console.log('📱 Scrolled to bottom');
+        
+        // Update scroll tracking state
+        wasAtBottomRef.current = true;
+        lastScrollPositionRef.current = scrollContainer.scrollHeight;
+      }
+    }
+  };
+
+  // Auto-scroll to bottom when conversation changes (new conversation selected)
+  useEffect(() => {
+    // Use a timeout to ensure the DOM has updated with new messages
+    setTimeout(() => {
+      scrollToBottom();
+      console.log('📱 Auto-scrolled to bottom for new conversation selection');
+    }, 300); // Slightly longer timeout to ensure all messages are rendered
+  }, [conversation.id]); // Trigger when conversation ID changes
+
+  // Auto-scroll to bottom when message filter changes (to show latest messages)
+  useEffect(() => {
+    // Use a timeout to ensure the DOM has updated with filtered messages
+    setTimeout(() => {
+      scrollToBottom();
+      console.log('📱 Auto-scrolled to bottom for message filter change');
+    }, 200);
+  }, [messageFilter, selectedAgentId]); // Trigger when filter changes
+
+  // Save scroll position when user scrolls
+  const handleScroll = () => {
+    if (scrollAreaRef.current) {
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        const currentScrollTop = scrollContainer.scrollTop;
+        const { scrollHeight, clientHeight } = scrollContainer;
+        const isAtBottom = scrollHeight - currentScrollTop - clientHeight < 100;
+        
+        setScrollPosition(currentScrollTop);
+        lastScrollPositionRef.current = currentScrollTop;
+        wasAtBottomRef.current = isAtBottom;
+        
+        console.log('📱 Scroll position updated:', {
+          scrollTop: currentScrollTop,
+          isAtBottom,
+          scrollHeight,
+          clientHeight
+        });
+      }
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Get display name - either name OR phone number, never both
+  const getDisplayName = (): string => {
+    // First, check if conversation already has a displayName (from ContactSummary)
+    if (conversation.displayName && conversation.displayName !== formatPhoneNumber(conversation.phoneNumber)) {
+      // If displayName contains both name and phone (format: "Name - Phone"), extract just the name
+      if (conversation.displayName.includes(' - ')) {
+        return conversation.displayName.split(' - ')[0];
+      }
+      // If it's just the name, return it
+      return conversation.displayName;
+    }
+
+    // Check if conversation has calls with structured data
+    if (conversation.calls && conversation.calls.length > 0) {
+      const sortedCalls = [...conversation.calls].sort((a, b) => 
+        new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime()
+      );
+      
+      const latestCall = sortedCalls[0];
+      
+      let structuredData = null;
+      if (latestCall.analysis && typeof latestCall.analysis === 'object') {
+        structuredData = latestCall.analysis;
+      } else if ((latestCall as any).structured_data && typeof (latestCall as any).structured_data === 'object') {
+        structuredData = (latestCall as any).structured_data;
+      }
+
+      if (structuredData) {
+        const extractValue = (field: any): string | undefined => {
+          if (typeof field === 'string') {
+            return field;
+          } else if (field && typeof field === 'object' && field.value) {
+            return field.value;
+          }
+          return undefined;
+        };
+
+        const customerNameField = structuredData['Customer Name'] || structuredData['name'] || structuredData['full_name'] || structuredData['contact_name'] || structuredData['client_name'];
+        if (customerNameField) {
+          const extractedName = extractValue(customerNameField);
+          if (extractedName && extractedName.trim() !== '') {
+            return extractedName; // Only name, no phone number
+          }
+        }
+      }
+    }
+    
+    // Fallback to formatted phone number if no name found
+    return formatPhoneNumber(conversation.phoneNumber);
+  };
+
+  // Helper function to get assistant ID for a phone number
+  const getAssistantIdForPhoneNumber = (phoneNumber: string): string | null => {
+    const mapping = phoneMappings.find(m => m.number === phoneNumber);
+    return mapping?.inbound_assistant_id || null;
+  };
+
+  // Helper function to get phone number for selected agent
+  const getPhoneNumberForSelectedAgent = (): string | null => {
+    if (selectedAgentId === "all" || !selectedAgentId) {
+      return null; // Use default phone number selection
+    }
+
+    const mapping = phoneMappings.find(m => m.inbound_assistant_id === selectedAgentId);
+    return mapping?.number || null;
+  };
+
+  // Convert calls to messages with proper grouping using created_at timestamp
+  const callMessages = conversation.calls.map(call => ({
+    id: call.id,
+    type: 'call' as const,
+    timestamp: new Date(call.created_at || `${call.date}T${call.time}`),
+    direction: call.direction,
+    duration: call.duration,
+    status: call.status,
+    resolution: call.resolution,
+    summary: call.summary,
+    recording: call.call_recording,
+    transcript: call.transcript,
+    date: call.date,
+    time: call.time
+  }));
+
+  // Convert SMS messages to message format using created_at timestamp
+  const smsMessages = (conversation.smsMessages || []).map(sms => ({
+    id: sms.messageSid,
+    type: 'sms' as const,
+    timestamp: new Date(sms.dateCreated), // dateCreated is the created_at timestamp
+    direction: sms.direction,
+    duration: '0:00',
+    status: sms.status,
+    resolution: undefined,
+    summary: undefined,
+    recording: undefined,
+    transcript: [{
+      speaker: sms.direction === 'inbound' ? 'Customer' : 'Agent',
+      time: format(new Date(sms.dateCreated), 'HH:mm'),
+      text: sms.body
+    }],
+    date: format(new Date(sms.dateCreated), 'yyyy-MM-dd'),
+    time: format(new Date(sms.dateCreated), 'HH:mm'),
+    smsData: sms
+  }));
+
+  // Combine and sort all messages by created_at timestamp (WhatsApp style - newest at bottom)
+  const messages = [...callMessages, ...smsMessages]
+    .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+
+
+  // Filter messages by selected agent and message type
+  const filteredMessages = messages.filter(message => {
+    // First filter by message type
+    if (messageFilter === 'calls' && message.type !== 'call') {
+      return false;
+    }
+    if (messageFilter === 'sms' && message.type !== 'sms') {
+      return false;
+    }
+
+    // Then filter by selected agent if one is selected
+    if (selectedAgentId !== "all") {
+      // For call messages, check if the call was handled by the selected agent
+      if (message.type === 'call') {
+        const call = conversation.calls.find(c => c.id === message.id);
+        return call?.assistant_id === selectedAgentId;
+      }
+      // For SMS messages, check if the phone number is mapped to the selected agent
+      if (message.type === 'sms' && message.smsData) {
+        const sms = message.smsData;
+        // Check both from and to phone numbers for assistant mapping
+        const fromAssistantId = getAssistantIdForPhoneNumber(sms.from);
+        const toAssistantId = getAssistantIdForPhoneNumber(sms.to);
+
+        // Include SMS if either the sender or recipient phone number is mapped to the selected agent
+        return fromAssistantId === selectedAgentId || toAssistantId === selectedAgentId;
+      }
+      return false;
+    }
+
+    return true;
+  });
+
+  // Combine and sort all messages by created_at timestamp (WhatsApp style - newest at bottom)
+  const allMessages = [...filteredMessages]
+    .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+  // Debug message filter changes
+  useEffect(() => {
+    console.log('📱 Message filtering debug:', {
+      totalMessages: messages.length,
+      filteredMessages: filteredMessages.length,
+      allMessages: allMessages.length,
+      messageFilter,
+      selectedAgentId,
+      smsMessages: messages.filter(m => m.type === 'sms').length,
+      callMessages: messages.filter(m => m.type === 'call').length,
+      filteredSMS: filteredMessages.filter(m => m.type === 'sms').length,
+      filteredCalls: filteredMessages.filter(m => m.type === 'call').length,
+      conversationSMS: conversation.smsMessages?.length || 0,
+      conversationCalls: conversation.calls?.length || 0,
+      phoneMappingsCount: phoneMappings.length,
+      assistantsCount: assistants.length
+    });
+
+    // Additional debug for agent filtering
+    if (selectedAgentId !== "all") {
+      console.log('🤖 Agent filtering debug:', {
+        selectedAgentId,
+        callsWithAssistantId: conversation.calls.filter(call => call.assistant_id).length,
+        callsWithoutAssistantId: conversation.calls.filter(call => !call.assistant_id).length,
+        phoneMappingsForAgent: phoneMappings.filter(m => m.inbound_assistant_id === selectedAgentId),
+        smsFromNumbers: conversation.smsMessages?.map(sms => sms.from) || [],
+        smsToNumbers: conversation.smsMessages?.map(sms => sms.to) || []
+      });
+    }
+  }, [messageFilter, allMessages.length, messages.length, filteredMessages.length, conversation.smsMessages?.length, conversation.calls?.length, selectedAgentId, phoneMappings.length, assistants.length]);
+
+  // Debug button rendering
+  useEffect(() => {
+    console.log('MessageThread rendered with conversation:', {
+      totalCalls: conversation.totalCalls,
+      totalSMS: conversation.totalSMS,
+      messageFilter
+    });
+  }, [conversation.totalCalls, conversation.totalSMS, messageFilter]);
+
+  // Group messages by date
+  const groupedMessages = allMessages.reduce((groups, message) => {
+    const dateKey = format(message.timestamp, 'yyyy-MM-dd');
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(message);
+    return groups;
+  }, {} as Record<string, typeof allMessages>);
+
+  // Sort date groups in ascending order (WhatsApp style - oldest dates first, newest at bottom)
+  const sortedDateGroups = Object.entries(groupedMessages)
+    .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime());
+
+  return (
+    <div
+      className="h-full flex flex-col"
+      onClick={(e) => {
+        console.log('MessageThread container clicked', e.target);
+      }}
+    >
+
+      {/* Thread Header */}
+      <div
+        className="p-4 border-b border-white/5 bg-zinc-800/30 backdrop-blur-sm"
+        onClick={(e) => {
+          console.log('Header clicked', e.target);
+        }}
+      >
+        <div
+          className="flex items-center justify-between"
+          onClick={(e) => {
+            console.log('Header content clicked', e.target);
+          }}
+        >
+          <div className="flex items-center space-x-3">
+            <Avatar className="h-10 w-10 bg-indigo-600/20 border border-indigo-500/30">
+              <AvatarFallback className="bg-indigo-500 text-white text-sm font-semibold">
+                {getInitials(getDisplayName())}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1">
+              <h2 className="text-base font-semibold text-white">
+                {getDisplayName()}
+              </h2>
+            </div>
+            <div className="flex items-center space-x-2 relative">
+              {messageFilter !== 'all' && (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 cursor-pointer hover:scale-105 select-none active:scale-95 z-10 relative border-indigo-500/50 bg-indigo-600/20 text-indigo-200 hover:bg-indigo-600/30 hover:border-indigo-500/70"
+                  onClick={() => {
+                    console.log('Show All clicked');
+                    onMessageFilterChange('all');
+                  }}
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  Show All
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <Select
+              value={selectedAgentId}
+              onValueChange={setSelectedAgentId}
+            >
+              <SelectTrigger className="w-48 h-9 text-xs bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50 hover:border-zinc-600/50">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-3.5 h-3.5 text-zinc-400" />
+                  <SelectValue placeholder="Filter by Agent" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-800/95 border-zinc-700/50 backdrop-blur-sm">
+                <SelectItem value="all" className="text-white hover:bg-zinc-700/50">All Agents</SelectItem>
+                {assistants.map((assistant) => (
+                  <SelectItem key={assistant.id} value={assistant.id} className="text-white hover:bg-zinc-700/50">
+                    {assistant.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Filter status indicator */}
+            {messageFilter !== 'all' && (
+              <div className="flex items-center space-x-1.5 text-xs text-zinc-400">
+                <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>
+                <span>
+                  {messageFilter === 'calls' ? 'Calls only' : 'SMS only'}
+                </span>
+              </div>
+            )}
+
+            {/* Agent filter indicator */}
+            {selectedAgentId !== "all" && (
+              <div className="flex items-center space-x-1.5 text-xs text-zinc-400">
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                <span>
+                  {assistants.find(a => a.id === selectedAgentId)?.name || 'Unknown Agent'}
+                </span>
+                {allMessages.length === 0 && (
+                  <span className="text-orange-400">(no messages)</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* scrollable messages */}
+        <div className="flex-1 min-h-0">
+          <ScrollArea
+            ref={scrollAreaRef}
+            className="h-full"
+            onScrollCapture={handleScroll}
+          >
+            {/* Message count indicator */}
+            {messageFilter !== 'all' && (
+              <div className="px-4 pt-3 pb-2">
+                <div className="text-xs text-zinc-400">
+                  Showing {allMessages.length} {messageFilter === 'calls' ? 'call' : 'SMS'} message{allMessages.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 space-y-4">
+              {sortedDateGroups.length > 0 ? (
+                sortedDateGroups.map(([dateKey, dayMessages]) => (
+                  <div key={dateKey} className="space-y-2">
+                    {/* Date Separator */}
+                    <div className="flex items-center justify-center">
+                      <div className="px-3 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-full text-xs text-zinc-400">
+                        {format(new Date(dateKey), 'MMM d, yyyy')}
+                      </div>
+                    </div>
+
+                    {/* Messages for this day */}
+                    {dayMessages.map((message, index) => (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        conversation={conversation}
+                        showAvatar={index === 0 || dayMessages[index - 1]?.direction !== message.direction}
+                      />
+                    ))}
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-center h-32">
+                  <div className="text-center text-zinc-400">
+                    <div className="w-12 h-12 mx-auto mb-3 bg-zinc-800/50 border border-zinc-700/50 rounded-full flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6 text-zinc-500" />
+                    </div>
+                    <div className="text-sm font-medium mb-1 text-white">
+                      {selectedAgentId === "all" ? "No messages found" : "No messages for this agent"}
+                    </div>
+                    <div className="text-xs text-zinc-500">
+                      {selectedAgentId === "all" 
+                        ? "This conversation doesn't have any messages yet."
+                        : `No calls or SMS messages are associated with the selected agent.`
+                      }
+                    </div>
+                    {selectedAgentId !== "all" && (
+                      <div className="text-xs mt-2 text-zinc-500/70">
+                        Try selecting "All Agents" to see all messages, or check if the agent has been assigned to handle this conversation.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* input pinned to bottom */}
+        <div className="shrink-0 border-t border-white/5 bg-zinc-800/20">
+          <ModernMessageInput
+            conversation={conversation}
+            selectedAgentPhoneNumber={getPhoneNumberForSelectedAgent()}
+            isDisabled={selectedAgentId === "all"}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

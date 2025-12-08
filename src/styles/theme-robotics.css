@@ -1,0 +1,190 @@
+/* Futuristic Robotics Theme Component Styles */
+
+/* Tech Cards - replacing glass transparency with solid tech backgrounds */
+.robotics-card {
+  @apply bg-card border border-border relative overflow-hidden;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.05);
+  /* Subtle neon glow */
+}
+
+/* Corner Accents for specific tech feel */
+.robotics-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-top: 2px solid hsl(var(--primary));
+  border-left: 2px solid hsl(var(--primary));
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.robotics-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  border-bottom: 2px solid hsl(var(--primary));
+  border-right: 2px solid hsl(var(--primary));
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Typography Overrides */
+.text-tech {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  /* Fallback if not loaded, but gives the idea */
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Neon Glows */
+.neon-border {
+  box-shadow: 0 0 5px hsl(var(--primary) / 0.5), 0 0 10px hsl(var(--primary) / 0.3);
+  border-color: hsl(var(--primary));
+}
+
+.neon-text-glow {
+  text-shadow: 0 0 5px hsl(var(--primary) / 0.8);
+}
+
+/* Buttons */
+.btn-robotics {
+  @apply bg-primary text-primary-foreground border border-primary relative overflow-hidden transition-all duration-300;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+.btn-robotics:hover {
+  @apply bg-primary/90;
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.6);
+}
+
+/* Inputs */
+.input-robotics {
+  @apply bg-secondary/50 border-input text-foreground rounded-none;
+  border-bottom-width: 2px;
+}
+
+.input-robotics:focus {
+  @apply border-primary ring-0;
+  box-shadow: 0 4px 10px -2px hsl(var(--primary) / 0.2);
+}
+
+/* Grid Background Utility */
+.bg-tech-grid {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+/* Overriding Glass Classes to map to Tech styles */
+.glass-panel,
+.glass-card,
+.glass-ui .card {
+  @apply bg-[#0a0f18]/90 border border-white/10 backdrop-blur-md shadow-none !important;
+  border-radius: 4px !important;
+}
+
+/* Badge Updates */
+/* Badge Updates */
+.badge {
+  @apply rounded-sm font-mono tracking-wider !important;
+}
+
+/* --- Advanced Robotics Layouts --- */
+
+/* Angled Card Variant */
+.robotics-card-angled {
+  @apply bg-card/60 backdrop-blur-md border border-primary/20 relative overflow-hidden transition-all duration-300;
+  clip-path: polygon(20px 0,
+      100% 0,
+      100% calc(100% - 20px),
+      calc(100% - 20px) 100%,
+      0 100%,
+      0 20px);
+}
+
+.robotics-card-angled:hover {
+  @apply border-primary/60 bg-card/80;
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.1);
+}
+
+/* Corner Brackets for Angled Cards */
+.robotics-card-angled::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  border-top: 2px solid hsl(var(--primary));
+  border-left: 2px solid hsl(var(--primary));
+  pointer-events: none;
+}
+
+.robotics-card-angled::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 30px;
+  height: 30px;
+  border-bottom: 2px solid hsl(var(--primary));
+  border-right: 2px solid hsl(var(--primary));
+  pointer-events: none;
+}
+
+/* Hover Reveal Effect - Scanning Grid */
+.robotics-hover-reveal {
+  position: relative;
+}
+
+.robotics-hover-reveal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(0deg, transparent 24%, rgba(0, 243, 255, .1) 25%, rgba(0, 243, 255, .1) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .1) 75%, rgba(0, 243, 255, .1) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 243, 255, .1) 25%, rgba(0, 243, 255, .1) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .1) 75%, rgba(0, 243, 255, .1) 76%, transparent 77%, transparent);
+  background-size: 30px 30px;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.robotics-hover-reveal:hover::before {
+  opacity: 1;
+}
+
+/* Asymmetrical Grid Layout */
+.grid-tech-asym {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .grid-tech-asym {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-tech-asym {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* First item spans 2 columns for emphasis */
+  .grid-tech-asym>*:nth-child(1) {
+    grid-column: span 2;
+  }
+
+  /* Make 4th item visually distinct if present */
+  .grid-tech-asym>*:nth-child(4) {
+    grid-column: span 2;
+  }
+}
