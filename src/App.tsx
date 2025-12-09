@@ -35,6 +35,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RefundPolicy from "./pages/RefundPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import Pricing from "./pages/Pricing";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Create a client with better error handling and retry limits
 const queryClient = new QueryClient({
@@ -194,6 +195,7 @@ const App = () => (
         v7_relativeSplatPath: true
       }}
     >
+      <ScrollToTop />
       <AuthProvider>
         <WebsiteSettingsProvider>
           <BusinessUseCaseProvider>
