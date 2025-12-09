@@ -18,6 +18,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { setUIStyle } = useTheme();
   const { user, isImpersonating, activeSupportSession, endSupportAccess, exitImpersonation } = useAuth();
 
+  // Check if we're on a legal page (privacy, terms, refund) - hide sidebar and header
+  const isLegalPage = ['/privacy', '/terms', '/refund'].includes(location.pathname);
+
   // Ensure glass theme is applied when on dashboard
   useEffect(() => {
     setUIStyle("glass");
@@ -30,6 +33,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleExitImpersonation = async () => {
     await exitImpersonation();
   };
+
+  // For legal pages, render without sidebar and header
+  if (isLegalPage) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-foreground">
+        <div className="w-full">
+          {children}
+        </div>
+        <Toaster />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex bg-zinc-950 text-foreground overflow-hidden">

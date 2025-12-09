@@ -34,6 +34,7 @@ import AuthCallback from "./pages/AuthCallback";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RefundPolicy from "./pages/RefundPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import Pricing from "./pages/Pricing";
 
 // Create a client with better error handling and retry limits
 const queryClient = new QueryClient({
@@ -173,6 +174,8 @@ function AnimatedRoutes() {
       </Route>
       {/* Landing page for unauthenticated users */}
       <Route path="/" element={<LandingPage />} />
+      {/* Pricing page - accessible without authentication */}
+      <Route path="/pricing" element={<Pricing />} />
       {/* Legal pages - accessible without authentication */}
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/refund" element={<RefundPolicy />} />

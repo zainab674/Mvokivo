@@ -68,12 +68,12 @@ export const Footer = () => {
                 </a>
               </li>
               <li>
-                <a 
-                  href="#pricing" 
+                <Link 
+                  to="/pricing" 
                   className="text-muted-foreground hover:text-primary transition-colors text-sm"
                 >
                   Pricing
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -82,7 +82,7 @@ export const Footer = () => {
         {/* Bottom Bar */}
         <div className="border-t border-primary/10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-muted-foreground text-sm">
-            © {currentYear} MananUltratalk. All rights reserved.
+            © {currentYear} Vokivo. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm text-muted-foreground">
             <span className="hover:text-primary transition-colors cursor-pointer">Support</span>
@@ -93,4 +93,5 @@ export const Footer = () => {
     </footer>
   );
 };
+
 

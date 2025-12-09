@@ -1,12 +1,22 @@
 import React from 'react';
 import DashboardLayout from "@/layout/DashboardLayout";
-import { FileText, Scale, AlertTriangle, CreditCard, X } from 'lucide-react';
+import { FileText, Scale, AlertTriangle, CreditCard, X, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function TermsOfService() {
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
         <div className="container mx-auto px-6 py-12 max-w-4xl">
+          {/* Back Button */}
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors mb-6 group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-sm font-medium">Back to Home</span>
+          </Link>
+
           <div className="bg-zinc-900/50 backdrop-blur-sm rounded-lg border border-zinc-800/50 p-8 md:p-12">
             {/* Header */}
             <div className="mb-8">
@@ -285,6 +295,7 @@ export default function TermsOfService() {
     </DashboardLayout>
   );
 }
+
 
 
 
