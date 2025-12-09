@@ -104,3 +104,4 @@ supabase gen types typescript --linked > src/integrations/supabase/types.ts
 Your `types.ts` file is typically **generated FROM** your database schema, not the other way around. If you manually edited `types.ts`, make sure your database schema matches, or regenerate types from the database.
 
 
+

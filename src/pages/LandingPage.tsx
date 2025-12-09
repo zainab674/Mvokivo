@@ -8,6 +8,7 @@ import { PricingSection } from "@/components/sections/PricingSection";
 import { UseCaseSection } from "@/components/sections/UseCaseSection";
 import { ValuePropositionSection } from "@/components/sections/ValuePropositionSection";
 import { WhiteLabelSection } from "@/components/sections/WhiteLabelSection";
+import { Footer } from "@/components/sections/Footer";
 import { FloatingNav } from "@/components/ui/floating-nav";
 import { TopCTA } from "@/components/ui/top-cta";
 
@@ -61,6 +62,9 @@ const LandingPage = () => {
       <div className="bg-primary/5 text-foreground border-t border-primary/20">
         <FinalCTASection />
       </div>
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };
