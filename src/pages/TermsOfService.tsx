@@ -36,6 +36,10 @@ export default function TermsOfService() {
                   These Terms of Service ("Terms") govern your access to and use of our service. By accessing or using our service,
                   you agree to be bound by these Terms. If you disagree with any part of these Terms, you may not access the service.
                 </p>
+                <p className="text-zinc-300 leading-relaxed mt-4">
+                  <strong className="text-white">Company Information:</strong> These Terms of Service are provided by omnificode 
+                  (the "Company", "we", "us", or "our"). Our service is operated under the brand name Vokivo.
+                </p>
               </section>
 
               {/* 1. Acceptance of Terms */}
@@ -279,7 +283,10 @@ export default function TermsOfService() {
                 <p className="text-zinc-300 leading-relaxed mb-4">
                   If you have any questions about these Terms of Service, please contact us:
                 </p>
-                <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-lg p-4">
+                <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-lg p-4 space-y-2">
+                  <p className="text-zinc-300">
+                    <strong className="text-white">Company Name:</strong> omnificode
+                  </p>
                   <p className="text-zinc-300">
                     <strong className="text-white">Email:</strong>{' '}
                     <a href="mailto:vokivo@gmail.com" className="text-indigo-400 hover:text-indigo-300 underline">
