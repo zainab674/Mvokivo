@@ -89,6 +89,10 @@ app.use('/api/v1/twilio', twilioAdminRouter);
 app.use('/api/v1/csv', csvManagementRouter);
 app.use('/api/v1/livekit', livekitRoomRouter);
 
+app.get('/api/v1/test', (req, res) => {
+    res.json({ success: true, message: 'API is working' });
+});
+
 app.get('/', (req, res) => {
     res.send('API is running...');
 });
