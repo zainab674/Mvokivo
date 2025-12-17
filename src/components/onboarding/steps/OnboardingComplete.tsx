@@ -49,7 +49,7 @@ export function OnboardingComplete() {
         // Or fetch public settings to check. 
         // We'll trust extractTenantFromHostname() + backend validation in /onboarding.
 
-        const response = await fetch(`${import.meta.env.VITE_SITE_URL || ''}/api/v1/auth/signup`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/auth/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -91,7 +91,7 @@ export function OnboardingComplete() {
       // 3. PAYMENT METHOD
       if (data.paymentMethodId) {
         try {
-          await fetch(`${import.meta.env.VITE_SITE_URL || ''}/api/v1/billing/payment-methods`, {
+          await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/billing/payment-methods`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -145,7 +145,7 @@ export function OnboardingComplete() {
         // We preserve existing if user is admin.
       };
 
-      const profileResponse = await fetch(`${import.meta.env.VITE_SITE_URL || ''}/api/v1/user/onboarding`, {
+      const profileResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/user/onboarding`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

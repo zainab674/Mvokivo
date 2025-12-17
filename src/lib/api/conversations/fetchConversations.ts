@@ -62,7 +62,8 @@ export interface ConversationDetailsResponse {
   nextOffset: number;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? 'https://backend.vokivo.com' : 'http://localhost:4000');
+
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);

@@ -46,7 +46,9 @@ export const WebsiteSettingsProvider: React.FC<WebsiteSettingsProviderProps> = (
       console.log('[WebsiteSettings] Fetching settings for tenant:', tenant);
 
       // In development, force relative URL to use Vite proxy and preserve Host header
-      const apiUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || '');
+      const apiUrl = import.meta.env.DEV
+        ? ''
+        : (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'https://backend.vokivo.com');
 
       // Pass the tenant slug explicitly to the API to ensure correct resolution
       // This bypasses potential proxy/header issues and RLS restrictions (backend uses service role)

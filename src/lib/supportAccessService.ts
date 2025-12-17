@@ -46,6 +46,8 @@ export interface ScopedTokenInfo {
   expires_at?: string;
 }
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? 'https://backend.vokivo.com' : '');
+
 export class SupportAccessService {
   private static instance: SupportAccessService;
 
@@ -57,17 +59,7 @@ export class SupportAccessService {
   }
 
   private async getAuthHeader(): Promise<HeadersInit> {
-    // This assumes the auth context stores the token in localStorage
-    // or we might need to pass it in. Ideally, we get it from localStorage.
-    // NOTE: This couples the service to localStorage, which is common in React apps.
-    // If strict separation is needed, token should be passed as arg.
-    // But for this refactor, we'll try to get it.
-    let token = localStorage.getItem('auth_token');
-
-    if (!token) {
-      // Fallback or just return empty
-    }
-
+    const token = localStorage.getItem('auth_token');
     return token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
   }
 
@@ -82,7 +74,7 @@ export class SupportAccessService {
   ): Promise<{ success: boolean; session?: SupportSession; token?: string; message?: string }> {
     try {
       const headers = await this.getAuthHeader();
-      const response = await fetch('/api/v1/support-access/support-sessions', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ targetUserId, reason, durationMinutes })
@@ -110,7 +102,7 @@ export class SupportAccessService {
    */
   async validateScopedToken(token: string): Promise<ScopedTokenInfo> {
     try {
-      const response = await fetch('/api/v1/support-access/validate-token', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/validate-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token })
@@ -146,7 +138,7 @@ export class SupportAccessService {
   ): Promise<{ success: boolean; message?: string }> {
     try {
       const headers = await this.getAuthHeader();
-      const response = await fetch(`/api/v1/support-access/support-sessions/${sessionId}/end`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/${sessionId}/end`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ reason })
@@ -171,7 +163,7 @@ export class SupportAccessService {
   async getActiveSupportSessions(adminUserId: string): Promise<SupportSession[]> {
     try {
       const headers = await this.getAuthHeader();
-      const response = await fetch('/api/v1/support-access/support-sessions/active', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/active`, {
         headers
       });
 
@@ -191,7 +183,7 @@ export class SupportAccessService {
   async getSupportSession(sessionId: string): Promise<SupportSession | null> {
     try {
       const headers = await this.getAuthHeader();
-      const response = await fetch(`/api/v1/support-access/support-sessions/${sessionId}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/${sessionId}`, {
         headers
       });
 
@@ -219,13 +211,6 @@ export class SupportAccessService {
     ip_address?: string;
     user_agent?: string;
   }): Promise<string | null> {
-    // Audit logging is now handled by the backend for most actions.
-    // If the frontend needs to log something specific (e.g. view):
-    // We don't have a direct public endpoint for arbitrary logging exposed in the route file I saw
-    // UNLESS the 'scoped-user' endpoint logs 'user_viewed'.
-    // If this function is called manually by frontend, we might need an endpoint.
-    // But `SupportAccessService` on frontend is mostly for session management.
-    // Let's assume backend handles it or we skip client-side direct logs for now to avoid exposing log endpoint.
     console.warn('Client-side audit logging not fully implemented via API yet.');
     return null;
   }
@@ -236,7 +221,7 @@ export class SupportAccessService {
   async getAuditLogs(sessionId: string): Promise<AuditLogEntry[]> {
     try {
       const headers = await this.getAuthHeader();
-      const response = await fetch(`/api/v1/support-access/support-sessions/${sessionId}/audit-logs`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/${sessionId}/audit-logs`, {
         headers
       });
 
@@ -256,15 +241,14 @@ export class SupportAccessService {
   async cleanupExpiredSessions(): Promise<number> {
     try {
       const headers = await this.getAuthHeader();
-      const response = await fetch('/api/v1/support-access/cleanup-expired', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/cleanup-expired`, {
         method: 'POST',
         headers
       });
 
       if (!response.ok) return 0;
       const data = await response.json();
-      // Parse message "Cleaned up X ..."
-      return 0; // Just return 0 or parse
+      return 0;
     } catch (error) {
       console.error('Error in cleanupExpiredSessions:', error);
       return 0;
@@ -276,15 +260,8 @@ export class SupportAccessService {
    */
   async getUserForScopedAccess(targetUserId: string): Promise<any> {
     try {
-      // This needs the scoped token in authorization header
-      // The caller (AuthContext) usually sets it.
-      // But wait, `getAuthHeader` gets `auth_token` (admin token).
-      // If we are functioning AS the support agent using a SCOPED token,
-      // the `auth_token` in local storage might be the scoped token?
-      // OR we pass it in.
-      // For this function, let's assume the token is in localStorage if we utilize this flow.
       const headers = await this.getAuthHeader();
-      const response = await fetch(`/api/v1/support-access/scoped-user/${targetUserId}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/scoped-user/${targetUserId}`, {
         headers
       });
 
@@ -297,4 +274,3 @@ export class SupportAccessService {
     }
   }
 }
-
