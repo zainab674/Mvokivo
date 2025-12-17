@@ -20,6 +20,7 @@ elevenlabs>=0.2.0
 
 # Database
 supabase>=2.0.0
+motor>=3.3.0
 
 # Knowledge base / vector search
 pinecone>=5.0.0

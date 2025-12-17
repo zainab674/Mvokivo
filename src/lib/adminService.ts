@@ -28,7 +28,7 @@ export class AdminService {
       // For UI conditional rendering, we usually check the user object 
       // in the AuthContext. 
       // But if we need an explicit check:
-      const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

@@ -104,7 +104,7 @@ export class AuthService {
       }
 
       // Validate token and get user profile
-      const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -220,7 +220,7 @@ export class AuthService {
     try {
       this.updateAuthState({ isLoading: true, error: null });
 
-      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -268,7 +268,7 @@ export class AuthService {
       // Current api/auth/signup takes: email, password, name
       // It creates user.
 
-      const response = await fetch(`${BACKEND_URL}/api/auth/signup`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
