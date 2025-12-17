@@ -1,3 +1,4 @@
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface PauseCampaignRequest {
   campaignId: string;
@@ -14,7 +15,7 @@ export interface PauseCampaignResponse {
  */
 export const pauseCampaign = async (data: PauseCampaignRequest): Promise<PauseCampaignResponse> => {
   try {
-    const response = await fetch(`/api/v1/campaigns/${data.campaignId}/pause`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${data.campaignId}/pause`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

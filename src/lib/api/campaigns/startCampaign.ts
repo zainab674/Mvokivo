@@ -1,3 +1,4 @@
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface StartCampaignRequest {
   campaignId: string;
@@ -14,7 +15,7 @@ export interface StartCampaignResponse {
  */
 export const startCampaign = async (data: StartCampaignRequest): Promise<StartCampaignResponse> => {
   try {
-    const response = await fetch(`/api/v1/campaigns/${data.campaignId}/start`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${data.campaignId}/start`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 import { getActiveTwilioCredentials } from '@/lib/twilio-credentials';
+import { BACKEND_URL } from '@/lib/api-config';
 
 export interface SMSMessage {
   messageSid: string;
@@ -32,6 +33,7 @@ export interface SendSMSResponse {
 
 export interface GetSMSMessagesResponse {
   success: boolean;
+  message?: string;
   data: SMSMessage[];
 }
 
@@ -40,7 +42,7 @@ export interface GetSMSMessagesResponse {
  */
 export class SMSService {
   private static getBackendUrl(): string {
-    return import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    return BACKEND_URL;
   }
 
   /**
@@ -70,7 +72,7 @@ export class SMSService {
       });
 
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.message || 'Failed to send SMS');
       }
@@ -103,7 +105,7 @@ export class SMSService {
       );
 
       const result: GetSMSMessagesResponse = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.message || 'Failed to fetch SMS messages');
       }
@@ -139,7 +141,7 @@ export class SMSService {
       );
 
       const result: GetSMSMessagesResponse = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.message || 'Failed to fetch SMS messages');
       }
@@ -157,7 +159,7 @@ export class SMSService {
   static formatPhoneNumber(phoneNumber: string): string {
     // Remove all non-digit characters except + at the beginning
     const cleaned = phoneNumber.replace(/[^\d+]/g, '');
-    
+
     // If it already starts with +, return as is
     if (cleaned.startsWith('+')) {
       return cleaned;

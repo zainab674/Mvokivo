@@ -1,5 +1,6 @@
 import { getAccessToken } from '@/lib/auth';
 import { TwilioCredentialsService } from "@/lib/twilio-credentials";
+import { BACKEND_URL } from '@/lib/api-config';
 
 export interface RecordingInfo {
   recordingSid: string;
@@ -71,7 +72,7 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
     // Call our server API to get recording info from Twilio (like voiceagents)
     console.log('Fetching recording for callSid:', callSid);
     const response = await fetch(
-      `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/v1/call/${callSid}/recordings?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`
+      `${BACKEND_URL}/api/v1/call/${callSid}/recordings?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`
     );
 
     console.log('Recording API response status:', response.status);
@@ -93,7 +94,7 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
 
     // Use our proxy endpoint instead of direct Twilio API access (like voiceagents)
     // This avoids CORS and authentication issues
-    const proxyAudioUrl = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/v1/call/recording/${recording.sid}/audio?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`;
+    const proxyAudioUrl = `${BACKEND_URL}/api/v1/call/recording/${recording.sid}/audio?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`;
 
     console.log('Proxy audio URL length:', proxyAudioUrl.length);
     console.log('Proxy audio URL preview:', proxyAudioUrl.substring(0, 100) + '...');

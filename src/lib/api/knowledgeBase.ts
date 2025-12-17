@@ -1,7 +1,9 @@
 import { getCurrentUserIdAsync } from '@/lib/user-context';
 import { getAccessToken } from '@/lib/auth';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+import { BACKEND_URL } from '@/lib/api-config';
+
+const API_BASE_URL = BACKEND_URL;
 
 // Types for API responses
 export interface DocumentUploadResponse {

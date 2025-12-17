@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/lib/auth";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface Campaign {
   id: string;
@@ -47,7 +48,7 @@ export const fetchCampaigns = async (): Promise<CampaignsResponse> => {
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch('/api/v1/campaigns', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -1,3 +1,4 @@
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface DeleteCampaignRequest {
   campaignId: string;
@@ -14,7 +15,7 @@ export interface DeleteCampaignResponse {
  */
 export const deleteCampaign = async (data: DeleteCampaignRequest): Promise<DeleteCampaignResponse> => {
   try {
-    const response = await fetch(`/api/v1/campaigns/${data.campaignId}`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${data.campaignId}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

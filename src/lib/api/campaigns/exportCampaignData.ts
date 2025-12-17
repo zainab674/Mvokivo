@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface CampaignCallExport {
   id: string;
@@ -49,7 +50,7 @@ export async function exportCampaignCalls(campaignId: string): Promise<{
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/campaigns/${campaignId}/export/calls`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${campaignId}/export/calls`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -82,7 +83,7 @@ export async function exportCampaignStats(campaignId: string): Promise<{
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/campaigns/${campaignId}/export/stats`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${campaignId}/export/stats`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -116,7 +117,7 @@ export async function exportAllCampaignsData(): Promise<{
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/campaigns/export/all`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/export/all`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

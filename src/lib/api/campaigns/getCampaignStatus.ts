@@ -1,3 +1,5 @@
+import { BACKEND_URL } from "@/lib/api-config";
+
 export interface CampaignStatus {
   campaign: {
     id: string;
@@ -49,7 +51,7 @@ export interface GetCampaignStatusResponse {
  */
 export const getCampaignStatus = async (campaignId: string): Promise<GetCampaignStatusResponse> => {
   try {
-    const response = await fetch(`/api/v1/campaigns/${campaignId}/status`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${campaignId}/status`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

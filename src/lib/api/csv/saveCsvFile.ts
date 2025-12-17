@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from '@/lib/api-config';
 
 export interface SaveCsvFileRequest {
   name: string;
@@ -21,7 +22,7 @@ export const saveCsvFile = async (data: SaveCsvFileRequest): Promise<SaveCsvFile
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch('/api/v1/csv', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/csv`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

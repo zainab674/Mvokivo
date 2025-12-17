@@ -1,4 +1,4 @@
-
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface CampaignCall {
   id: string;
@@ -57,7 +57,7 @@ export const getCampaignCalls = async (params: GetCampaignCallsParams): Promise<
     if (params.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
-    const response = await fetch(`/api/v1/campaigns/${params.campaignId}/calls?${queryParams.toString()}`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${params.campaignId}/calls?${queryParams.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

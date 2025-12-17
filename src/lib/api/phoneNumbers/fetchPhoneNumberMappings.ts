@@ -1,3 +1,5 @@
+import { BACKEND_URL } from '@/lib/api-config';
+
 export interface PhoneNumberMapping {
   number: string;
   inbound_assistant_id: string | null;
@@ -17,7 +19,7 @@ export const fetchPhoneNumberMappings = async (userId: string): Promise<PhoneNum
       throw new Error('User ID is required to fetch mappings');
     }
 
-    const response = await fetch('/api/v1/twilio/user/mappings', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/mappings`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

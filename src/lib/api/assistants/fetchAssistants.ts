@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/lib/auth";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface Assistant {
   id: string;
@@ -40,7 +41,7 @@ export const fetchAssistants = async (userId?: string): Promise<AssistantsRespon
       headers['x-user-id'] = userId;
     }
 
-    const response = await fetch('/api/v1/assistants', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/assistants`, {
       headers
     });
 

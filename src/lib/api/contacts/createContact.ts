@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from '@/lib/api-config';
 
 export interface CreateContactRequest {
   first_name: string;
@@ -37,7 +38,7 @@ export const createContact = async (data: CreateContactRequest): Promise<CreateC
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch('/api/v1/contacts', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/contacts`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

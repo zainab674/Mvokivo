@@ -1,3 +1,4 @@
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface ResumeCampaignRequest {
   campaignId: string;
@@ -14,7 +15,7 @@ export interface ResumeCampaignResponse {
  */
 export const resumeCampaign = async (data: ResumeCampaignRequest): Promise<ResumeCampaignResponse> => {
   try {
-    const response = await fetch(`/api/v1/campaigns/${data.campaignId}/resume`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${data.campaignId}/resume`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

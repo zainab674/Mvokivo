@@ -1,4 +1,5 @@
 import { getAccessToken } from "@/lib/auth";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface SaveCampaignRequest {
   name: string;
@@ -28,7 +29,7 @@ export const saveCampaign = async (data: SaveCampaignRequest): Promise<SaveCampa
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch('/api/v1/campaigns', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/campaigns`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

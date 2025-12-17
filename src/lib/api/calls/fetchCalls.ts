@@ -1,5 +1,5 @@
-
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from '@/lib/api-config';
 import { format } from 'date-fns';
 import { Call, CallAnalysis } from "@/components/calls/types";
 import { getMockCalls } from "../mockData/mockCallCache";
@@ -14,7 +14,7 @@ export const fetchCalls = async () => {
       return getMockCalls();
     }
 
-    const response = await fetch('/api/v1/call-history?limit=100', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/call-history?limit=100`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

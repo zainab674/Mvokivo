@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface Contact {
   id: string;
@@ -28,7 +29,7 @@ export const fetchContacts = async (listId?: string): Promise<ContactsResponse> 
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    let url = `/api/v1/contacts?limit=1000`; // Default high limit for now to match UI expectations
+    let url = `${BACKEND_URL}/api/v1/contacts?limit=1000`; // Default high limit for now to match UI expectations
     if (listId) {
       url += `&listId=${listId}`;
     }
