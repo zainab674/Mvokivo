@@ -3,7 +3,7 @@
 
 import express from 'express';
 import { SipClient } from 'livekit-server-sdk';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { PhoneNumber } from './models/index.js';
 
 export const livekitOutboundCallsRouter = express.Router();
 
@@ -11,11 +11,6 @@ const lk = new SipClient(
   process.env.LIVEKIT_HOST,
   process.env.LIVEKIT_API_KEY,
   process.env.LIVEKIT_API_SECRET,
-);
-
-const supabase = createSupabaseClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 /**
@@ -113,14 +108,12 @@ livekitOutboundCallsRouter.get('/trunk/:assistantId', async (req, res) => {
     const { assistantId } = req.params;
 
     // Get phone number assigned to this assistant
-    const { data: phoneNumber, error: phoneError } = await supabase
-      .from('phone_number')
-      .select('outbound_trunk_id, outbound_trunk_name, number')
-      .eq('inbound_assistant_id', assistantId)
-      .eq('status', 'active')
-      .single();
+    const phoneNumber = await PhoneNumber.findOne({
+      inbound_assistant_id: assistantId,
+      status: 'active'
+    }).select('outbound_trunk_id outbound_trunk_name number');
 
-    if (phoneError || !phoneNumber) {
+    if (!phoneNumber) {
       return res.status(404).json({
         success: false,
         message: 'No outbound trunk found for this assistant'
@@ -153,7 +146,7 @@ livekitOutboundCallsRouter.get('/trunk/:assistantId', async (req, res) => {
 livekitOutboundCallsRouter.get('/trunks', async (req, res) => {
   try {
     const trunks = await lk.listSipOutboundTrunk();
-    
+
     res.json({
       success: true,
       trunks: trunks.map(trunk => ({

@@ -96,9 +96,18 @@ export default function Login() {
       return;
     }
     try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-      toast({ title: "Reset email sent", description: "Check your inbox for the password reset link." });
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        toast({ title: "Reset email sent", description: data.message });
+      } else {
+        throw new Error(data.message);
+      }
     } catch (error: any) {
       toast({ title: "Reset failed", description: error?.message || "Please try again.", variant: "destructive" });
     }
@@ -109,7 +118,7 @@ export default function Login() {
       {/* Background Effects */}
       <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
       <div className="absolute inset-0 bg-[url('/src/assets/glass-bg.png')] bg-cover bg-center opacity-[0.03] pointer-events-none" />
-      
+
       {/* Animated Gradient Orbs */}
       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
@@ -136,7 +145,7 @@ export default function Login() {
               <h1 className="text-5xl font-bold tracking-tight text-foreground leading-tight">
                 Welcome back to{" "}
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-primary">
-                  {websiteSettings?.website_name || "AI Call Center"}
+                  {websiteSettings?.website_name || "Vokivo"}
                 </span>
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed">
@@ -301,9 +310,9 @@ export default function Login() {
                     </button>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors" 
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors"
                     disabled={isLoading}
                   >
                     {isLoading ? (

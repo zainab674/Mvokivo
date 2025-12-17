@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { getCurrentUserIdAsync } from "@/lib/user-context";
+import { getAccessToken } from '@/lib/auth';
 
 export interface CsvFile {
   id: string;
@@ -8,6 +7,7 @@ export interface CsvFile {
   row_count: number;
   file_size?: number;
   uploaded_at: string;
+  // created_at and uploaded_at might typically be the same or mapped
   created_at: string;
   updated_at: string;
 }
@@ -18,27 +18,35 @@ export interface CsvFilesResponse {
 }
 
 /**
- * Fetch CSV files for the current user
+ * Fetch CSV files for the current user via backend API
  */
 export const fetchCsvFiles = async (): Promise<CsvFilesResponse> => {
   try {
-    const userId = await getCurrentUserIdAsync();
-    console.log('Fetching CSV files for user ID:', userId);
-    
-    const { data: csvFiles, error } = await supabase
-      .from('csv_files')
-      .select('*')
-      .eq('user_id', userId)
-      .order('uploaded_at', { ascending: false });
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    if (error) {
-      console.error('Error fetching CSV files:', error);
-      throw error;
+    const response = await fetch('/api/v1/csv', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch CSV files');
     }
 
+    const data = await response.json();
     return {
-      csvFiles: csvFiles || [],
-      total: csvFiles?.length || 0
+      csvFiles: data.csvFiles.map((f: any) => ({
+        ...f,
+        id: f._id || f.id,
+        name: f.filename || f.name, // Mapping filename to name
+        uploaded_at: f.created_at, // Mapping created_at to uploaded_at
+      })),
+      total: data.csvFiles.length
     };
 
   } catch (error) {

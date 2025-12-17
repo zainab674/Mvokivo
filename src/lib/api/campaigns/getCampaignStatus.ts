@@ -1,9 +1,8 @@
-import { supabase } from "@/integrations/supabase/client";
-
 export interface CampaignStatus {
   campaign: {
     id: string;
     name: string;
+    assistant_id: string;
     execution_status: 'idle' | 'running' | 'paused' | 'completed' | 'error';
     daily_cap: number;
     current_daily_calls: number;
@@ -14,6 +13,7 @@ export interface CampaignStatus {
     calling_days: string[];
     start_hour: number;
     end_hour: number;
+    campaign_prompt?: string;
   };
   stats: {
     total: number;

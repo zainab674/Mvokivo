@@ -112,7 +112,7 @@ export const FullScreenSignup = () => {
       {/* Background Effects */}
       <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
       <div className="absolute inset-0 bg-[url('/src/assets/glass-bg.png')] bg-cover bg-center opacity-[0.03] pointer-events-none" />
-      
+
       {/* Animated Gradient Orbs */}
       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" />
       <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
@@ -134,7 +134,7 @@ export const FullScreenSignup = () => {
               <h1 className="text-5xl font-bold tracking-tight text-foreground leading-tight">
                 Start your journey with{" "}
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-primary">
-                  {websiteSettings?.website_name || "AI Call Center"}
+                  {websiteSettings?.website_name || "Vokivo"}
                 </span>
               </h1>
               <p className="text-xl text-muted-foreground leading-relaxed">
@@ -199,7 +199,7 @@ export const FullScreenSignup = () => {
                   Create your account
                 </h2>
                 <p className="text-muted-foreground text-base">
-                  Get started with {websiteSettings?.website_name || "AI Call Center"} today
+                  Get started with {websiteSettings?.website_name || "Vokivo"} today
                 </p>
               </div>
 

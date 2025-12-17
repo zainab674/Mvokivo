@@ -25,7 +25,7 @@ export default function StatCard({
       <div className="flex flex-col gap-2">
         {/* Header: Icon + Title */}
         <div className="flex items-center gap-2 text-muted-foreground/80 mb-1">
-          <div className="p-1.5 rounded-md bg-white/5 text-indigo-400">
+          <div className="p-1.5 rounded-md bg-secondary text-indigo-400">
             {icon}
           </div>
           <span className="text-xs font-semibold tracking-wider uppercase font-mono">

@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from '@/lib/auth';
 import { TwilioCredentialsService } from "@/lib/twilio-credentials";
 
 export interface RecordingInfo {
@@ -45,10 +45,9 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
       return null;
     }
 
-    // Get the current session token from Supabase (like voiceagents)
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.access_token) {
+    const token = await getAccessToken();
+
+    if (!token) {
       console.error('No authentication token available');
       return null;
     }
@@ -95,7 +94,7 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
     // Use our proxy endpoint instead of direct Twilio API access (like voiceagents)
     // This avoids CORS and authentication issues
     const proxyAudioUrl = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/v1/call/recording/${recording.sid}/audio?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`;
-    
+
     console.log('Proxy audio URL length:', proxyAudioUrl.length);
     console.log('Proxy audio URL preview:', proxyAudioUrl.substring(0, 100) + '...');
 
@@ -129,9 +128,9 @@ export const fetchRecordingUrlCached = async (callSid: string): Promise<Recordin
 
   // Fetch from API
   const recording = await fetchRecordingUrl(callSid);
-  
+
   // Cache the result (even if null to avoid repeated failed requests)
   recordingCache.set(callSid, recording);
-  
+
   return recording;
 };

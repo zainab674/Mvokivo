@@ -29,32 +29,32 @@ export default function ConversationsToolbar({
   return (
     <div className="flex items-center gap-3">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 z-10" />
-        <Input 
-          placeholder="Search conversations..." 
-          className="pl-10 h-9 w-64 bg-zinc-800/50 border-zinc-700/50 text-white placeholder:text-zinc-500 focus:border-indigo-500/50"
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+        <Input
+          placeholder="Search conversations..."
+          className="pl-10 h-9 w-64 bg-secondary/50 border-input text-foreground placeholder:text-muted-foreground focus:border-primary/50"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </div>
-      
+
       <div className="w-48">
         <TimeRangeSelector onRangeChange={onDateRangeChange} />
       </div>
-      
+
       <div className="w-48">
         <Select value={resolutionFilter} onValueChange={onResolutionChange}>
-          <SelectTrigger className="h-9 bg-zinc-800/50 border-zinc-700/50 text-white">
+          <SelectTrigger className="h-9 bg-secondary/50 border-input text-foreground">
             <SelectValue placeholder="All Outcomes" />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-800/95 border-zinc-700/50 backdrop-blur-sm">
-            <SelectItem value="all" className="text-white hover:bg-zinc-700/50">All Outcomes</SelectItem>
-            <SelectItem value="booked appointment" className="text-white hover:bg-zinc-700/50">Booked Appointment</SelectItem>
-            <SelectItem value="qualified" className="text-white hover:bg-zinc-700/50">Qualified</SelectItem>
-            <SelectItem value="not qualified" className="text-white hover:bg-zinc-700/50">Not Qualified</SelectItem>
-            <SelectItem value="spam" className="text-white hover:bg-zinc-700/50">Spam</SelectItem>
-            <SelectItem value="escalated" className="text-white hover:bg-zinc-700/50">Escalated</SelectItem>
-            <SelectItem value="call dropped" className="text-white hover:bg-zinc-700/50">Call Dropped</SelectItem>
+          <SelectContent className="bg-popover border-border backdrop-blur-sm">
+            <SelectItem value="all" className="text-foreground hover:bg-accent">All Outcomes</SelectItem>
+            <SelectItem value="booked appointment" className="text-foreground hover:bg-accent">Booked Appointment</SelectItem>
+            <SelectItem value="qualified" className="text-foreground hover:bg-accent">Qualified</SelectItem>
+            <SelectItem value="not qualified" className="text-foreground hover:bg-accent">Not Qualified</SelectItem>
+            <SelectItem value="spam" className="text-foreground hover:bg-accent">Spam</SelectItem>
+            <SelectItem value="escalated" className="text-foreground hover:bg-accent">Escalated</SelectItem>
+            <SelectItem value="call dropped" className="text-foreground hover:bg-accent">Call Dropped</SelectItem>
           </SelectContent>
         </Select>
       </div>

@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from '@/lib/auth';
 
 export interface UpdateContactRequest {
   id: string;
@@ -30,48 +30,58 @@ export interface UpdateContactResponse {
 }
 
 /**
- * Update an existing contact
+ * Update an existing contact via backend API
  */
 export const updateContact = async (data: UpdateContactRequest): Promise<UpdateContactResponse> => {
   try {
-    const { data: contact, error } = await supabase
-      .from('contacts')
-      .update({
-        first_name: data.first_name,
-        last_name: data.last_name,
-        phone: data.phone,
-        email: data.email,
-        list_id: data.list_id,
-        status: data.status,
-        do_not_call: data.do_not_call,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', data.id)
-      .select()
-      .single();
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    if (error) {
-      console.error('Error updating contact:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+    const body: any = {};
+    if (data.first_name || data.last_name) {
+      // Ideally we fetch current name if partial update, but simplified here:
+      // If only first name provided, we might lose last name if backend only supports 'name'.
+      // Best to join if both exist, otherwise send 'name' as best effort.
+      // Actually updates usually provide defined fields.
+      if (data.first_name && data.last_name) body.name = `${data.first_name} ${data.last_name}`;
+      else if (data.first_name) body.name = data.first_name;
+      // Limitations of mapping 2 fields to 1. 
+    }
+    if (data.phone) body.phone = data.phone;
+    if (data.email) body.email = data.email;
+    if (data.list_id) body.listId = data.list_id;
+    if (data.status) body.status = data.status;
+    if (data.do_not_call !== undefined) body.do_not_call = data.do_not_call;
+
+    const response = await fetch(`/api/v1/contacts/${data.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { success: false, error: errorData.message || 'Failed to update contact' };
     }
 
+    const result = await response.json();
     return {
       success: true,
       contact: {
-        id: contact.id,
-        first_name: contact.first_name,
-        last_name: contact.last_name,
-        phone: contact.phone,
-        email: contact.email,
-        list_id: contact.list_id,
-        status: contact.status,
-        do_not_call: contact.do_not_call,
-        created_at: contact.created_at,
-        updated_at: contact.updated_at,
-        user_id: contact.user_id
+        id: result.contact._id || result.contact.id,
+        first_name: result.contact.name ? result.contact.name.split(' ')[0] : '',
+        last_name: result.contact.name ? result.contact.name.split(' ').slice(1).join(' ') : '',
+        phone: result.contact.phone,
+        email: result.contact.email,
+        list_id: result.contact.list_id,
+        status: result.contact.status || 'active',
+        do_not_call: result.contact.do_not_call || false,
+        created_at: result.contact.created_at,
+        updated_at: result.contact.updated_at,
+        user_id: result.contact.user_id
       }
     };
 

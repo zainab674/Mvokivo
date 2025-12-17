@@ -5,7 +5,6 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Phone, Users, TrendingUp, Settings, Play, Edit2, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import {
   ThemedDialog,
   ThemedDialogContent,
@@ -69,7 +68,7 @@ interface AssistantDetailsDialogProps {
 export function AssistantDetailsDialog({ assistant, isOpen, onClose }: AssistantDetailsDialogProps) {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const navigate = useNavigate();
 
   const handleStartCall = () => {
@@ -88,18 +87,28 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("phone_number")
-        .select("*")
-        .eq("inbound_assistant_id", assistant.id)
-        .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error loading phone numbers:", error);
-        return;
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error('Authentication required');
       }
 
-      setPhoneNumbers(data || []);
+      // Fetch all mappings for user and filter by assistant ID
+      const response = await fetch('/api/v1/twilio/user/mappings', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user.id
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch phone numbers');
+
+      const { mappings } = await response.json();
+
+      // Filter for this assistant
+      const assistantNumbers = mappings.filter((m: any) => m.inbound_assistant_id === assistant.id);
+
+      setPhoneNumbers(assistantNumbers || []);
     } catch (error) {
       console.error("Error loading phone numbers:", error);
     } finally {
@@ -131,11 +140,11 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
             <div className="relative flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div 
+                  <div
                     className="w-4 h-4 rounded-full shadow-lg"
                     style={{ backgroundColor: statusColors[assistant.status] }}
                   />
-                  <div 
+                  <div
                     className="absolute inset-0 w-4 h-4 rounded-full animate-ping opacity-75"
                     style={{ backgroundColor: statusColors[assistant.status] }}
                   />
@@ -162,7 +171,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                   <Edit2 className="h-4 w-4" />
                   Edit
                 </Button>
-                <Button 
+                <Button
                   onClick={handleStartCall}
                   size="sm"
                   className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25"
@@ -186,7 +195,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Users</span>
                 </div>
                 <p className="text-3xl font-bold text-foreground">
-                  {assistant.userCount.toLocaleString()}
+                  {(assistant.userCount || 0).toLocaleString()}
                 </p>
               </div>
               <div className="group relative p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10">
@@ -197,7 +206,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Interactions</span>
                 </div>
                 <p className="text-3xl font-bold text-foreground">
-                  {assistant.interactionCount.toLocaleString()}
+                  {(assistant.interactionCount || 0).toLocaleString()}
                 </p>
               </div>
               <div className="group relative p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10">
@@ -237,7 +246,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                   {phoneNumbers.length} connected
                 </Badge>
               </div>
-              
+
               {loading ? (
                 <div className="text-center py-12 bg-gradient-to-br from-muted/20 to-muted/10 rounded-xl border-2 border-dashed border-primary/20">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mx-auto mb-3"></div>
@@ -246,7 +255,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
               ) : phoneNumbers.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {phoneNumbers.map((phoneNumber) => (
-                    <div 
+                    <div
                       key={phoneNumber.id}
                       className="group relative p-4 bg-gradient-to-br from-card to-muted/10 rounded-xl border border-border/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all"
                     >
@@ -266,13 +275,13 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                             )}
                           </div>
                         </div>
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full shadow-lg"
                           style={{ backgroundColor: phoneStatusColors[phoneNumber.status as keyof typeof phoneStatusColors] || phoneStatusColors.inactive }}
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge 
+                        <Badge
                           variant={phoneNumber.status === 'active' ? 'default' : 'secondary'}
                           className="text-xs bg-primary/10 text-primary border-primary/20"
                         >

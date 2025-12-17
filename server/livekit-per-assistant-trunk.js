@@ -2,9 +2,8 @@
 // Per-assistant trunks: one trunk per assistant, plus a single catch-all rule per trunk.
 
 import express from 'express';
-import crypto from 'crypto';
+// import crypto from 'crypto'; // Unused
 import { SipClient } from 'livekit-server-sdk';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { getSipConfigForLiveKit } from './twilio-trunk-service.js';
 
 export const livekitPerAssistantTrunkRouter = express.Router();
@@ -14,13 +13,6 @@ const lk = new SipClient(
   process.env.LIVEKIT_API_KEY,
   process.env.LIVEKIT_API_SECRET,
 );
-
-// Optional Supabase client (not used for creation; kept if you expand lookups later)
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supa = (supabaseUrl && supabaseKey)
-  ? createSupabaseClient(supabaseUrl, supabaseKey)
-  : null;
 
 /* ----------------------------- helpers ---------------------------------- */
 
@@ -133,15 +125,15 @@ async function createAssistantTrunk(ctx, { assistantId, assistantName, phoneNumb
     trunkSid: sipConfig.trunkSid,
     credentialListSid: sipConfig.credentialListSid
   });
-  
+
   // Create corresponding outbound trunk for making calls
   // Use the domain name from Twilio trunk as the LiveKit trunk name
   const outboundTrunkName = sipConfig.domainName.replace('.pstn.twilio.com', ''); // Remove .pstn.twilio.com suffix
   log(ctx, 'creating outbound trunk', { assistantId, assistantName, phoneNumber: e164, outboundTrunkName });
-  log(ctx, 'retrieved SIP config', { 
+  log(ctx, 'retrieved SIP config', {
     domainName: sipConfig.domainName,
     sipUsername: sipConfig.sipUsername,
-    trunkSid: sipConfig.trunkSid 
+    trunkSid: sipConfig.trunkSid
   });
 
   const destinationCountry = process.env.SIP_DESTINATION_COUNTRY || 'US';
@@ -176,7 +168,7 @@ async function createAssistantTrunk(ctx, { assistantId, assistantName, phoneNumb
     phoneNumber: e164,
     trunkOptions
   });
-  
+
   const outboundTrunk = await lk.createSipOutboundTrunk(
     outboundTrunkName,
     sipConfig.domainName,  // Dynamic domain name
@@ -326,11 +318,11 @@ livekitPerAssistantTrunkRouter.post('/assistant-trunk', async (req, res) => {
   try {
     const { assistantId, assistantName, phoneNumber } = req.body || {};
     const userId = req.body.userId || req.headers['x-user-id'];
-    
+
     if (!assistantId || !assistantName || !phoneNumber) {
       return res.status(400).json({ success: false, message: 'assistantId, assistantName, phoneNumber are required' });
     }
-    
+
     if (!userId) {
       return res.status(400).json({ success: false, message: 'userId is required' });
     }

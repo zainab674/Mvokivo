@@ -1,15 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const supabase = supabaseUrl && supabaseServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
+import jwt from 'jsonwebtoken';
+import { User } from '../models/index.js';
 
 /**
  * Role-based access control middleware
- * Similar to urban-new's checkSessionExpiration middleware
  * 
  * @param {string[]} allowedRoles - Array of allowed roles (e.g., ['user', 'admin', 'super-admin'])
  */
@@ -27,31 +20,28 @@ export const requireRole = (allowedRoles = []) => {
         });
       }
 
-      if (!supabase) {
-        return res.status(500).json({
-          success: false,
-          message: 'Database not configured'
-        });
-      }
-
-      // Verify the token with Supabase
-      const { data: { user: authUser }, error } = await supabase.auth.getUser(token);
-
-      if (error || !authUser) {
+      // Verify the token
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (err) {
         return res.status(403).json({
           success: false,
           message: 'Invalid or expired token'
         });
       }
 
-      // Get user role from database
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, role, tenant, slug_name, is_active')
-        .eq('id', authUser.id)
-        .maybeSingle();
+      if (!decoded || !decoded.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Invalid token payload'
+        });
+      }
 
-      if (userError || !userData) {
+      // Get user role from database
+      const user = await User.findOne({ id: decoded.id }).select('id role tenant slug_name is_active email');
+
+      if (!user) {
         return res.status(403).json({
           success: false,
           message: 'User profile not found'
@@ -59,7 +49,7 @@ export const requireRole = (allowedRoles = []) => {
       }
 
       // Check if user is active
-      if (!userData.is_active) {
+      if (!user.is_active) {
         return res.status(403).json({
           success: false,
           message: 'Account is not active. Please verify your email.'
@@ -67,8 +57,8 @@ export const requireRole = (allowedRoles = []) => {
       }
 
       // Check if user has required role
-      const userRole = userData.role || 'user';
-      
+      const userRole = user.role || 'user';
+
       if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
         return res.status(403).json({
           success: false,
@@ -78,13 +68,25 @@ export const requireRole = (allowedRoles = []) => {
 
       // Attach user data to request
       req.user = {
-        id: authUser.id,
-        email: authUser.email,
+        id: user.id || user._id.toString(), // Support both if id is string field or _id
+        email: user.email,
         role: userRole,
-        tenant: userData.tenant,
-        slug_name: userData.slug_name,
-        is_active: userData.is_active
+        tenant: user.tenant,
+        slug_name: user.slug_name,
+        is_active: user.is_active
       };
+
+      // Also attach tenant to req for compatibility with tenant filters
+      // For whitelabel admins, tenant might be different?
+      // But typically tenant is user's tenant or slug_name for whitelabel
+      // Assuming user.tenant is the correct field for filtering
+      if (user.tenant) {
+        req.tenant = user.tenant;
+      } else if (user.slug_name && (user.role === 'admin' || user.role === 'super-admin')) {
+        // If admin, their slug_name is effectively their tenant for their data?
+        // Or 'main' if not set.
+        // Let's rely on user.tenant if set.
+      }
 
       next();
     } catch (error) {
@@ -103,7 +105,7 @@ export const requireRole = (allowedRoles = []) => {
  */
 export const requireTenantOwner = async (req, res, next) => {
   try {
-    const tenant = req.tenant || 'main';
+    const tenant = req.tenant || 'main'; // This might come from param or previous middleware
     const user = req.user;
 
     if (!user) {
@@ -118,13 +120,18 @@ export const requireTenantOwner = async (req, res, next) => {
       return next();
     }
 
-    // For main tenant, allow users without slug_name
-    if (tenant === 'main' && !user.slug_name) {
+    // For main tenant, allow users without slug_name (legacy or regular users)
+    if (tenant === 'main') {
       return next();
     }
 
     // For whitelabel tenants, user must own the tenant
     if (user.slug_name === tenant) {
+      return next();
+    }
+
+    // Also check explicit tenant field
+    if (user.tenant === tenant) {
       return next();
     }
 
@@ -145,6 +152,3 @@ export default {
   requireRole,
   requireTenantOwner
 };
-
-
-

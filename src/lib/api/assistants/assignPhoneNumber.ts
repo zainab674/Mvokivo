@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from "@/lib/auth";
 
 export interface AssignPhoneNumberRequest {
   assistantId: string;
@@ -12,30 +12,37 @@ export interface AssignPhoneNumberResponse {
   error?: string;
 }
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 /**
  * Assign a phone number to an assistant for outbound calls
  */
 export const assignPhoneNumber = async (data: AssignPhoneNumberRequest): Promise<AssignPhoneNumberResponse> => {
   try {
-    const { data: result, error } = await supabase
-      .from('phone_number')
-      .upsert({
-        number: data.phoneNumber,
-        inbound_assistant_id: data.assistantId,
-        label: data.label || `Assistant ${data.assistantId}`,
-        status: 'active',
-        webhook_status: 'configured'
-      }, {
-        onConflict: 'number'
-      })
-      .select()
-      .single();
+    const token = await getAccessToken();
+    if (!token) {
+      return { success: false, error: 'User not authenticated' };
+    }
 
-    if (error) {
-      console.error('Error assigning phone number:', error);
+    const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/phone-numbers/assign`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        phoneNumber: data.phoneNumber,
+        assistantId: data.assistantId,
+        label: data.label
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
       return {
         success: false,
-        error: error.message
+        error: result.message || 'Failed to assign phone number'
       };
     }
 

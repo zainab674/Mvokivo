@@ -86,7 +86,7 @@
 .glass-panel,
 .glass-card,
 .glass-ui .card {
-  @apply bg-[#0a0f18]/90 border border-white/10 backdrop-blur-md shadow-none !important;
+  @apply bg-card/90 border border-border backdrop-blur-md shadow-none !important;
   border-radius: 4px !important;
 }
 

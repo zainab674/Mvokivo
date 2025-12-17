@@ -16,8 +16,18 @@ from dotenv import load_dotenv
 import httpx
 from openai import AsyncOpenAI
 
-# Load environment variables from the livekit/.env file
-load_dotenv("livekit/.env")
+# Load environment variables
+# Load environment variables
+dot_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+root_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env")
+
+# Context: Loading order matters. load_dotenv does NOT override by default.
+# We want to load specific livekit/.env first, then fall back to root .env
+if os.path.exists(dot_env_path):
+    load_dotenv(dot_env_path)
+
+if os.path.exists(root_env_path):
+    load_dotenv(root_env_path)
 
 # LiveKit imports
 from livekit import agents, api
@@ -106,9 +116,8 @@ except ImportError:
 from services.call_outcome_service import CallOutcomeService
 from services.agent_factory import AgentFactory
 from services.config_resolver import ConfigResolver
-from integrations.supabase_client import SupabaseClient
+from integrations.mongodb_client import MongoDBClient
 from integrations.calendar_api import CalComCalendar, CalendarResult, CalendarError
-from config.database import get_database_client
 from utils.logging_hardening import configure_safe_logging
 from utils.latency_logger import (
     measure_latency_context, 
@@ -128,12 +137,18 @@ if CARTESIA_AVAILABLE:
 else:
     logger.warning("CARTESIA_IMPORT_FAILED | Cartesia plugin not available - install with: pip install livekit-plugins-cartesia")
 
-# Enable DEBUG logging for livekit.agents to see detailed transcript information
-logging.getLogger("livekit.agents").setLevel(logging.DEBUG)
+# Enable INFO logging for livekit.agents (was DEBUG)
+logging.getLogger("livekit.agents").setLevel(logging.INFO)
 
-# Enable DEBUG logging for Hume plugin to capture detailed error responses
+# Enable INFO logging for Hume plugin (was DEBUG)
 if HUME_AVAILABLE:
-    logging.getLogger("livekit.plugins.hume").setLevel(logging.DEBUG)
+    logging.getLogger("livekit.plugins.hume").setLevel(logging.INFO)
+
+# Suppress verbose Pymongo heartbeat logs
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("pymongo.topology").setLevel(logging.WARNING)
+logging.getLogger("pymongo.serverSelection").setLevel(logging.WARNING)
+logging.getLogger("pymongo.connection").setLevel(logging.WARNING)
 
 
 def _build_background_ambient_config(setting: Optional[str]):
@@ -204,11 +219,11 @@ class CallHandler:
     """Simplified call handler following LiveKit patterns."""
 
     def __init__(self):
-        self.supabase = SupabaseClient()
+        self.mongodb = MongoDBClient()
         self.call_outcome_service = CallOutcomeService()
         
         # Initialize refactored components
-        self.config_resolver = ConfigResolver(self.supabase)
+        self.config_resolver = ConfigResolver(self.mongodb)
         
         # Pre-warm critical components for faster response
         self._prewarmed_agents = {}
@@ -533,21 +548,19 @@ class CallHandler:
             # Check minutes availability before starting call
             user_id = assistant_config.get("user_id")
             if user_id:
-                db_client = get_database_client()
-                if db_client:
-                    minutes_check = await db_client.check_minutes_available(user_id)
-                    if not minutes_check.get("available", True) and not minutes_check.get("unlimited", False):
-                        remaining = minutes_check.get("remaining_minutes", 0)
-                        logger.warning(f"MINUTES_INSUFFICIENT | user={user_id} | remaining={remaining} | call_rejected")
-                        # Disconnect the call if no minutes available
-                        await ctx.room.disconnect()
-                        profiler.finish(success=False, error=f"Insufficient minutes: {remaining} remaining")
-                        return
-                    elif minutes_check.get("unlimited"):
-                        logger.info(f"MINUTES_CHECK | user={user_id} | unlimited_plan")
-                    else:
-                        remaining = minutes_check.get("remaining_minutes", 0)
-                        logger.info(f"MINUTES_CHECK | user={user_id} | remaining={remaining}")
+                minutes_check = await self.mongodb.check_minutes_available(user_id)
+                if not minutes_check.get("available", True) and not minutes_check.get("unlimited", False):
+                    remaining = minutes_check.get("remaining_minutes", 0)
+                    logger.warning(f"MINUTES_INSUFFICIENT | user={user_id} | remaining={remaining} | call_rejected")
+                    # Disconnect the call if no minutes available
+                    await ctx.room.disconnect()
+                    profiler.finish(success=False, error=f"Insufficient minutes: {remaining} remaining")
+                    return
+                elif minutes_check.get("unlimited"):
+                    logger.info(f"MINUTES_CHECK | user={user_id} | unlimited_plan")
+                else:
+                    remaining = minutes_check.get("remaining_minutes", 0)
+                    logger.info(f"MINUTES_CHECK | user={user_id} | remaining={remaining}")
 
             # Handle outbound calls
             if call_type == "outbound":
@@ -561,7 +574,7 @@ class CallHandler:
                 
                 # Initialize agent factory with pre-warmed components
                 agent_factory = AgentFactory(
-                    self.supabase,
+                    self.mongodb,
                     self._prewarmed_llms,
                     self._prewarmed_tts,
                     self._prewarmed_vad
@@ -883,7 +896,7 @@ class CallHandler:
         """Save call history and analysis data to database."""
         try:
             # Check if database client is available
-            if not self.supabase.is_available():
+            if not self.mongodb.is_available():
                 # logger.warning("Database client not available - skipping call history save")
                 return
             
@@ -994,10 +1007,21 @@ class CallHandler:
             # Log what we're saving
             # logger.info(f"CALL_DATA_TO_SAVE | call_sid={call_data.get('call_sid')} | call_id={call_data.get('call_id')} | status={call_data.get('call_status')}")
             
-            # Save to database with timeout protection (old approach)
-            result = await self._safe_db_insert("call_history", call_data, timeout=6)
+            # Save to database via MongoDB API
+            success = await self.mongodb.save_call_history(
+                call_id=call_data["call_id"],
+                assistant_id=call_data["assistant_id"],
+                phone_number=call_data["phone_number"],
+                call_duration=call_data["call_duration"],
+                call_status=call_data["call_status"],
+                transcription=call_data["transcription"],
+                participant_identity=call_data.get("participant_identity"),
+                call_sid=call_data.get("call_sid"),
+                start_time=call_data.get("start_time"),
+                end_time=call_data.get("end_time")
+            )
             
-            if result.data:
+            if success:
                 # logger.info(f"CALL_HISTORY_SAVED | call_id={call_id} | duration={call_duration}s | ai_status={call_status} | confidence={analysis_results.get('outcome_confidence', 'N/A')} | transcription_items={len(transcription)}")
                 if transcription:
                     sample_transcript = transcription[0] if len(transcription) > 0 else {}
@@ -1006,19 +1030,17 @@ class CallHandler:
                 # Deduct minutes from user account after call completes
                 user_id = assistant_config.get("user_id")
                 if user_id and call_duration > 0:
-                    db_client = get_database_client()
-                    if db_client:
-                        # Convert seconds to minutes (round up)
-                        minutes_used = call_duration / 60.0
-                        deduction_result = await db_client.deduct_minutes(user_id, minutes_used)
-                        if deduction_result.get("success"):
-                            remaining = deduction_result.get("remaining_minutes", 0)
-                            exceeded = deduction_result.get("exceeded_limit", False)
-                            logger.info(f"MINUTES_DEDUCTED | user={user_id} | minutes={minutes_used:.2f} | remaining={remaining} | exceeded={exceeded}")
-                            if exceeded:
-                                logger.warning(f"MINUTES_LIMIT_EXCEEDED | user={user_id} | used={deduction_result.get('minutes_used')} | limit={deduction_result.get('minutes_limit')}")
-                        else:
-                            logger.error(f"MINUTES_DEDUCTION_FAILED | user={user_id} | error={deduction_result.get('error')}")
+                    # Convert seconds to minutes (round up)
+                    minutes_used = call_duration / 60.0
+                    deduction_result = await self.mongodb.deduct_minutes(user_id, minutes_used)
+                    if deduction_result.get("success"):
+                        remaining = deduction_result.get("remaining_minutes", 0)
+                        exceeded = deduction_result.get("exceeded_limit", False)
+                        logger.info(f"MINUTES_DEDUCTED | user={user_id} | minutes={minutes_used:.2f} | remaining={remaining} | exceeded={exceeded}")
+                        if exceeded:
+                            logger.warning(f"MINUTES_LIMIT_EXCEEDED | user={user_id} | used={deduction_result.get('minutes_used')} | limit={deduction_result.get('minutes_limit')}")
+                    else:
+                        logger.error(f"MINUTES_DEDUCTION_FAILED | user={user_id} | error={deduction_result.get('error')}")
             else:
                 # logger.error(f"CALL_HISTORY_SAVE_FAILED | call_id={call_id}")
                 pass
@@ -1808,7 +1830,7 @@ class CallHandler:
         """Safely insert data into database with timeout protection."""
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(lambda: self.supabase.client.table(table).insert(payload).execute()),
+                asyncio.to_thread(lambda: self.base.client.table(table).insert(payload).execute()),
                 timeout=timeout
             )
         except asyncio.TimeoutError:

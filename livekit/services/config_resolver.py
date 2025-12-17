@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Optional, Dict, Any
 from livekit.agents import JobContext
-from integrations.supabase_client import SupabaseClient
+from integrations.mongodb_client import MongoDBClient
 from utils.data_extractors import extract_did_from_room
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 class ConfigResolver:
     """Resolves assistant configurations for different call types."""
     
-    def __init__(self, supabase_client: SupabaseClient):
-        self.supabase = supabase_client
+    def __init__(self, mongodb_client: MongoDBClient):
+        self.mongodb = mongodb_client
     
     async def resolve_assistant_config(self, ctx: JobContext, call_type: str) -> Optional[Dict[str, Any]]:
         """Resolve assistant configuration for the call."""
@@ -100,19 +100,15 @@ class ConfigResolver:
     async def _get_assistant_by_id(self, assistant_id: str) -> Optional[Dict[str, Any]]:
         """Get assistant configuration by ID."""
         try:
-            if not self.supabase.is_available():
-                logger.warning("Supabase client not available")
+            if not self.mongodb.is_available():
+                logger.warning("MongoDB client not available")
                 return None
                 
-            assistant_result = await asyncio.wait_for(
-                asyncio.to_thread(lambda: self.supabase.client.table("assistant").select("*").eq("id", assistant_id).execute()),
-                timeout=5
-            )
+            assistant_data = await self.mongodb.fetch_assistant(assistant_id)
             
-            if assistant_result.data and len(assistant_result.data) > 0:
-                assistant_data = assistant_result.data[0]
+            if assistant_data:
                 logger.info(f"ASSISTANT_FOUND_BY_ID | assistant_id={assistant_id}")
-                logger.info(f"ASSISTANT_CONFIG_DEBUG | knowledge_base_id={assistant_data.get('knowledge_base_id')} | use_rag={assistant_data.get('use_rag')}")
+                logger.info(f"ASSISTANT_CONFIG_DEBUG | knowledge_base_id={assistant_data.get('knowledge_base_id')}")
                 logger.info(f"ASSISTANT_CALENDAR_DEBUG | cal_api_key present: {bool(assistant_data.get('cal_api_key'))} | cal_event_type_id present: {bool(assistant_data.get('cal_event_type_id'))}")
                 cal_api_key = assistant_data.get('cal_api_key') or 'NOT_FOUND'
                 cal_event_type_id = assistant_data.get('cal_event_type_id') or 'NOT_FOUND'
@@ -128,31 +124,17 @@ class ConfigResolver:
     async def _get_assistant_by_phone(self, phone_number: str) -> Optional[Dict[str, Any]]:
         """Get assistant configuration by phone number."""
         try:
-            if not self.supabase.is_available():
-                logger.warning("Supabase client not available")
+            if not self.mongodb.is_available():
+                logger.warning("MongoDB client not available")
                 return None
                 
-            # First, find the assistant_id for this phone number
-            phone_result = await asyncio.wait_for(
-                asyncio.to_thread(lambda: self.supabase.client.table("phone_number").select("inbound_assistant_id").eq("number", phone_number).execute()),
-                timeout=5
-            )
+            assistant_data = await self.mongodb.fetch_assistant_by_phone(phone_number)
             
-            if not phone_result.data or len(phone_result.data) == 0:
-                logger.warning(f"No assistant found for phone number: {phone_number}")
-                return None
+            if assistant_data:
+                logger.info(f"ASSISTANT_FOUND_BY_PHONE | phone={phone_number}")
+                return assistant_data
             
-            assistant_id = phone_result.data[0]["inbound_assistant_id"]
-            
-            # Now fetch the assistant configuration
-            assistant_result = await asyncio.wait_for(
-                asyncio.to_thread(lambda: self.supabase.client.table("assistant").select("*").eq("id", assistant_id).execute()),
-                timeout=5
-            )
-            
-            if assistant_result.data and len(assistant_result.data) > 0:
-                return assistant_result.data[0]
-
+            logger.warning(f"No assistant found for phone number: {phone_number}")
             return None
         except Exception as e:
             logger.error(f"DATABASE_ERROR | phone={phone_number} | error={str(e)}")

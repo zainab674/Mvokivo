@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { getCurrentUserIdAsync } from "@/lib/user-context";
+import { getAccessToken } from "@/lib/auth";
 
 export interface Campaign {
   id: string;
@@ -45,81 +44,26 @@ export interface CampaignsResponse {
  */
 export const fetchCampaigns = async (): Promise<CampaignsResponse> => {
   try {
-    const userId = await getCurrentUserIdAsync();
-    console.log('Fetching campaigns for user ID:', userId);
-    
-    // Get user's tenant for proper data isolation
-    const { data: userData } = await supabase
-      .from('users')
-      .select('tenant')
-      .eq('id', userId)
-      .single();
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    const tenant = userData?.tenant || 'main';
+    const response = await fetch('/api/v1/campaigns', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    // Build query with tenant filter
-    let query = supabase
-      .from('campaigns')
-      .select(`
-        *,
-        assistant:assistant(name),
-        contact_list:contact_lists(name),
-        csv_file:csv_files(name)
-      `)
-      .eq('user_id', userId);
-
-    // Add tenant filter
-    if (tenant === 'main') {
-      query = query.or('tenant.eq.main,tenant.is.null');
-    } else {
-      query = query.eq('tenant', tenant);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch campaigns');
     }
 
-    const { data: campaigns, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching campaigns:', error);
-      throw error;
-    }
-
-    // Transform the data to include related names
-    const transformedCampaigns: Campaign[] = (campaigns || []).map(campaign => ({
-      id: campaign.id,
-      name: campaign.name,
-      user_id: campaign.user_id,
-      assistant_id: campaign.assistant_id,
-      assistant_name: campaign.assistant?.name,
-      contact_list_id: campaign.contact_list_id,
-      contact_list_name: campaign.contact_list?.name,
-      csv_file_id: campaign.csv_file_id,
-      csv_file_name: campaign.csv_file?.name,
-      contact_source: campaign.contact_source,
-      daily_cap: campaign.daily_cap,
-      calling_days: campaign.calling_days,
-      start_hour: campaign.start_hour,
-      end_hour: campaign.end_hour,
-      campaign_prompt: campaign.campaign_prompt || '',
-      status: campaign.status,
-      execution_status: campaign.execution_status || 'idle',
-      dials: campaign.dials || 0,
-      pickups: campaign.pickups || 0,
-      do_not_call: campaign.do_not_call || 0,
-      interested: campaign.interested || 0,
-      not_interested: campaign.not_interested || 0,
-      callback: campaign.callback || 0,
-      total_usage: campaign.total_usage || 0,
-      current_daily_calls: campaign.current_daily_calls || 0,
-      total_calls_made: campaign.total_calls_made || 0,
-      total_calls_answered: campaign.total_calls_answered || 0,
-      last_execution_at: campaign.last_execution_at,
-      next_call_at: campaign.next_call_at,
-      created_at: campaign.created_at,
-      updated_at: campaign.updated_at
-    }));
-
+    const data = await response.json();
     return {
-      campaigns: transformedCampaigns,
-      total: transformedCampaigns.length
+      campaigns: data.campaigns,
+      total: data.total
     };
 
   } catch (error) {

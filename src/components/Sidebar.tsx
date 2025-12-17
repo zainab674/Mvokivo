@@ -86,12 +86,11 @@ export function Sidebar() {
             {websiteSettings?.logo ? (
               <img
                 src={websiteSettings.logo}
-                alt={websiteSettings.website_name || "Logo"}
                 className="h-8 w-auto object-contain max-w-[120px]"
               />
             ) : (
               <span className="font-extralight text-liquid-premium text-lg tracking-wider truncate">
-                {websiteSettings?.website_name || "AI Call Center"}
+                {websiteSettings?.website_name || "Vokivo"}
               </span>
             )}
           </div>

@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { getPlanConfig, getPlanConfigs, type PlanConfig } from "@/lib/plan-config";
 import {
   Check,
@@ -75,117 +74,40 @@ export function PlansAndPricingSettings() {
 
   useEffect(() => {
     const fetchUsageStats = async () => {
-      if (!user?.id) {
-        setLoadingUsage(false);
-        return;
-      }
-
       try {
         setLoadingUsage(true);
-
-        // Get current plan config
-        const planConfig = getPlanConfig(user.plan);
-
-        // Fetch assistants for the user
-        const { data: assistantsData } = await supabase
-          .from('assistant')
-          .select('id')
-          .eq('user_id', user.id);
-
-        const assistantIds = assistantsData?.map(a => a.id) || [];
-
-        // Fetch user data for limits
-        const { data: userData } = await supabase
-          .from('users')
-          .select('minutes_limit, plan')
-          .eq('id', user.id)
-          .single();
-
-        // 1. API Calls (count from call_history for current month)
-        const apiCallsResult = assistantIds.length > 0
-          ? await supabase
-            .from('call_history')
-            .select('*', { count: 'exact', head: true })
-            .in('assistant_id', assistantIds)
-            .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-          : { count: 0, error: null };
-
-        // 2. Storage - Calculate from knowledge base documents if available
-        // Note: If you have a storage tracking system, replace this calculation
-        let storageUsed = 0;
-        try {
-          // Try to fetch from knowledge_documents if table exists
-          const { data: documentsData } = await supabase
-            .from('knowledge_documents')
-            .select('file_size, file_path')
-            .eq('user_id', user.id);
-
-          if (documentsData) {
-            // Sum file sizes (assuming file_size is in bytes, convert to GB)
-            const totalBytes = documentsData.reduce((sum: number, doc: any) => {
-              const size = doc.file_size || 0;
-              return sum + (typeof size === 'number' ? size : 0);
-            }, 0);
-            storageUsed = totalBytes / (1024 * 1024 * 1024); // Convert bytes to GB
-          }
-        } catch (error) {
-          // Knowledge documents table doesn't exist or error - use 0
-          console.log('Storage calculation not available:', error);
-        }
-        const storageLimit = 10; // Default, could be from plan config
-
-        // 3. Team Members - Count from workspace_members table
-        let teamMembersUsed = 1; // At least the current user
-        try {
-          // First, find the workspace(s) the user belongs to
-          const { data: userWorkspaceMembers } = await supabase
-            .from('workspace_members')
-            .select('workspace_id')
-            .eq('user_id', user.id)
-            .eq('status', 'active');
-
-          if (userWorkspaceMembers && userWorkspaceMembers.length > 0) {
-            // Get all unique workspace IDs
-            const workspaceIds = [...new Set(userWorkspaceMembers.map(m => m.workspace_id))];
-
-            // Count all active members in those workspaces
-            const { count: membersCount } = await supabase
-              .from('workspace_members')
-              .select('*', { count: 'exact', head: true })
-              .in('workspace_id', workspaceIds)
-              .eq('status', 'active');
-
-            teamMembersUsed = membersCount || 1;
-          }
-        } catch (error) {
-          // Workspace members table doesn't exist or error - fallback to assistants count
-          console.log('Workspace members not available, using assistants count:', error);
-          teamMembersUsed = assistantIds.length || 1;
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setLoadingUsage(false);
+          return;
         }
 
-        // Get limits from plan config
-        const apiCallsLimit = 2500; // Default limit for API calls
-        const teamMembersLimit = planConfig.features?.find((f: string) => f.includes('team'))
-          ? parseInt(planConfig.features.find((f: string) => f.includes('team'))?.match(/\d+/)?.[0] || '10')
-          : 10;
-
-        setUsageStats({
-          calls: {
-            used: apiCallsResult.count || 0,
-            limit: apiCallsLimit,
-            label: "API Calls"
-          },
-          storage: {
-            used: storageUsed,
-            limit: storageLimit,
-            label: "Storage (GB)"
-          },
-          users: {
-            used: teamMembersUsed,
-            limit: teamMembersLimit,
-            label: "Team Members"
-          }
+        const response = await fetch('/api/v1/billing/usage', {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.usage) {
+            setUsageStats({
+              calls: {
+                used: data.usage.apiCalls?.used || 0,
+                limit: data.usage.apiCalls?.limit || 2500,
+                label: "API Calls"
+              },
+              storage: {
+                used: 0, // Not fully implemented in backend yet or returned as 0
+                limit: 10,
+                label: "Storage (GB)"
+              },
+              users: {
+                used: data.usage.teamMembers?.used || 1,
+                limit: data.usage.teamMembers?.limit || 10,
+                label: "Team Members"
+              }
+            });
+          }
+        }
       } catch (error) {
         console.error('Error fetching usage stats:', error);
         // Set defaults on error
@@ -223,17 +145,22 @@ export function PlansAndPricingSettings() {
     setIsUpgrading(true);
     try {
       const planConfig = getPlanConfig(planKey);
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error("Not authenticated");
 
-      // Update user plan
-      const { error } = await supabase
-        .from("users")
-        .update({
-          plan: planKey,
-        })
-        .eq("id", user.id);
+      // Update user plan via API
+      const response = await fetch('/api/v1/user/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: planKey })
+      });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to upgrade plan');
       }
 
       // Update local auth state

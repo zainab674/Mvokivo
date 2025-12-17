@@ -37,7 +37,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // For legal pages, render without sidebar and header
   if (isLegalPage) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-foreground">
+      <div className="min-h-screen bg-background text-foreground">
         <div className="w-full">
           {children}
         </div>
@@ -47,7 +47,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex bg-zinc-950 text-foreground overflow-hidden">
+    <div className="min-h-screen flex bg-background text-foreground overflow-hidden">
       {/* Sidebar Navigation */}
       <Sidebar />
 

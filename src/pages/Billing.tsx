@@ -6,8 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CreditCard, Download, Calendar, Zap, Phone, MessageSquare, Users, Loader2, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
-import { getPlanConfig, getPlanConfigs } from "@/lib/plan-config";
-import { supabase } from "@/integrations/supabase/client";
 import { MinutesPurchaseDialog } from "@/components/settings/billing/MinutesPurchaseDialog";
 
 interface UsageItem {
@@ -28,7 +26,7 @@ interface Invoice {
 }
 
 export default function Billing() {
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const [loading, setLoading] = useState(true);
   const [usage, setUsage] = useState<UsageItem[]>([]);
   const [currentPlan, setCurrentPlan] = useState<{
@@ -51,375 +49,61 @@ export default function Billing() {
 
   useEffect(() => {
     const fetchBillingData = async () => {
-      if (!user?.id) {
-        setLoading(false);
-        return;
-      }
-
+      setLoading(true);
       try {
-        setLoading(true);
-
-        // Fetch user data for subscription info FIRST (to get real plan from database)
-        const { data: userData } = await supabase
-          .from('users')
-          .select('is_active, trial_ends_at, plan, minutes_limit, minutes_used, billing, stripe_customer_id, updated_at, tenant, slug_name')
-          .eq('id', user.id)
-          .single();
-
-        // Determine which tenant's plans to fetch
-        // For whitelabel customers, use their tenant (which points to their admin's tenant)
-        // For whitelabel admins, they might have plans from main tenant (assigned by super admin)
-        //   OR from their own tenant (if they created custom plans)
-        // For main tenant users, use null (main tenant)
-        let planTenant: string | null = null;
-        let isWhitelabelAdmin = false;
-        
-        if (userData?.tenant && userData.tenant !== 'main') {
-          // User belongs to a whitelabel tenant
-          if (userData?.slug_name) {
-            // User is a whitelabel admin - check their own tenant first, but also check main tenant
-            planTenant = userData.slug_name;
-            isWhitelabelAdmin = true;
-          } else {
-            // User is a whitelabel customer - use their tenant (which points to their admin's tenant)
-            planTenant = userData.tenant;
-          }
-        } else if (userData?.slug_name) {
-          // User is a whitelabel admin - use their slug as tenant
-          planTenant = userData.slug_name;
-          isWhitelabelAdmin = true;
+        const token = await getAccessToken();
+        if (!token) {
+          setLoading(false);
+          return;
         }
-        // Otherwise planTenant stays null (main tenant)
 
-        console.log('[Billing] User data:', {
-          userId: user.id,
-          userPlan: userData?.plan,
-          userTenant: userData?.tenant,
-          userSlugName: userData?.slug_name,
-          planTenant: planTenant
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+        // 1. Fetch Usage & Plan Info
+        const usagePromise = fetch(`${backendUrl}/api/v1/billing/usage`, {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        // Fetch plan configs for the user's tenant (not hostname tenant)
-        let configs = await getPlanConfigs(planTenant);
-        console.log('[Billing] Fetched plan configs for tenant:', planTenant, 'Available plans:', Object.keys(configs));
-        
-        // If no plans found for the tenant and user has a plan, try direct database query
-        if (Object.keys(configs).length === 0 && userData?.plan && planTenant) {
-          console.log('[Billing] No plans found via getPlanConfigs, trying direct database query for tenant:', planTenant);
-          const { data: directPlans, error: directError } = await supabase
-            .from('plan_configs')
-            .select('*')
-            .eq('tenant', planTenant)
-            .eq('is_active', true);
-          
-          if (!directError && directPlans && directPlans.length > 0) {
-            console.log('[Billing] Found plans via direct query:', directPlans.map(p => ({ key: p.plan_key, name: p.name })));
-            const directConfigs: Record<string, any> = {};
-            directPlans.forEach((plan: any) => {
-              directConfigs[plan.plan_key] = {
-                key: plan.plan_key,
-                name: plan.name,
-                price: Number(plan.price),
-                features: Array.isArray(plan.features) ? plan.features : [],
-                whitelabelEnabled: plan.whitelabel_enabled ?? false
-              };
-            });
-            configs = directConfigs;
-          } else {
-            console.warn('[Billing] Direct query also returned no plans. Error:', directError);
-          }
-        }
-        
-        setPlanConfigs(configs);
-
-        // Use REAL plan from database (not from auth context)
-        const userPlan = (userData?.plan?.toLowerCase() || user?.plan?.toLowerCase() || 'free');
-        
-        // Try to find the plan config - check exact match first, then try case-insensitive
-        let planConfig = configs[userPlan];
-        
-        // If not found, try case-insensitive lookup
-        if (!planConfig && userData?.plan) {
-          const planKey = Object.keys(configs).find(
-            key => key.toLowerCase() === userData.plan.toLowerCase()
-          );
-          if (planKey) {
-            planConfig = configs[planKey];
-          }
-        }
-        
-        // If still not found and user has a plan, try fetching from main tenant as fallback
-        // This is especially important for whitelabel admins who may have been assigned plans by super admin
-        // We need to explicitly query main tenant (tenant IS NULL) to bypass hostname-based tenant detection
-        if (!planConfig && userData?.plan && planTenant && planTenant !== 'main') {
-          console.log(`[Billing] Plan "${userPlan}" not found in tenant "${planTenant}", trying main tenant as fallback`);
-          
-          // Directly query main tenant plans (tenant IS NULL) to bypass hostname tenant detection
-          const { data: mainPlans, error: mainError } = await supabase
-            .from('plan_configs')
-            .select('*')
-            .is('tenant', null)
-            .eq('is_active', true);
-          
-          if (!mainError && mainPlans && mainPlans.length > 0) {
-            const mainConfigs: Record<string, any> = {};
-            mainPlans.forEach((plan: any) => {
-              mainConfigs[plan.plan_key] = {
-                key: plan.plan_key,
-                name: plan.name,
-                price: Number(plan.price),
-                features: Array.isArray(plan.features) ? plan.features : [],
-                whitelabelEnabled: plan.whitelabel_enabled ?? false
-              };
-            });
-            
-            console.log('[Billing] Main tenant plans available:', Object.keys(mainConfigs));
-            const mainPlanKey = Object.keys(mainConfigs).find(
-              key => key.toLowerCase() === userData.plan.toLowerCase()
-            );
-            if (mainPlanKey) {
-              planConfig = mainConfigs[mainPlanKey];
-              console.log(`[Billing] Found plan "${mainPlanKey}" in main tenant`);
-            } else {
-              console.warn(`[Billing] Plan "${userPlan}" also not found in main tenant. Available main plans:`, Object.keys(mainConfigs));
-            }
-          } else {
-            console.warn('[Billing] Could not fetch main tenant plans. Error:', mainError);
-          }
-        }
-        
-        // Final fallback - use the plan name from database if available, otherwise free
-        if (!planConfig) {
-          console.warn(`[Billing] Plan "${userPlan}" not found in any tenant configs, using fallback. Available plans:`, Object.keys(configs));
-          // If user has a plan in database but config not found, show it anyway
-          if (userData?.plan && userData.plan !== 'free') {
-            planConfig = {
-              key: userData.plan.toLowerCase(),
-              name: userData.plan.charAt(0).toUpperCase() + userData.plan.slice(1), // Capitalize first letter
-              price: 0, // Unknown price
-              features: []
-            };
-            console.log(`[Billing] Using fallback plan config for:`, planConfig);
-          } else {
-            planConfig = configs.free || {
-              key: 'free',
-              name: 'Free',
-              price: 0,
-              features: []
-            };
-          }
-        }
-
-        // Determine plan status
-        const isActive = userData?.is_active ?? true;
-        const status = isActive ? 'active' : 'inactive';
-
-        // Calculate next billing date from real subscription data
-        let nextBilling: string | null = null;
-        
-        // Check billing JSON field for subscription info (Stripe subscription data)
-        if (userData?.billing && typeof userData.billing === 'object') {
-          const billing = userData.billing as any;
-          // Check for Stripe subscription next billing date
-          if (billing.subscription?.current_period_end) {
-            nextBilling = new Date(billing.subscription.current_period_end * 1000).toISOString().split('T')[0];
-          } else if (billing.next_billing_date) {
-            nextBilling = new Date(billing.next_billing_date).toISOString().split('T')[0];
-          }
-        }
-        
-        // Fallback to trial_ends_at if no subscription billing date
-        if (!nextBilling && userData?.trial_ends_at) {
-          nextBilling = new Date(userData.trial_ends_at).toISOString().split('T')[0];
-        } 
-        // For paid plans without subscription data, don't show dummy date
-        // Only show if we have real subscription data
-
-        setCurrentPlan({
-          name: planConfig.name,
-          price: `$${planConfig.price}`,
-          period: "month",
-          status,
-          nextBilling
+        // 2. Fetch Invoices
+        const invoicesPromise = fetch(`${backendUrl}/api/v1/billing/invoices?limit=20`, {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        // Set minutes balance (remaining = limit - used) and usage
-        const minutesLimit = userData?.minutes_limit || 0;
-        const minutesUsed = userData?.minutes_used || 0;
-        const remainingMinutes = Math.max(0, minutesLimit - minutesUsed);
-        setMinutesBalance(remainingMinutes);
-        setMinutesUsed(minutesUsed);
+        const [usageRes, invoicesRes] = await Promise.all([usagePromise, invoicesPromise]);
 
-        // Fetch assistants for the user
-        const { data: assistantsData } = await supabase
-          .from('assistant')
-          .select('id')
-          .eq('user_id', user.id);
+        if (usageRes.ok) {
+          const usageData = await usageRes.json();
+          if (usageData.success) {
+            const { usage, plan } = usageData;
 
-        const assistantIds = assistantsData?.map(a => a.id) || [];
-
-        // Fetch usage data
-        // 1. API Calls (count of calls from call_history)
-        const apiCallsPromise = assistantIds.length > 0
-          ? supabase
-            .from('call_history')
-            .select('*', { count: 'exact', head: true })
-            .in('assistant_id', assistantIds)
-            .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-          : Promise.resolve({ count: 0, error: null });
-
-        // 2. Phone Minutes (sum of call_duration from call_history, convert seconds to minutes)
-        const phoneMinutesPromise = assistantIds.length > 0
-          ? supabase
-            .from('call_history')
-            .select('call_duration')
-            .in('assistant_id', assistantIds)
-            .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-          : Promise.resolve({ data: [], error: null });
-
-        // 3. Text Messages (count from sms_messages)
-        const textMessagesPromise = supabase
-          .from('sms_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
-
-        // 4. Team Members - Count from workspace_members table
-        const teamMembersPromise = (async () => {
-          try {
-            // First, find the workspace(s) the user belongs to
-            const { data: userWorkspaceMembers } = await supabase
-              .from('workspace_members')
-              .select('workspace_id')
-              .eq('user_id', user.id)
-              .eq('status', 'active');
-
-            if (userWorkspaceMembers && userWorkspaceMembers.length > 0) {
-              // Get all unique workspace IDs
-              const workspaceIds = [...new Set(userWorkspaceMembers.map(m => m.workspace_id))];
-
-              // Count all active members in those workspaces
-              const { count: membersCount } = await supabase
-                .from('workspace_members')
-                .select('*', { count: 'exact', head: true })
-                .in('workspace_id', workspaceIds)
-                .eq('status', 'active');
-
-              return { count: membersCount || 1, error: null };
-            }
-            return { count: 1, error: null }; // At least the current user
-          } catch (error) {
-            // Workspace members table doesn't exist or error - fallback to assistants count
-            console.log('Workspace members not available, using assistants count:', error);
-            return { count: assistantIds.length || 1, error: null };
-          }
-        })();
-
-        const [apiCallsResult, phoneMinutesResult, textMessagesResult, teamMembersResult] = await Promise.all([
-          apiCallsPromise,
-          phoneMinutesPromise,
-          textMessagesPromise,
-          teamMembersPromise
-        ]);
-
-        // Calculate usage
-        const apiCallsCount = apiCallsResult.count || 0;
-        const phoneMinutesTotal = phoneMinutesResult.data?.reduce((sum: number, call: any) => sum + (call.call_duration || 0), 0) || 0;
-        const phoneMinutes = Math.round(phoneMinutesTotal / 60); // Convert seconds to minutes
-        const textMessagesCount = textMessagesResult.count || 0;
-        const teamMembersCount = teamMembersResult.count || 0;
-
-        // Get limits from plan config (using reasonable defaults if not in plan config)
-        const apiCallsLimit = planConfig.features?.find((f: string) => f.includes('calls'))
-          ? parseInt(planConfig.features.find((f: string) => f.includes('calls'))?.match(/\d+/)?.[0] || '2500')
-          : 2500;
-
-        const textMessagesLimit = 2000; // Default, could be from plan config
-        const teamMembersLimit = planConfig.features?.find((f: string) => f.includes('team'))
-          ? parseInt(planConfig.features.find((f: string) => f.includes('team'))?.match(/\d+/)?.[0] || '10')
-          : 10;
-
-        setUsage([
-          { name: "API Calls", used: apiCallsCount, limit: apiCallsLimit, icon: Zap },
-          { name: "Text Messages", used: textMessagesCount, limit: textMessagesLimit, icon: MessageSquare },
-          { name: "Team Members", used: teamMembersCount, limit: teamMembersLimit, icon: Users }
-        ]);
-
-        // Fetch invoices and minutes purchases for billing history
-        const allInvoices: Invoice[] = [];
-
-        // Fetch from invoices table
-        try {
-          const { data: invoicesData, error: invoicesError } = await supabase
-            .from('invoices')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(20);
-
-          if (!invoicesError && invoicesData) {
-            invoicesData.forEach((inv: any) => {
-              const invoiceDate = new Date(inv.created_at || inv.date);
-              allInvoices.push({
-                id: inv.id || inv.invoice_number || `INV-${inv.id?.slice(0, 8)}`,
-                date: invoiceDate.toISOString().split('T')[0],
-                amount: `$${Number(inv.amount || 0).toFixed(2)}`,
-                status: (inv.status || 'paid') as string
-              });
+            // Set Plan
+            setCurrentPlan({
+              name: plan.name,
+              price: `$${plan.price}`,
+              period: plan.period,
+              status: plan.status,
+              nextBilling: plan.nextBilling
             });
+
+            // Set Minutes
+            setMinutesBalance(usage.minutesBalance);
+            setMinutesUsed(usage.minutesUsed);
+
+            // Set Usage
+            setUsage([
+              { name: "API Calls", used: usage.apiCalls.used, limit: usage.apiCalls.limit, icon: Zap },
+              { name: "Text Messages", used: usage.textMessages.used, limit: usage.textMessages.limit, icon: MessageSquare },
+              { name: "Team Members", used: usage.teamMembers.used, limit: usage.teamMembers.limit, icon: Users }
+            ]);
           }
-        } catch (error) {
-          console.log('Invoices table not available:', error);
         }
 
-        // Fetch from minutes_purchases table
-        try {
-          const { data: purchasesData, error: purchasesError } = await supabase
-            .from('minutes_purchases')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(20);
-
-          if (!purchasesError && purchasesData) {
-            purchasesData.forEach((purchase: any) => {
-              const purchaseDate = new Date(purchase.created_at);
-              // Map status: completed -> paid, pending -> pending, others -> pending
-              const invoiceStatus = purchase.status === 'completed' ? 'paid' : 
-                                   purchase.status === 'pending' ? 'pending' : 'pending';
-              
-              // Determine if this is a credit or debit based on payment_method
-              const isDebit = purchase.payment_method === 'whitelabel_customer_sale';
-              const transactionType = isDebit ? 'debit' : 'credit';
-              const minutes = purchase.minutes_purchased || 0;
-              const amount = Number(purchase.amount_paid || 0);
-              
-              // Get description from notes or payment method
-              let description = purchase.notes || '';
-              if (purchase.payment_method === 'whitelabel_customer_sale') {
-                description = `Sold ${minutes} minutes to customer`;
-              } else if (purchase.payment_method === 'whitelabel_admin') {
-                description = `Purchased ${minutes} minutes from admin`;
-              }
-              
-              allInvoices.push({
-                id: `MIN-${purchase.id.slice(0, 8)}`,
-                date: purchaseDate.toISOString().split('T')[0],
-                amount: isDebit ? `-$${amount.toFixed(2)}` : `$${amount.toFixed(2)}`,
-                status: invoiceStatus,
-                type: transactionType,
-                minutes: minutes,
-                description: description
-              });
-            });
+        if (invoicesRes.ok) {
+          const invoicesData = await invoicesRes.json();
+          if (invoicesData.success) {
+            setInvoices(invoicesData.invoices);
           }
-        } catch (error) {
-          console.log('Minutes purchases table not available:', error);
         }
-
-        // Sort all invoices by date (newest first) and set
-        allInvoices.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setInvoices(allInvoices);
 
       } catch (error) {
         console.error('Error fetching billing data:', error);
@@ -429,7 +113,7 @@ export default function Billing() {
     };
 
     fetchBillingData();
-  }, [user?.id, user?.plan]);
+  }, [user?.id, getAccessToken]);
 
   if (loading) {
     return (
@@ -604,7 +288,7 @@ export default function Billing() {
                     {invoices.map((invoice) => {
                       const isDebit = invoice.type === 'debit' || invoice.amount?.startsWith('-');
                       const isCredit = invoice.type === 'credit' || (!invoice.type && !isDebit);
-                      
+
                       return (
                         <div key={invoice.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/30">
                           <div className="flex items-center gap-4">
@@ -664,18 +348,24 @@ export default function Billing() {
           minutesUsed={minutesUsed}
           onPurchaseComplete={async () => {
             // Refresh minutes balance after purchase
-            const { data: userData } = await supabase
-              .from('users')
-              .select('minutes_limit, minutes_used')
-              .eq('id', user?.id)
-              .single();
+            try {
+              const token = await getAccessToken();
+              if (!token) return;
 
-            if (userData) {
-              const minutesLimit = userData.minutes_limit || 0;
-              const minutesUsed = userData.minutes_used || 0;
-              const remainingMinutes = Math.max(0, minutesLimit - minutesUsed);
-              setMinutesBalance(remainingMinutes);
-              setMinutesUsed(minutesUsed);
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+              const response = await fetch(`${backendUrl}/api/v1/billing/usage`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.usage) {
+                  setMinutesBalance(data.usage.minutesBalance);
+                  setMinutesUsed(data.usage.minutesUsed);
+                }
+              }
+            } catch (error) {
+              console.error("Failed to refresh usage after purchase", error);
             }
           }}
         />

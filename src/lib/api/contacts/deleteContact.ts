@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from '@/lib/auth';
 
 export interface DeleteContactRequest {
   id: string;
@@ -10,26 +10,27 @@ export interface DeleteContactResponse {
 }
 
 /**
- * Delete a contact
+ * Delete a contact via backend API
  */
 export const deleteContact = async (data: DeleteContactRequest): Promise<DeleteContactResponse> => {
   try {
-    const { error } = await supabase
-      .from('contacts')
-      .delete()
-      .eq('id', data.id);
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    if (error) {
-      console.error('Error deleting contact:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+    const response = await fetch(`/api/v1/contacts/${data.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { success: false, error: errorData.message || 'Failed to delete contact' };
     }
 
-    return {
-      success: true
-    };
+    return { success: true };
 
   } catch (error) {
     console.error('Error deleting contact:', error);

@@ -12,11 +12,8 @@ from typing import Optional, Dict, List, Any
 from dataclasses import dataclass
 from functools import lru_cache
 
-try:
-    from supabase import create_client, Client
-except ImportError:
-    create_client = None
-    Client = object
+# MongoDB client for knowledge base lookups
+from integrations.mongodb_client import MongoDBClient
 
 try:
     from pinecone import Pinecone
@@ -69,7 +66,7 @@ class RAGService:
     """Service for retrieving context from knowledge bases using Pinecone"""
 
     def __init__(self):
-        self.supabase: Optional[Client] = None
+        self.mongodb: Optional[MongoDBClient] = None
         self.pinecone = None
         # in-process caches
         self._kb_cache: Dict[str, Dict[str, Any]] = {}               # kb_id -> kb_info
@@ -77,20 +74,17 @@ class RAGService:
         self._initialize_clients()
 
     def _initialize_clients(self):
-        """Initialize Supabase and Pinecone clients"""
-        if create_client:
-            supabase_url = os.getenv("SUPABASE_URL", "").strip()
-            supabase_key = (
-                os.getenv("SUPABASE_SERVICE_ROLE", "").strip()
-                or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-            )
-            if supabase_url and supabase_key:
-                self.supabase = create_client(supabase_url, supabase_key)
-                logging.info("RAG_SERVICE | Supabase client initialized")
+        """Initialize MongoDB and Pinecone clients"""
+        # Initialize MongoDB client
+        try:
+            self.mongodb = MongoDBClient()
+            if self.mongodb.is_available():
+                logging.info("RAG_SERVICE | MongoDB client initialized")
             else:
-                logging.warning("RAG_SERVICE | Supabase credentials not configured")
-        else:
-            logging.warning("RAG_SERVICE | Supabase client not available")
+                logging.warning("RAG_SERVICE | MongoDB client not available")
+        except Exception as e:
+            logging.warning(f"RAG_SERVICE | MongoDB initialization failed: {e}")
+            self.mongodb = None
 
         if Pinecone:
             pinecone_api_key = os.getenv("PINECONE_API_KEY", "").strip()
@@ -107,19 +101,21 @@ class RAGService:
         if knowledge_base_id in self._kb_cache:
             return self._kb_cache[knowledge_base_id]
 
-        if not self.supabase:
-            logging.warning("RAG_SERVICE | Supabase not available for knowledge base lookup")
+        if not self.mongodb or not self.mongodb.is_available():
+            logging.warning("RAG_SERVICE | MongoDB not available for knowledge base lookup")
             return None
 
         try:
-            response = (
-                self.supabase.table("knowledge_bases")
-                .select("*").eq("id", knowledge_base_id).single().execute()
-            )
-            if response.data:
-                self._kb_cache[knowledge_base_id] = response.data
+            # Query MongoDB for knowledge base info
+            kb_data = await self.mongodb._db.knowledge_bases.find_one({"id": knowledge_base_id})
+            
+            if kb_data:
+                # Remove MongoDB _id field
+                if "_id" in kb_data:
+                    del kb_data["_id"]
+                self._kb_cache[knowledge_base_id] = kb_data
                 logging.info("RAG_SERVICE | Retrieved knowledge base info for %s", knowledge_base_id)
-                return response.data
+                return kb_data
             logging.warning("RAG_SERVICE | Knowledge base %s not found", knowledge_base_id)
             return None
         except Exception as e:

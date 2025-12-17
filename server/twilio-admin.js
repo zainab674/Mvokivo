@@ -1,16 +1,9 @@
 // server/twilio-admin.js
 import express from 'express';
 import Twilio from 'twilio';
-// Supabase is optional. Remove if unused.
-import { createClient } from '@supabase/supabase-js';
+import { UserTwilioCredential, PhoneNumber } from './models/index.js';
 
 export const twilioAdminRouter = express.Router();
-
-// Optional Supabase client (safe to remove if you don't persist mappings)
-const supa =
-    process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-        ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-        : null;
 
 /** Build our public base URL (works locally & behind tunnels) */
 function getBase(req) {
@@ -76,20 +69,7 @@ twilioAdminRouter.get('/phone-numbers', async (req, res) => {
         }
 
         // Get user's active credentials
-        const { data: credentials, error: credError } = await supa
-            .from('user_twilio_credentials')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
-
-        if (credError) {
-            if (credError.code === 'PGRST116') {
-                return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-            }
-            console.error('Database error:', credError);
-            return res.status(500).json({ success: false, message: 'Database error occurred' });
-        }
+        const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
         if (!credentials) {
             return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -104,13 +84,11 @@ twilioAdminRouter.get('/phone-numbers', async (req, res) => {
 
         // Optional: numbers you've mapped in your DB
         let mappedSet = new Set();
-        if (supa) {
-            try {
-                const { data } = await supa.from('phone_number').select('number');
-                mappedSet = new Set((data || []).map((m) => m.number));
-            } catch {
-                // ignore if table doesn't exist
-            }
+        try {
+            const numbers = await PhoneNumber.find().select('number');
+            mappedSet = new Set((numbers || []).map((m) => m.number));
+        } catch (err) {
+            // ignore
         }
 
         const all = await userTwilio.incomingPhoneNumbers.list({ limit: 1000 });
@@ -161,20 +139,7 @@ twilioAdminRouter.post('/assign', async (req, res) => {
         }
 
         // Get user's active credentials
-        const { data: credentials, error: credError } = await supa
-            .from('user_twilio_credentials')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
-
-        if (credError) {
-            if (credError.code === 'PGRST116') {
-                return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-            }
-            console.error('Database error:', credError);
-            return res.status(500).json({ success: false, message: 'Database error occurred' });
-        }
+        const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
         if (!credentials) {
             return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -209,23 +174,24 @@ twilioAdminRouter.post('/assign', async (req, res) => {
             console.warn('No base URL configured for SMS webhooks. Set NGROK_URL or BACKEND_URL environment variable.');
         }
 
-        if (supa) {
-            try {
-                await supa.from('phone_number').upsert(
-                    {
-                        phone_sid: num.sid,
-                        number: num.phoneNumber,
-                        label: label || num.friendlyName || null,
-                        inbound_assistant_id: assistantId,
-                        webhook_status: 'configured',
-                        status: 'active',
-                    },
-                    { onConflict: 'phone_sid' },
-                );
-            } catch (error) {
-                console.warn('Failed to save phone number mapping (phone_number table may not exist yet):', error.message);
-                // Continue execution - the assignment will still work via LiveKit dispatch rules
-            }
+        try {
+            await PhoneNumber.findOneAndUpdate(
+                { phone_sid: num.sid },
+                {
+                    phone_sid: num.sid,
+                    number: num.phoneNumber,
+                    label: label || num.friendlyName || null,
+                    inbound_assistant_id: assistantId,
+                    webhook_status: 'configured',
+                    status: 'active',
+                    // user_id: userId // Should we save userId? The schema has user_id.
+                    // Assuming we should attach user_id if we have it
+                    user_id: userId
+                },
+                { upsert: true, new: true }
+            );
+        } catch (error) {
+            console.warn('Failed to save phone number mapping (Mongoose error):', error.message);
         }
 
         res.json({ success: true, number: { sid: num.sid, phoneNumber: num.phoneNumber } });
@@ -244,20 +210,7 @@ twilioAdminRouter.get('/trunks', async (req, res) => {
         }
 
         // Get user's active credentials
-        const { data: credentials, error: credError } = await supa
-            .from('user_twilio_credentials')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
-
-        if (credError) {
-            if (credError.code === 'PGRST116') {
-                return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-            }
-            console.error('Database error:', credError);
-            return res.status(500).json({ success: false, message: 'Database error occurred' });
-        }
+        const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
         if (!credentials) {
             return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -303,20 +256,7 @@ twilioAdminRouter.post('/trunk/attach', async (req, res) => {
                 .json({ success: false, message: 'trunkSid is required' });
 
         // Get user's active credentials
-        const { data: credentials, error: credError } = await supa
-            .from('user_twilio_credentials')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
-
-        if (credError) {
-            if (credError.code === 'PGRST116') {
-                return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-            }
-            console.error('Database error:', credError);
-            return res.status(500).json({ success: false, message: 'Database error occurred' });
-        }
+        const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
         if (!credentials) {
             return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -355,20 +295,7 @@ twilioAdminRouter.post('/map', async (req, res) => {
         console.log(`Mapping phone ${phoneSid || phoneNumber} to assistant ${assistantId} for user ${userId}`);
 
         // Get user's active credentials
-        const { data: credentials, error: credError } = await supa
-            .from('user_twilio_credentials')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
-
-        if (credError) {
-            if (credError.code === 'PGRST116') {
-                return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-            }
-            console.error('Database error:', credError);
-            return res.status(500).json({ success: false, message: 'Database error occurred' });
-        }
+        const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
         if (!credentials) {
             return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -387,9 +314,9 @@ twilioAdminRouter.post('/map', async (req, res) => {
             } catch (phoneError) {
                 console.error('Error fetching phone number:', phoneError);
                 if (phoneError.status === 404) {
-                    return res.status(404).json({ 
-                        success: false, 
-                        message: 'Phone number not found in Twilio account' 
+                    return res.status(404).json({
+                        success: false,
+                        message: 'Phone number not found in Twilio account'
                     });
                 }
                 throw phoneError;
@@ -397,39 +324,26 @@ twilioAdminRouter.post('/map', async (req, res) => {
         }
         if (!e164) return res.status(400).json({ success: false, message: 'Could not resolve phone number' });
 
-        // optional persistence (safe no-op if you removed Supabase)
-        console.log('Supabase client status:', supa ? 'connected' : 'null');
-        console.log('Environment variables:', {
-            SUPABASE_URL: process.env.SUPABASE_URL ? 'set' : 'not set',
-            SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'not set'
-        });
+        try {
+            await PhoneNumber.findOneAndUpdate(
+                { number: e164 },
+                {
+                    phone_sid: phoneSid || null,
+                    number: e164,
+                    label: label || null,
+                    inbound_assistant_id: assistantId,
+                    outbound_trunk_id: outboundTrunkId || null,
+                    outbound_trunk_name: outboundTrunkName || null,
+                    webhook_status: 'configured',
+                    status: 'active',
+                    user_id: userId
+                },
+                { upsert: true, new: true }
+            );
+            console.log('Successfully saved phone number to database');
 
-        if (supa) {
-            try {
-                const { data, error } = await supa.from('phone_number').upsert(
-                    {
-                        phone_sid: phoneSid || null,
-                        number: e164,
-                        label: label || null,
-                        inbound_assistant_id: assistantId,
-                        outbound_trunk_id: outboundTrunkId || null,
-                        outbound_trunk_name: outboundTrunkName || null,
-                        webhook_status: 'configured',
-                        status: 'active',
-                    },
-                    { onConflict: 'number' },
-                );
-
-                if (error) {
-                    console.error('Database upsert error:', error);
-                } else {
-                    console.log('Successfully saved phone number to database:', data);
-                }
-            } catch (dbError) {
-                console.error('Database operation failed:', dbError);
-            }
-        } else {
-            console.warn('Supabase client is null - phone number not saved to database');
+        } catch (dbError) {
+            console.error('Database operation failed:', dbError);
         }
 
         // Configure SMS webhook for the phone number when assigned to assistant
@@ -461,11 +375,11 @@ twilioAdminRouter.post('/map', async (req, res) => {
             code: e.code,
             moreInfo: e.moreInfo
         });
-        
+
         // Return more specific error message
         const errorMessage = e.message || 'Map failed';
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: errorMessage,
             details: process.env.NODE_ENV === 'development' ? {
                 status: e.status,
@@ -475,3 +389,35 @@ twilioAdminRouter.post('/map', async (req, res) => {
         });
     }
 });
+
+/**
+ * GET /api/v1/twilio/phone-numbers/lookup?number=+1234567890
+ * Lookup assistant ID by phone number (for LiveKit agent)
+ */
+twilioAdminRouter.get('/phone-numbers/lookup', async (req, res) => {
+    try {
+        const { number } = req.query;
+
+        if (!number) {
+            return res.status(400).json({ success: false, message: 'Phone number is required' });
+        }
+
+        // Find the phone number mapping in database
+        const phoneMapping = await PhoneNumber.findOne({ number: number });
+
+        if (!phoneMapping) {
+            return res.status(404).json({ success: false, message: 'Phone number not found' });
+        }
+
+        res.json({
+            success: true,
+            inbound_assistant_id: phoneMapping.inbound_assistant_id,
+            phone_sid: phoneMapping.phone_sid,
+            label: phoneMapping.label
+        });
+    } catch (e) {
+        console.error('twilio/phone-numbers/lookup error', e);
+        res.status(500).json({ success: false, message: 'Lookup failed' });
+    }
+});
+

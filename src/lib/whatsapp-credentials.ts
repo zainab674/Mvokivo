@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from "@/lib/auth";
 
 export interface UserWhatsAppCredentials {
   id: string;
@@ -17,6 +17,8 @@ export interface WhatsAppCredentialsInput {
   label: string;
 }
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 /**
  * Service for managing user-specific WhatsApp Business credentials
  */
@@ -26,25 +28,19 @@ export class WhatsAppCredentialsService {
    */
   static async getActiveCredentials(): Promise<UserWhatsAppCredentials | null> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      const token = await getAccessToken();
+      if (!token) return null;
 
-      const { data, error } = await supabase
-        .from("user_whatsapp_credentials")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .single();
+      const response = await fetch(`${BACKEND_URL}/api/v1/whatsapp/credentials/active`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No rows found
-          return null;
-        }
-        throw error;
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch active credentials');
       }
 
-      return data;
+      return await response.json();
     } catch (error) {
       console.error("Error fetching WhatsApp credentials:", error);
       return null;
@@ -56,32 +52,27 @@ export class WhatsAppCredentialsService {
    */
   static async saveCredentials(input: WhatsAppCredentialsInput): Promise<UserWhatsAppCredentials> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      // First, deactivate any existing active credentials
-      await supabase
-        .from("user_whatsapp_credentials")
-        .update({ is_active: false })
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-
-      // Insert new credentials as active
-      const { data, error } = await supabase
-        .from("user_whatsapp_credentials")
-        .insert({
-          user_id: user.id,
+      const response = await fetch(`${BACKEND_URL}/api/v1/whatsapp/credentials`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           whatsapp_number: input.whatsapp_number,
           whatsapp_key: input.whatsapp_key,
-          label: input.label,
-          is_active: true
+          label: input.label
         })
-        .select()
-        .single();
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to save credentials');
+      }
 
-      return data;
+      return await response.json();
     } catch (error) {
       console.error("Error saving WhatsApp credentials:", error);
       throw error;
@@ -93,20 +84,27 @@ export class WhatsAppCredentialsService {
    */
   static async updateCredentials(credentialsId: string, input: Partial<WhatsAppCredentialsInput>): Promise<UserWhatsAppCredentials> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      const { data, error } = await supabase
-        .from("user_whatsapp_credentials")
-        .update(input)
-        .eq("id", credentialsId)
-        .eq("user_id", user.id)
-        .select()
-        .single();
+      const response = await fetch(`${BACKEND_URL}/api/v1/whatsapp/credentials/${credentialsId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          whatsapp_number: input.whatsapp_number,
+          whatsapp_key: input.whatsapp_key,
+          label: input.label
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to update credentials');
+      }
 
-      return data;
+      return await response.json();
     } catch (error) {
       console.error("Error updating WhatsApp credentials:", error);
       throw error;
@@ -118,16 +116,17 @@ export class WhatsAppCredentialsService {
    */
   static async deleteCredentials(credentialsId: string): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      const { error } = await supabase
-        .from("user_whatsapp_credentials")
-        .delete()
-        .eq("id", credentialsId)
-        .eq("user_id", user.id);
+      const response = await fetch(`${BACKEND_URL}/api/v1/whatsapp/credentials/${credentialsId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to delete credentials');
+      }
     } catch (error) {
       console.error("Error deleting WhatsApp credentials:", error);
       throw error;
@@ -139,18 +138,16 @@ export class WhatsAppCredentialsService {
    */
   static async getAllCredentials(): Promise<UserWhatsAppCredentials[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
+      const token = await getAccessToken();
+      if (!token) return [];
 
-      const { data, error } = await supabase
-        .from("user_whatsapp_credentials")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      const response = await fetch(`${BACKEND_URL}/api/v1/whatsapp/credentials`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      if (error) throw error;
+      if (!response.ok) return [];
 
-      return data || [];
+      return await response.json();
     } catch (error) {
       console.error("Error fetching all WhatsApp credentials:", error);
       return [];
@@ -162,27 +159,19 @@ export class WhatsAppCredentialsService {
    */
   static async setActiveCredentials(credentialsId: string): Promise<UserWhatsAppCredentials> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      // First, deactivate all other credentials
-      await supabase
-        .from("user_whatsapp_credentials")
-        .update({ is_active: false })
-        .eq("user_id", user.id);
+      const response = await fetch(`${BACKEND_URL}/api/v1/whatsapp/credentials/${credentialsId}/activate`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      // Then activate the selected credentials
-      const { data, error } = await supabase
-        .from("user_whatsapp_credentials")
-        .update({ is_active: true })
-        .eq("id", credentialsId)
-        .eq("user_id", user.id)
-        .select()
-        .single();
+      if (!response.ok) {
+        throw new Error('Failed to activate credentials');
+      }
 
-      if (error) throw error;
-
-      return data;
+      return await response.json();
     } catch (error) {
       console.error("Error setting active WhatsApp credentials:", error);
       throw error;

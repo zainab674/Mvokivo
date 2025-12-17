@@ -45,22 +45,22 @@ export function DeleteCampaignDialog({
             </div>
           </div>
         </DialogHeader>
-        
+
         <div className="py-4">
           <p className="text-sm text-foreground">
             Are you sure you want to delete the campaign{' '}
             <span className="font-medium text-foreground">"{campaignName}"</span>?
           </p>
-          
+
           {isRunning && (
-            <div className="mt-3 p-3 bg-warning/10 border border-warning/20 rounded-md">
-              <p className="text-sm text-warning">
-                <strong>Warning:</strong> This campaign is currently running. 
+            <div className="mt-3 p-3 bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+              <p className="text-sm text-orange-800 dark:text-orange-200">
+                <strong>Warning:</strong> This campaign is currently running.
                 Please stop the campaign first before deleting it.
               </p>
             </div>
           )}
-          
+
           <div className="mt-4 p-3 bg-muted/50 rounded-md">
             <p className="text-xs text-muted-foreground">
               This will permanently delete the campaign and all associated data including:

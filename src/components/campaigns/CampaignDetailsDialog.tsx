@@ -10,7 +10,6 @@ import { startCampaign } from "@/lib/api/campaigns/startCampaign";
 import { pauseCampaign } from "@/lib/api/campaigns/pauseCampaign";
 import { resumeCampaign } from "@/lib/api/campaigns/resumeCampaign";
 import { stopCampaign } from "@/lib/api/campaigns/stopCampaign";
-import { supabase } from "@/integrations/supabase/client";
 
 interface CampaignDetailsDialogProps {
   open: boolean;
@@ -24,11 +23,11 @@ const deepEqual = (obj1: any, obj2: any): boolean => {
   if (obj1 === obj2) return true;
   if (obj1 == null || obj2 == null) return false;
   if (typeof obj1 !== typeof obj2) return false;
-  
+
   if (typeof obj1 !== 'object') return obj1 === obj2;
-  
+
   if (Array.isArray(obj1) !== Array.isArray(obj2)) return false;
-  
+
   if (Array.isArray(obj1)) {
     if (obj1.length !== obj2.length) return false;
     for (let i = 0; i < obj1.length; i++) {
@@ -36,41 +35,41 @@ const deepEqual = (obj1: any, obj2: any): boolean => {
     }
     return true;
   }
-  
+
   const keys1 = Object.keys(obj1);
   const keys2 = Object.keys(obj2);
-  
+
   if (keys1.length !== keys2.length) return false;
-  
+
   for (let key of keys1) {
     if (!keys2.includes(key)) return false;
     if (!deepEqual(obj1[key], obj2[key])) return false;
   }
-  
+
   return true;
 };
 
 const compareCampaignStatus = (oldStatus: CampaignStatus | null, newStatus: CampaignStatus | null): boolean => {
   if (!oldStatus || !newStatus) return oldStatus === newStatus;
-  
-  return deepEqual(oldStatus.campaign, newStatus.campaign) && 
-         deepEqual(oldStatus.stats, newStatus.stats) && 
-         deepEqual(oldStatus.queueStatus, newStatus.queueStatus);
+
+  return deepEqual(oldStatus.campaign, newStatus.campaign) &&
+    deepEqual(oldStatus.stats, newStatus.stats) &&
+    deepEqual(oldStatus.queueStatus, newStatus.queueStatus);
 };
 
 const compareCalls = (oldCalls: CampaignCall[], newCalls: CampaignCall[]): boolean => {
   if (oldCalls.length !== newCalls.length) return false;
-  
+
   // Create maps for efficient comparison
   const oldCallsMap = new Map(oldCalls.map(call => [call.id, call]));
   const newCallsMap = new Map(newCalls.map(call => [call.id, call]));
-  
+
   // Check if all calls exist and are equal
   for (const [id, oldCall] of oldCallsMap) {
     const newCall = newCallsMap.get(id);
     if (!newCall || !deepEqual(oldCall, newCall)) return false;
   }
-  
+
   return true;
 };
 
@@ -80,7 +79,7 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [assistantPhoneNumber, setAssistantPhoneNumber] = useState<string>('');
-  
+
   // Refs to store previous data for comparison
   const previousStatusRef = useRef<CampaignStatus | null>(null);
   const previousCallsRef = useRef<CampaignCall[]>([]);
@@ -92,27 +91,27 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
 
     try {
       const statusResult = await getCampaignStatus(campaignId);
-      
+
       if (statusResult.success && statusResult.campaign) {
         const newStatus = statusResult.campaign;
         const hasStatusChanged = !compareCampaignStatus(previousStatusRef.current, newStatus);
-        
+
         if (hasStatusChanged) {
           setCampaignStatus(newStatus);
           previousStatusRef.current = newStatus;
-          
+
           // Get assistant phone number only if status changed
           if (newStatus.campaign?.assistant_id) {
             try {
-              const { data: assistantPhone } = await supabase
-                .from('phone_number')
-                .select('number')
-                .eq('inbound_assistant_id', newStatus.campaign.assistant_id)
-                .eq('status', 'active')
-                .single();
-              
-              if (assistantPhone) {
-                setAssistantPhoneNumber(assistantPhone.number);
+              const token = localStorage.getItem('token');
+              const response = await fetch(`/api/v1/assistants/${newStatus.campaign.assistant_id}`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              const data = await response.json();
+              if (data.success && data.data?.phoneNumber) {
+                setAssistantPhoneNumber(data.data.phoneNumber);
               }
             } catch (error) {
               console.error('Error fetching assistant phone number:', error);
@@ -134,11 +133,11 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
 
     try {
       const callsResult = await getCampaignCalls({ campaignId, limit: 50 });
-      
+
       if (callsResult.success && callsResult.calls) {
         const newCalls = callsResult.calls;
         const hasCallsChanged = !compareCalls(previousCallsRef.current, newCalls);
-        
+
         if (hasCallsChanged) {
           setCalls(newCalls);
           previousCallsRef.current = newCalls;
@@ -162,7 +161,7 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
         loadCampaignStatus(),
         loadCampaignCalls()
       ]);
-      
+
       // Only log if there were actual changes
       if (statusChanged || callsChanged) {
         console.log('Campaign data updated:', { statusChanged, callsChanged });
@@ -177,14 +176,14 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
   // Optimized refresh data - only updates if there are changes
   const refreshData = useCallback(async () => {
     if (!open) return;
-    
+
     setRefreshing(true);
     try {
       const [statusChanged, callsChanged] = await Promise.all([
         loadCampaignStatus(),
         loadCampaignCalls()
       ]);
-      
+
       // Only log if there were actual changes
       if (statusChanged || callsChanged) {
         console.log('Campaign data refreshed with changes:', { statusChanged, callsChanged });
@@ -221,7 +220,7 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
         refreshData();
       }
     }, 10000);
-    
+
     return () => clearInterval(interval);
   }, [open, refreshData]);
 
@@ -287,15 +286,15 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
     if (!outcome) return null;
 
     const variants = {
-      interested: { variant: 'default' as const, className: 'bg-green-100 text-green-800' },
-      not_interested: { variant: 'destructive' as const, className: 'bg-red-100 text-red-800' },
-      callback: { variant: 'secondary' as const, className: 'bg-yellow-100 text-yellow-800' },
-      do_not_call: { variant: 'outline' as const, className: 'bg-gray-100 text-gray-800' },
-      voicemail: { variant: 'secondary' as const, className: 'bg-blue-100 text-blue-800' },
-      wrong_number: { variant: 'outline' as const, className: 'bg-orange-100 text-orange-800' },
-      answered: { variant: 'default' as const, className: 'bg-green-100 text-green-800' },
-      no_answer: { variant: 'outline' as const, className: 'bg-gray-100 text-gray-800' },
-      busy: { variant: 'destructive' as const, className: 'bg-orange-100 text-orange-800' }
+      interested: { variant: 'default' as const, className: 'bg-green-500/10 text-green-500 hover:bg-green-500/20' },
+      not_interested: { variant: 'destructive' as const, className: 'bg-red-500/10 text-red-500 hover:bg-red-500/20' },
+      callback: { variant: 'secondary' as const, className: 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20' },
+      do_not_call: { variant: 'outline' as const, className: 'text-muted-foreground' },
+      voicemail: { variant: 'secondary' as const, className: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20' },
+      wrong_number: { variant: 'outline' as const, className: 'bg-orange-500/10 text-orange-500 hover:bg-orange-500/20' },
+      answered: { variant: 'default' as const, className: 'bg-green-500/10 text-green-500 hover:bg-green-500/20' },
+      no_answer: { variant: 'outline' as const, className: 'text-muted-foreground' },
+      busy: { variant: 'destructive' as const, className: 'bg-orange-500/10 text-orange-500 hover:bg-orange-500/20' }
     };
 
     const config = variants[outcome as keyof typeof variants] || variants.do_not_call;
@@ -363,13 +362,13 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
                       Resume
                     </Button>
                   )}
-                  {(campaignStatus.campaign.execution_status === 'running' || 
+                  {(campaignStatus.campaign.execution_status === 'running' ||
                     campaignStatus.campaign.execution_status === 'paused') && (
-                    <Button size="sm" variant="destructive" onClick={handleStopCampaign}>
-                      <Square className="w-4 h-4 mr-2" />
-                      Stop
-                    </Button>
-                  )}
+                      <Button size="sm" variant="destructive" onClick={handleStopCampaign}>
+                        <Square className="w-4 h-4 mr-2" />
+                        Stop
+                      </Button>
+                    )}
                 </div>
               )}
             </div>
@@ -385,56 +384,55 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
           <div className="space-y-6">
             {/* Basic Info */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 border rounded">
-                <div className="text-2xl font-bold text-blue-600">
+              <div className="text-center p-4 border border-border rounded">
+                <div className="text-2xl font-bold text-blue-500">
                   {campaignStatus.campaign?.total_calls_made || 0}
                 </div>
-                <div className="text-sm text-gray-600">Total Calls</div>
+                <div className="text-sm text-muted-foreground">Total Calls</div>
               </div>
-              <div className="text-center p-4 border rounded">
-                <div className="text-2xl font-bold text-green-600">
+              <div className="text-center p-4 border border-border rounded">
+                <div className="text-2xl font-bold text-green-500">
                   {campaignStatus.campaign?.total_calls_answered || 0}
                 </div>
-                <div className="text-sm text-gray-600">Answered</div>
+                <div className="text-sm text-muted-foreground">Answered</div>
               </div>
-              <div className="text-center p-4 border rounded">
-                <div className="text-2xl font-bold text-orange-600">
+              <div className="text-center p-4 border border-border rounded">
+                <div className="text-2xl font-bold text-orange-500">
                   {campaignStatus.campaign?.current_daily_calls || 0} / {campaignStatus.campaign?.daily_cap || 0}
                 </div>
-                <div className="text-sm text-gray-600">Today's Progress</div>
+                <div className="text-sm text-muted-foreground">Today's Progress</div>
               </div>
-              <div className="text-center p-4 border rounded">
-                <div className="text-2xl font-bold text-purple-600">
-                  {(campaignStatus.campaign?.total_calls_made || 0) > 0 
+              <div className="text-center p-4 border border-border rounded">
+                <div className="text-2xl font-bold text-purple-500">
+                  {(campaignStatus.campaign?.total_calls_made || 0) > 0
                     ? Math.round(((campaignStatus.campaign?.total_calls_answered || 0) / (campaignStatus.campaign?.total_calls_made || 1)) * 100)
                     : 0}%
                 </div>
-                <div className="text-sm text-gray-600">Answer Rate</div>
+                <div className="text-sm text-muted-foreground">Answer Rate</div>
               </div>
             </div>
 
             {/* Status */}
             <div className="flex items-center gap-4">
               <div>
-                <span className="text-sm text-gray-600">Status:</span>
-                <Badge 
+                <span className="text-sm text-muted-foreground">Status:</span>
+                <Badge
                   variant={campaignStatus.campaign?.execution_status === 'running' ? 'default' : 'secondary'}
-                  className={`ml-2 ${
-                    campaignStatus.campaign?.execution_status === 'running' 
-                      ? 'bg-green-100 text-green-800' 
-                      : campaignStatus.campaign?.execution_status === 'paused'
-                      ? 'bg-yellow-100 text-yellow-800'
+                  className={`ml-2 ${campaignStatus.campaign?.execution_status === 'running'
+                    ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+                    : campaignStatus.campaign?.execution_status === 'paused'
+                      ? 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20'
                       : campaignStatus.campaign?.execution_status === 'completed'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}
+                        ? 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
                 >
                   {campaignStatus.campaign?.execution_status || 'unknown'}
                 </Badge>
               </div>
               <div>
-                <span className="text-sm text-gray-600">Calling From:</span>
-                <span className="ml-2 text-sm font-medium">
+                <span className="text-sm text-muted-foreground">Calling From:</span>
+                <span className="ml-2 text-sm font-medium text-foreground">
                   {assistantPhoneNumber || 'Not configured'}
                 </span>
               </div>
@@ -443,9 +441,9 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
             {/* Campaign Script */}
             {campaignStatus.campaign?.campaign_prompt && (
               <div>
-                <h3 className="text-lg font-medium mb-2">Campaign Script</h3>
-                <div className="bg-gray-50 p-4 rounded border">
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                <h3 className="text-lg font-medium mb-2 text-foreground">Campaign Script</h3>
+                <div className="bg-muted p-4 rounded border border-border">
+                  <div className="text-sm text-muted-foreground whitespace-pre-wrap">
                     {campaignStatus.campaign.campaign_prompt}
                   </div>
                 </div>
@@ -454,11 +452,11 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
 
             {/* Recent Calls */}
             <div>
-              <h3 className="text-lg font-medium mb-3">Recent Calls ({calls.length})</h3>
-              <div className="border rounded">
+              <h3 className="text-lg font-medium mb-3 text-foreground">Recent Calls ({calls.length})</h3>
+              <div className="border border-border rounded overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50">
                       <TableHead>Contact</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Status</TableHead>
@@ -470,32 +468,32 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
                   <TableBody>
                     {calls.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                           No calls found
                         </TableCell>
                       </TableRow>
                     ) : (
                       calls.slice(0, 10).map((call) => (
-                        <TableRow key={call.id}>
-                          <TableCell className="font-medium">
+                        <TableRow key={call.id} className="hover:bg-muted/50">
+                          <TableCell className="font-medium text-foreground">
                             {call.contact_name || 'Unknown'}
                           </TableCell>
                           <TableCell>
-                            <span className="font-mono text-sm">{call.phone_number}</span>
+                            <span className="font-mono text-sm text-muted-foreground">{call.phone_number}</span>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 text-muted-foreground">
                               {getStatusIcon(call.status)}
                               <span className="text-sm capitalize">{call.status}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-muted-foreground">
                             {call.call_duration > 0 ? formatDuration(call.call_duration) : '-'}
                           </TableCell>
                           <TableCell>
                             {getOutcomeBadge(call.outcome)}
                           </TableCell>
-                          <TableCell className="text-sm text-gray-500">
+                          <TableCell className="text-sm text-muted-foreground">
                             {call.completed_at ? formatDateTime(call.completed_at) : formatDateTime(call.started_at)}
                           </TableCell>
                         </TableRow>
@@ -508,23 +506,23 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
 
             {/* Call Outcomes Summary */}
             <div>
-              <h3 className="text-lg font-medium mb-3">Call Outcomes</h3>
+              <h3 className="text-lg font-medium mb-3 text-foreground">Call Outcomes</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="text-center p-3 border rounded">
-                  <div className="text-xl font-bold text-green-600">{campaignStatus.stats?.interested || 0}</div>
-                  <div className="text-sm text-gray-600">Interested</div>
+                <div className="text-center p-3 border border-border rounded">
+                  <div className="text-xl font-bold text-green-500">{campaignStatus.stats?.interested || 0}</div>
+                  <div className="text-sm text-muted-foreground">Interested</div>
                 </div>
-                <div className="text-center p-3 border rounded">
-                  <div className="text-xl font-bold text-red-600">{campaignStatus.stats?.notInterested || 0}</div>
-                  <div className="text-sm text-gray-600">Not Interested</div>
+                <div className="text-center p-3 border border-border rounded">
+                  <div className="text-xl font-bold text-red-500">{campaignStatus.stats?.notInterested || 0}</div>
+                  <div className="text-sm text-muted-foreground">Not Interested</div>
                 </div>
-                <div className="text-center p-3 border rounded">
-                  <div className="text-xl font-bold text-yellow-600">{campaignStatus.stats?.callback || 0}</div>
-                  <div className="text-sm text-gray-600">Callback</div>
+                <div className="text-center p-3 border border-border rounded">
+                  <div className="text-xl font-bold text-yellow-500">{campaignStatus.stats?.callback || 0}</div>
+                  <div className="text-sm text-muted-foreground">Callback</div>
                 </div>
-                <div className="text-center p-3 border rounded">
-                  <div className="text-xl font-bold text-gray-600">{campaignStatus.stats?.doNotCall || 0}</div>
-                  <div className="text-sm text-gray-600">Do Not Call</div>
+                <div className="text-center p-3 border border-border rounded">
+                  <div className="text-xl font-bold text-muted-foreground">{campaignStatus.stats?.doNotCall || 0}</div>
+                  <div className="text-sm text-muted-foreground">Do Not Call</div>
                 </div>
               </div>
             </div>

@@ -17,7 +17,7 @@ from livekit.protocol.sip import TransferSIPParticipantRequest
 from services.call_outcome_service import CallOutcomeService
 from services.rag_service import get_rag_service
 from integrations.calendar_api import Calendar, SlotUnavailableError
-from integrations.supabase_client import SupabaseClient
+from integrations.mongodb_client import MongoDBClient
 from utils.latency_logger import measure_latency_context
 
 
@@ -166,7 +166,7 @@ class UnifiedAgent(Agent):
         calendar: Optional[Calendar] = None,
         knowledge_base_id: Optional[str] = None,
         company_id: Optional[str] = None,
-        supabase: Optional[SupabaseClient] = None,
+        mongodb: Optional[MongoDBClient] = None,
         prewarmed_llm: Optional[object] = None,
         prewarmed_tts: Optional[object] = None,
         prewarmed_vad: Optional[object] = None
@@ -192,9 +192,8 @@ class UnifiedAgent(Agent):
         self.calendar = calendar
         self.knowledge_base_id = knowledge_base_id
         self.company_id = company_id
-        self.supabase = supabase
+        self.mongodb = mongodb
         
-        # Initialize services (singleton; no double init; Supabase is optional for read)
         self.rag_service = get_rag_service() if knowledge_base_id else None
             
         self.call_outcome_service = CallOutcomeService()

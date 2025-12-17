@@ -33,8 +33,8 @@ def get_openai_client():
 class AgentFactory:
     """Factory for creating and configuring agents."""
     
-    def __init__(self, supabase_client, prewarmed_llms=None, prewarmed_tts=None, prewarmed_vad=None):
-        self.supabase = supabase_client
+    def __init__(self, mongodb_client, prewarmed_llms=None, prewarmed_tts=None, prewarmed_vad=None):
+        self.mongodb = mongodb_client
         self._prewarmed_llms = prewarmed_llms or {}
         self._prewarmed_tts = prewarmed_tts or {}
         self._prewarmed_vad = prewarmed_vad
@@ -119,7 +119,7 @@ class AgentFactory:
             calendar=calendar,
             knowledge_base_id=knowledge_base_id,
             company_id=config.get("company_id"),
-            supabase=self.supabase,
+            mongodb=self.mongodb,
             prewarmed_llm=prewarmed_llm,
             prewarmed_tts=prewarmed_tts,
             prewarmed_vad=prewarmed_vad

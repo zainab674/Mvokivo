@@ -33,10 +33,28 @@
   @apply text-foreground font-mono tracking-tight;
 }
 
-/* Force override for dialog text to white (legacy fix kept for safety) */
-[data-radix-dialog-content],
-[data-radix-dialog-content] * {
+/* Message Bubble Styles */
+.message-bubble-incoming {
+  @apply bg-secondary text-secondary-foreground border-border rounded-bl-none !important;
+}
+
+.message-bubble-outgoing {
+  @apply bg-primary/10 text-foreground border-primary/20 rounded-br-none !important;
+}
+
+/* Force override for dialog text to white ONLY in dark mode */
+.dark [data-radix-dialog-content],
+.dark [data-radix-dialog-content] * {
   color: #ffffff !important;
+}
+
+/* In light mode, ensure dialog text uses foreground */
+:not(.dark) [data-radix-dialog-content] {
+  color: hsl(var(--foreground)) !important;
+}
+
+:not(.dark) [data-radix-dialog-content] * {
+  color: inherit;
 }
 
 /* Calendar Overrides */

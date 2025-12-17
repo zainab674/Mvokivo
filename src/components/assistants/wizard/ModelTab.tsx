@@ -39,60 +39,30 @@ interface ModelTabProps {
 }
 
 export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
-  const [isCallManagementOpen, setIsCallManagementOpen] = React.useState(false);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(false);
   const [knowledgeBaseError, setKnowledgeBaseError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
   const [calendarCredentials, setCalendarCredentials] = useState<UserCalendarCredentials[]>([]);
   const [loadingCalendarCredentials, setLoadingCalendarCredentials] = useState(false);
   const [eventTypes, setEventTypes] = useState<CalComEventType[]>([]);
   const [loadingEventTypes, setLoadingEventTypes] = useState(false);
   const [eventTypesError, setEventTypesError] = useState<string | null>(null);
   const { toast } = useToast();
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Check if assistant has calendar API key
   const hasCalendarApiKey = () => {
     return !!data.calApiKey;
   };
 
-  // Idle message helper functions
-  const removeIdleMessage = (index: number) => {
-    const updated = data.idleMessages.filter((_, i) => i !== index);
-    onChange({ idleMessages: updated });
-  };
 
-  const toggleIdleMessage = (message: string) => {
-    const updated = data.idleMessages.includes(message)
-      ? data.idleMessages.filter(msg => msg !== message)
-      : [...data.idleMessages, message];
-    onChange({ idleMessages: updated });
-  };
-
-  const selectAllIdleMessages = () => {
-    const filteredOptions = IDLE_MESSAGE_OPTIONS.filter(option =>
-      option.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    onChange({ idleMessages: [...filteredOptions] });
-  };
-
-  const clearAllIdleMessages = () => {
-    onChange({ idleMessages: [] });
-  };
-
-  // Filter idle message options based on search term
-  const filteredIdleOptions = IDLE_MESSAGE_OPTIONS.filter(option =>
-    option.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handleCalendarChange = async (calendarIntegrationId: string) => {
     console.log("Calendar change triggered:", calendarIntegrationId);
     console.log("Available calendar credentials:", calendarCredentials);
-    
+
     if (calendarIntegrationId === "None") {
       // Clear calendar credentials and event types
-      onChange({ 
+      onChange({
         calendar: "None",
         calApiKey: "",
         calEventTypeId: "",
@@ -107,7 +77,7 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
     // Find the selected calendar integration
     const selectedIntegration = calendarCredentials.find(cred => cred.id === calendarIntegrationId);
     console.log("Selected integration:", selectedIntegration);
-    
+
     if (selectedIntegration) {
       // Populate calendar credentials from the integration
       const updateData = {
@@ -300,8 +270,8 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
                   </button>
                 )}
               </div>
-              <Select 
-                value={data.knowledgeBase} 
+              <Select
+                value={data.knowledgeBase}
                 onValueChange={(value) => onChange({ knowledgeBase: value })}
                 disabled={loadingKnowledgeBases}
               >
@@ -347,9 +317,9 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
               {!loadingKnowledgeBases && knowledgeBases.length === 0 && !knowledgeBaseError && (
                 <p className="text-xs text-muted-foreground mt-2">
                   No knowledge bases found. Create one{" "}
-                  <a 
-                    href="/knowledge-base" 
-                    target="_blank" 
+                  <a
+                    href="/knowledge-base"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:text-primary/80 underline"
                   >
@@ -390,9 +360,9 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
               {!loadingCalendarCredentials && calendarCredentials.length === 0 && (
                 <p className="text-xs text-muted-foreground mt-2">
                   Calendar not connected. Configure{" "}
-                  <a 
-                    href="/settings" 
-                    target="_blank" 
+                  <a
+                    href="/settings"
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:text-primary/80 underline"
                   >
@@ -406,8 +376,8 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
             {data.calendar && data.calendar !== "None" && (
               <div>
                 <Label className="block text-sm font-medium mb-2">Event Type</Label>
-                <Select 
-                  value={data.calEventTypeId || "none"} 
+                <Select
+                  value={data.calEventTypeId || "none"}
                   onValueChange={(value) => {
                     if (value === "none") {
                       handleEventTypeChange(null);
@@ -483,213 +453,6 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
       </div>
 
 
-      {/* Call Management Settings */}
-      <div className="lg:col-span-12 mt-[var(--space-xl)]">
-        <Card variant="default" className="overflow-hidden">
-          <Collapsible open={isCallManagementOpen} onOpenChange={setIsCallManagementOpen}>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors p-[var(--space-lg)]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-[var(--space-md)]">
-                    <Phone className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <CardTitle className="text-base font-medium">Call Management</CardTitle>
-                      <CardDescription className="text-sm">
-                        Configure call handling, idle messages, and timeout settings
-                      </CardDescription>
-                    </div>
-                  </div>
-                  {isCallManagementOpen ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            
-            <CollapsibleContent>
-              <CardContent className="pt-0 pb-[var(--space-lg)] px-[var(--space-lg)]">
-                <div className="space-y-[var(--space-xl)]">
-                  {/* End Call Message */}
-                  <div className="space-y-[var(--space-sm)]">
-                    <Label className="text-sm font-medium">End Call Message</Label>
-                    <p className="text-xs text-muted-foreground">
-                      This message will be spoken by the assistant when the call is ended.
-                    </p>
-                    <Input
-                      placeholder="Thank you for calling. Have a great day!"
-                      value={data.endCallMessage}
-                      onChange={(e) => onChange({ endCallMessage: e.target.value })}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Idle Messages */}
-                  <div className="space-y-[var(--space-sm)]">
-                    <Label className="text-sm font-medium">Idle Messages</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Select predefined messages that the assistant will use when the user hasn't responded
-                    </p>
-                    
-                    {/* Message Pills */}
-                    {data.idleMessages.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {data.idleMessages.map((message, index) => (
-                          <div
-                            key={index}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm"
-                          >
-                            <span className="text-foreground">{message}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeIdleMessage(index)}
-                              className="h-4 w-4 p-0 hover:bg-destructive/20 rounded-full"
-                            >
-                              <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* Dropdown Selector */}
-                    <Popover open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={isDropdownOpen}
-                          className="w-full justify-between text-left font-normal"
-                        >
-                          {data.idleMessages.length > 0 
-                            ? `${data.idleMessages.length} message${data.idleMessages.length > 1 ? 's' : ''} selected`
-                            : "Select idle messages..."
-                          }
-                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      
-                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                        <div className="max-h-80 overflow-hidden rounded-md">
-                          {/* Search */}
-                          <div className="flex items-center border-b border-border px-3 py-3 bg-popover">
-                            <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                            <Input
-                              placeholder="Search messages..."
-                              value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
-                              className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent h-6 px-0 text-sm placeholder:text-muted-foreground"
-                            />
-                          </div>
-                          
-                          {/* Select All / Clear All */}
-                          <div className="flex justify-between items-center p-3 bg-muted/30 border-b border-border">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={selectAllIdleMessages}
-                              className="h-7 px-2 text-xs"
-                            >
-                              Select All
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={clearAllIdleMessages}
-                              className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                            >
-                              Clear All
-                            </Button>
-                          </div>
-                          
-                          {/* Options List */}
-                          <div className="max-h-48 overflow-auto">
-                            {filteredIdleOptions.length > 0 ? (
-                              filteredIdleOptions.map((option) => (
-                                <div
-                                  key={option}
-                                  className="flex items-center space-x-3 px-3 py-2 hover:bg-muted/50 cursor-pointer"
-                                  onClick={() => toggleIdleMessage(option)}
-                                >
-                                  <Checkbox
-                                    checked={data.idleMessages.includes(option)}
-                                    onChange={() => {}}
-                                    className="pointer-events-none"
-                                  />
-                                  <span className="flex-1 text-sm text-foreground">{option}</span>
-                                </div>
-                              ))
-                            ) : (
-                              <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                                No messages found
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-[var(--space-lg)]">
-                    {/* Max Idle Messages */}
-                    <div className="space-y-[var(--space-sm)]">
-                      <Label className="text-sm font-medium">Max Idle Messages</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Maximum number of idle messages before ending call
-                      </p>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={data.idleMessageMaxSpokenCount}
-                        onChange={(e) => onChange({ idleMessageMaxSpokenCount: parseInt(e.target.value) || 3 })}
-                        className="text-center"
-                        placeholder="3"
-                      />
-                    </div>
-
-                    {/* Idle Timeout */}
-                    <div className="space-y-[var(--space-sm)]">
-                      <Label className="text-sm font-medium">Idle Timeout (seconds)</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Time to wait before sending idle message
-                      </p>
-                      <Input
-                        type="number"
-                        min="5"
-                        max="60"
-                        value={data.silenceTimeoutSeconds}
-                        onChange={(e) => onChange({ silenceTimeoutSeconds: parseInt(e.target.value) || 10 })}
-                        className="text-center"
-                        placeholder="10"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Maximum Call Duration */}
-                  <div className="space-y-[var(--space-sm)]">
-                    <Label className="text-sm font-medium">Maximum Call Duration (minutes)</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Automatically end calls after this duration to prevent excessive charges
-                    </p>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="120"
-                      value={data.maxCallDuration}
-                      onChange={(e) => onChange({ maxCallDuration: parseInt(e.target.value) || 30 })}
-                      className="w-32 text-center"
-                      placeholder="30"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-      </div>
     </div>
   );
 };

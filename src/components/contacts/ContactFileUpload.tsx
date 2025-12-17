@@ -20,7 +20,7 @@ export const ContactFileUpload: React.FC<ContactFileUploadProps> = ({
 
   const validateFile = (file: File): boolean => {
     setError("");
-    
+
     // Check file size
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > maxSize) {
@@ -31,7 +31,7 @@ export const ContactFileUpload: React.FC<ContactFileUploadProps> = ({
     // Check file type
     const allowedExtensions = acceptedTypes.split(',').map(ext => ext.trim().toLowerCase());
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    
+
     if (!allowedExtensions.includes(fileExtension)) {
       setError(`File type not supported. Please use: ${acceptedTypes}`);
       return false;
@@ -54,7 +54,7 @@ export const ContactFileUpload: React.FC<ContactFileUploadProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length > 0) {
       const file = droppedFiles[0];
@@ -84,11 +84,11 @@ export const ContactFileUpload: React.FC<ContactFileUploadProps> = ({
         <div
           className={`
             relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200
-            ${dragActive 
-              ? 'border-primary/60 bg-primary/5' 
-              : 'border-theme-medium hover:border-theme-strong'
+            ${dragActive
+              ? 'border-primary/60 bg-primary/5'
+              : 'border-border hover:border-primary/50'
             }
-            cursor-pointer hover:bg-theme-muted/30
+            cursor-pointer hover:bg-muted/50
           `}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -103,12 +103,12 @@ export const ContactFileUpload: React.FC<ContactFileUploadProps> = ({
             onChange={handleFileInput}
             className="hidden"
           />
-          
-          <Upload className="h-12 w-12 mx-auto mb-4 text-theme-secondary" />
-          <p className="text-base font-medium text-theme-primary mb-2">
+
+          <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-base font-medium text-foreground mb-2">
             {dragActive ? 'Drop your file here' : 'Click to upload or drag & drop'}
           </p>
-          <p className="text-sm text-theme-tertiary mb-2">
+          <p className="text-sm text-muted-foreground mb-2">
             Supports CSV, XLSX, XLS files up to {maxSize}MB
           </p>
           <Button variant="outline" className="mt-4">
@@ -116,13 +116,13 @@ export const ContactFileUpload: React.FC<ContactFileUploadProps> = ({
           </Button>
         </div>
       ) : (
-        <div className="p-4 border border-theme-light rounded-lg bg-surface-elevated">
+        <div className="p-4 border border-border rounded-lg bg-muted/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <CheckCircle className="h-5 w-5 text-green-600" />
               <div>
-                <p className="font-medium text-theme-primary">{selectedFile.name}</p>
-                <p className="text-sm text-theme-secondary">
+                <p className="font-medium text-foreground">{selectedFile.name}</p>
+                <p className="text-sm text-muted-foreground">
                   {(selectedFile.size / 1024).toFixed(1)} KB
                 </p>
               </div>

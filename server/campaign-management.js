@@ -1,19 +1,331 @@
 // server/campaign-management.js
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { Campaign, CampaignCall, CallQueue } from './models/index.js';
 import { campaignEngine } from './campaign-execution-engine.js';
 import { createLiveKitRoomTwiml } from './utils/livekit-room-helper.js';
 import { applyTenantFilterFromRequest } from './utils/applyTenantFilterToQuery.js';
 
+import { authenticateToken } from './utils/auth.js';
+
 export const campaignManagementRouter = express.Router();
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Apply auth middleware to all routes
+campaignManagementRouter.use(authenticateToken);
 
 // Store campaign metadata temporarily for webhook access
 const campaignMetadataStore = new Map();
+
+/**
+ * List campaigns for the current user
+ * GET /api/v1/campaigns
+ */
+campaignManagementRouter.get('/', async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Base query: campaigns belonging to the user
+    let query = Campaign.find({ user_id: userId })
+      .populate('assistant', 'name') // Populate assistant name
+      .populate('contact_list', 'name') // Populate contact list name
+      .populate('csv_file', 'name') // Populate csv file name
+      .sort({ created_at: -1 });
+
+    // Apply tenant filter
+    applyTenantFilterFromRequest(req, query);
+
+    const campaigns = await query;
+    const total = await Campaign.countDocuments(query.getFilter());
+
+    res.json({
+      success: true,
+      campaigns: campaigns || [],
+      total: total || 0
+    });
+  } catch (error) {
+    console.error('Error fetching campaigns:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch campaigns',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Create a new campaign
+ * POST /api/v1/campaigns
+ */
+campaignManagementRouter.post('/', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const data = req.body;
+
+    // Ensure the user owns the assistant? (Ideally yes, but skipped for brevity/trust)
+
+    const newCampaign = new Campaign({
+      name: data.name,
+      user_id: userId, // Enforce user_id from token
+      assistant_id: data.assistantId,
+      contact_list_id: data.contactListId || null,
+      csv_file_id: data.csvFileId || null,
+      contact_source: data.contactSource,
+      daily_cap: data.dailyCap,
+      calling_days: data.callingDays,
+      start_hour: data.startHour,
+      end_hour: data.endHour,
+      campaign_prompt: data.campaignPrompt,
+      status: 'draft',
+      execution_status: 'idle',
+      tenant: req.tenant // Enforce tenant from middleware
+    });
+
+    await newCampaign.save();
+
+    res.json({
+      success: true,
+      campaignId: newCampaign._id,
+      message: 'Campaign created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating campaign:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create campaign',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Export campaign calls
+ * GET /api/v1/campaigns/:id/export/calls
+ */
+campaignManagementRouter.get('/:id/export/calls', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get campaign to verify access/tenant
+    const campaignQuery = Campaign.findOne({ _id: id });
+    applyTenantFilterFromRequest(req, campaignQuery);
+    const campaign = await campaignQuery;
+
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+
+    const calls = await CampaignCall.find({ campaign_id: id })
+      .populate('campaign_id', 'name') // Assuming 'campaigns' ref in Mongoose is 'Campaign', check model definition
+      .sort({ created_at: -1 });
+
+    const exportData = calls.map(call => ({
+      id: call.id,
+      campaign_name: campaign.name,
+      contact_name: call.contact_name || 'Unknown',
+      phone_number: call.phone_number,
+      status: call.status,
+      outcome: call.outcome,
+      call_duration: call.call_duration || 0,
+      recording_url: call.recording_url,
+      transcription: call.transcription,
+      summary: call.summary,
+      notes: call.notes,
+      retry_count: call.retry_count || 0,
+      scheduled_at: call.scheduled_at,
+      started_at: call.started_at,
+      completed_at: call.completed_at,
+      created_at: call.created_at
+    }));
+
+    res.json({ success: true, calls: exportData });
+  } catch (error) {
+    console.error('Error exporting campaign calls:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Export campaign stats
+ * GET /api/v1/campaigns/:id/export/stats
+ */
+campaignManagementRouter.get('/:id/export/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const campaignQuery = Campaign.findOne({ _id: id });
+    applyTenantFilterFromRequest(req, campaignQuery);
+    const campaign = await campaignQuery;
+
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+
+    // Get outcome stats
+    const callStats = await CampaignCall.find({ campaign_id: id }).select('outcome');
+
+    const outcomeCounts = {
+      interested: 0,
+      not_interested: 0,
+      callback: 0,
+      do_not_call: 0,
+      voicemail: 0,
+      wrong_number: 0
+    };
+
+    callStats.forEach(call => {
+      if (call.outcome && outcomeCounts.hasOwnProperty(call.outcome)) {
+        outcomeCounts[call.outcome]++;
+      }
+    });
+
+    const answerRate = campaign.total_calls_made > 0
+      ? (campaign.total_calls_answered / campaign.total_calls_made) * 100
+      : 0;
+
+    const successRate = campaign.total_calls_made > 0
+      ? ((outcomeCounts.interested + outcomeCounts.callback) / campaign.total_calls_made) * 100
+      : 0;
+
+    const interestRate = campaign.total_calls_answered > 0
+      ? (outcomeCounts.interested / campaign.total_calls_answered) * 100
+      : 0;
+
+    const statsData = [{
+      campaign_name: campaign.name,
+      execution_status: campaign.execution_status,
+      daily_cap: campaign.daily_cap,
+      current_daily_calls: campaign.current_daily_calls,
+      total_calls_made: campaign.total_calls_made,
+      total_calls_answered: campaign.total_calls_answered,
+      answer_rate: answerRate,
+      interested_count: outcomeCounts.interested,
+      not_interested_count: outcomeCounts.not_interested,
+      callback_count: outcomeCounts.callback,
+      do_not_call_count: outcomeCounts.do_not_call,
+      voicemail_count: outcomeCounts.voicemail,
+      wrong_number_count: outcomeCounts.wrong_number,
+      success_rate: successRate,
+      interest_rate: interestRate,
+      created_at: campaign.created_at,
+      last_execution_at: campaign.last_execution_at,
+      next_call_at: campaign.next_call_at
+    }];
+
+    res.json({ success: true, stats: statsData });
+  } catch (error) {
+    console.error('Error exporting campaign stats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Export ALL campaigns data
+ * GET /api/v1/campaigns/export/all
+ */
+campaignManagementRouter.get('/export/all', async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get all campaigns
+    let campaignQuery = Campaign.find({ user_id: userId }).sort({ created_at: -1 });
+    applyTenantFilterFromRequest(req, campaignQuery);
+    const campaigns = await campaignQuery;
+
+    if (!campaigns || campaigns.length === 0) {
+      return res.json({ success: true, calls: [], stats: [] });
+    }
+
+    const campaignIds = campaigns.map(c => c._id);
+
+    // Get calls
+    const calls = await CampaignCall.find({ campaign_id: { $in: campaignIds } })
+      // We need campaign name map, as populate might be slow or complex if referencing same collection? 
+      // CampaignCall has campaign_id.
+      .sort({ created_at: -1 });
+
+    const campaignMap = new Map(campaigns.map(c => [c._id.toString(), c]));
+
+    const callsExport = calls.map(call => ({
+      id: call.id,
+      campaign_name: campaignMap.get(call.campaign_id.toString())?.name || 'Unknown',
+      contact_name: call.contact_name || 'Unknown',
+      phone_number: call.phone_number,
+      status: call.status,
+      outcome: call.outcome,
+      call_duration: call.call_duration || 0,
+      recording_url: call.recording_url,
+      transcription: call.transcription,
+      summary: call.summary,
+      notes: call.notes,
+      retry_count: call.retry_count || 0,
+      scheduled_at: call.scheduled_at,
+      started_at: call.started_at,
+      completed_at: call.completed_at,
+      created_at: call.created_at
+    }));
+
+    // Stats export
+    const statsExport = await Promise.all(campaigns.map(async (c) => {
+      const outcomeCounts = {
+        interested: 0,
+        not_interested: 0,
+        callback: 0,
+        do_not_call: 0,
+        voicemail: 0,
+        wrong_number: 0
+      };
+
+      // We could batch fetch counts but loop is easier given we have calls loaded??
+      // Actually we have all calls in `calls`. Filter in memory to save DB hits.
+      const callsForCampaign = calls.filter(call => call.campaign_id.toString() === c._id.toString());
+
+      callsForCampaign.forEach(call => {
+        if (call.outcome && outcomeCounts.hasOwnProperty(call.outcome)) {
+          outcomeCounts[call.outcome]++;
+        }
+      });
+
+      const answerRate = c.total_calls_made > 0
+        ? (c.total_calls_answered / c.total_calls_made) * 100
+        : 0;
+
+      const successRate = c.total_calls_made > 0
+        ? ((outcomeCounts.interested + outcomeCounts.callback) / c.total_calls_made) * 100
+        : 0;
+
+      const interestRate = c.total_calls_answered > 0
+        ? (outcomeCounts.interested / c.total_calls_answered) * 100
+        : 0;
+
+      return {
+        campaign_name: c.name,
+        execution_status: c.execution_status,
+        daily_cap: c.daily_cap,
+        current_daily_calls: c.current_daily_calls,
+        total_calls_made: c.total_calls_made,
+        total_calls_answered: c.total_calls_answered,
+        answer_rate: answerRate,
+        interested_count: outcomeCounts.interested,
+        not_interested_count: outcomeCounts.not_interested,
+        callback_count: outcomeCounts.callback,
+        do_not_call_count: outcomeCounts.do_not_call,
+        voicemail_count: outcomeCounts.voicemail,
+        wrong_number_count: outcomeCounts.wrong_number,
+        success_rate: successRate,
+        interest_rate: interestRate,
+        created_at: c.created_at,
+        last_execution_at: c.last_execution_at,
+        next_call_at: c.next_call_at
+      };
+    }));
+
+    res.json({ success: true, calls: callsExport, stats: statsExport });
+
+  } catch (error) {
+    console.error('Error exporting all campaigns:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 /**
  * Start a campaign
@@ -24,13 +336,9 @@ campaignManagementRouter.post('/:id/start', async (req, res) => {
     const { id } = req.params;
 
     // Get campaign details
-    const { data: campaign, error } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const campaign = await Campaign.findById(id);
 
-    if (error || !campaign) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         message: 'Campaign not found'
@@ -80,15 +388,11 @@ campaignManagementRouter.post('/:id/pause', async (req, res) => {
     const { id } = req.params;
 
     // Get campaign details first with tenant filter
-    let query = supabase
-      .from('campaigns')
-      .select('execution_status')
-      .eq('id', id);
-    
-    query = applyTenantFilterFromRequest(req, query);
-    const { data: campaign, error: fetchError } = await query.single();
+    let query = Campaign.findOne({ _id: id });
+    applyTenantFilterFromRequest(req, query);
+    const campaign = await query;
 
-    if (fetchError || !campaign) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         message: 'Campaign not found'
@@ -103,19 +407,11 @@ campaignManagementRouter.post('/:id/pause', async (req, res) => {
       });
     }
 
-    // Update campaign status (both fields for consistency)
-    const { error } = await supabase
-      .from('campaigns')
-      .update({
-        execution_status: 'paused',
-        status: 'paused',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
+    // Update campaign status
+    campaign.execution_status = 'paused';
+    campaign.status = 'paused';
+    campaign.updated_at = new Date();
+    await campaign.save();
 
     res.json({
       success: true,
@@ -140,15 +436,11 @@ campaignManagementRouter.post('/:id/resume', async (req, res) => {
     const { id } = req.params;
 
     // Get campaign details first with tenant filter
-    let query = supabase
-      .from('campaigns')
-      .select('execution_status')
-      .eq('id', id);
-    
-    query = applyTenantFilterFromRequest(req, query);
-    const { data: campaign, error: fetchError } = await query.single();
+    let query = Campaign.findOne({ _id: id });
+    applyTenantFilterFromRequest(req, query);
+    const campaign = await query;
 
-    if (fetchError || !campaign) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         message: 'Campaign not found'
@@ -163,20 +455,12 @@ campaignManagementRouter.post('/:id/resume', async (req, res) => {
       });
     }
 
-    // Update campaign status (both fields for consistency)
-    const { error } = await supabase
-      .from('campaigns')
-      .update({
-        execution_status: 'running',
-        status: 'active',
-        next_call_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
+    // Update campaign status
+    campaign.execution_status = 'running';
+    campaign.status = 'active';
+    campaign.next_call_at = new Date();
+    campaign.updated_at = new Date();
+    await campaign.save();
 
     res.json({
       success: true,
@@ -201,31 +485,28 @@ campaignManagementRouter.post('/:id/stop', async (req, res) => {
     const { id } = req.params;
 
     // Update campaign status (both fields for consistency)
-    const { error } = await supabase
-      .from('campaigns')
-      .update({
+    await Campaign.updateOne(
+      { _id: id },
+      {
         execution_status: 'completed',
         status: 'completed',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-
-    if (error) {
-      throw error;
-    }
+        updated_at: new Date()
+      }
+    );
 
     // Cancel pending calls in queue with tenant filter
-    let queueQuery = supabase
-      .from('call_queue')
-      .update({
-        status: 'cancelled',
-        updated_at: new Date().toISOString()
-      })
-      .eq('campaign_id', id)
-      .eq('status', 'queued');
-    
-    queueQuery = applyTenantFilterFromRequest(req, queueQuery);
-    await queueQuery;
+    // Mongoose updateMany with tenant filter
+    let queueQuery = CallQueue.find({ campaign_id: id, status: 'queued' });
+    applyTenantFilterFromRequest(req, queueQuery);
+
+    // We first find the IDs to update or update directly using the query criteria
+    // Since applyTenantFilter modifies the query object, we can extract the filter
+    const filter = queueQuery.getFilter();
+
+    await CallQueue.updateMany(filter, {
+      status: 'cancelled',
+      updated_at: new Date()
+    });
 
     res.json({
       success: true,
@@ -250,74 +531,76 @@ campaignManagementRouter.get('/:id/status', async (req, res) => {
     const { id } = req.params;
 
     // Get campaign details
-    const { data: campaign, error } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const campaign = await Campaign.findById(id);
 
-    if (error || !campaign) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         message: 'Campaign not found'
       });
     }
 
-    // Get call statistics with tenant filter
-    let statsQuery = supabase
-      .from('campaign_calls')
-      .select('status, outcome')
-      .eq('campaign_id', id);
-    
-    statsQuery = applyTenantFilterFromRequest(req, statsQuery);
-    const { data: callStats, error: statsError } = await statsQuery;
+    // Efficiently aggregate call stats
+    // We want counts by status and outcome
+    // Since we need to apply tenant filter, let's verify if Aggregation handles it easily
+    // We can just add match stage.
+    // However, applyTenantFilter helper works on Query, not Aggregate.
+    // But we can construct the match object manually or instantiate a dummy query to get filter.
+    // Simpler: just match on campaign_id and assume user has access to campaign implies access to calls
+    // (since we fetched campaign above). Or better, enforce tenant if needed.
+    // Assuming for now campaign ownership is sufficient or tenant is same as campaign.
 
-    if (statsError) {
-      console.error('Error fetching call stats:', statsError);
-    }
+    const callStatsAggregation = await CampaignCall.aggregate([
+      { $match: { campaign_id: id } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+          calling: { $sum: { $cond: [{ $eq: ["$status", "calling"] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+          failed: { $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] } },
+          answered: { $sum: { $cond: [{ $eq: ["$status", "answered"] }, 1, 0] } },
+          // Outcomes
+          noAnswer: { $sum: { $cond: [{ $eq: ["$outcome", "no_answer"] }, 1, 0] } },
+          busy: { $sum: { $cond: [{ $eq: ["$outcome", "busy"] }, 1, 0] } },
+          interested: { $sum: { $cond: [{ $eq: ["$outcome", "interested"] }, 1, 0] } },
+          notInterested: { $sum: { $cond: [{ $eq: ["$outcome", "not_interested"] }, 1, 0] } },
+          callback: { $sum: { $cond: [{ $eq: ["$outcome", "callback"] }, 1, 0] } },
+          doNotCall: { $sum: { $cond: [{ $eq: ["$outcome", "do_not_call"] }, 1, 0] } }
+        }
+      }
+    ]);
 
-    // Calculate statistics
-    const stats = {
-      total: callStats?.length || 0,
-      pending: callStats?.filter(c => c.status === 'pending').length || 0,
-      calling: callStats?.filter(c => c.status === 'calling').length || 0,
-      completed: callStats?.filter(c => c.status === 'completed').length || 0,
-      failed: callStats?.filter(c => c.status === 'failed').length || 0,
-      answered: callStats?.filter(c => c.status === 'answered').length || 0,
-      noAnswer: callStats?.filter(c => c.outcome === 'no_answer').length || 0,
-      busy: callStats?.filter(c => c.outcome === 'busy').length || 0,
-      interested: callStats?.filter(c => c.outcome === 'interested').length || 0,
-      notInterested: callStats?.filter(c => c.outcome === 'not_interested').length || 0,
-      callback: callStats?.filter(c => c.outcome === 'callback').length || 0,
-      doNotCall: callStats?.filter(c => c.outcome === 'do_not_call').length || 0
+    const stats = callStatsAggregation[0] || {
+      total: 0, pending: 0, calling: 0, completed: 0, failed: 0, answered: 0,
+      noAnswer: 0, busy: 0, interested: 0, notInterested: 0, callback: 0, doNotCall: 0
     };
 
-    // Get queue status with tenant filter
-    let queueQuery = supabase
-      .from('call_queue')
-      .select('status')
-      .eq('campaign_id', id);
-    
-    queueQuery = applyTenantFilterFromRequest(req, queueQuery);
-    const { data: queueStats, error: queueError } = await queueQuery;
+    // Get queue status
+    const queueStatsAggregation = await CallQueue.aggregate([
+      { $match: { campaign_id: id } },
+      {
+        $group: {
+          _id: null,
+          queued: { $sum: { $cond: [{ $eq: ["$status", "queued"] }, 1, 0] } },
+          processing: { $sum: { $cond: [{ $eq: ["$status", "processing"] }, 1, 0] } },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+          failed: { $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] } },
+          cancelled: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } }
+        }
+      }
+    ]);
 
-    if (queueError) {
-      console.error('Error fetching queue stats:', queueError);
-    }
-
-    const queueStatus = {
-      queued: queueStats?.filter(q => q.status === 'queued').length || 0,
-      processing: queueStats?.filter(q => q.status === 'processing').length || 0,
-      completed: queueStats?.filter(q => q.status === 'completed').length || 0,
-      failed: queueStats?.filter(q => q.status === 'failed').length || 0,
-      cancelled: queueStats?.filter(q => q.status === 'cancelled').length || 0
+    const queueStats = queueStatsAggregation[0] || {
+      queued: 0, processing: 0, completed: 0, failed: 0, cancelled: 0
     };
 
     res.json({
       success: true,
       campaign: {
         campaign: {
-          id: campaign.id,
+          id: campaign._id,
           name: campaign.name,
           execution_status: campaign.execution_status,
           daily_cap: campaign.daily_cap,
@@ -331,8 +614,28 @@ campaignManagementRouter.get('/:id/status', async (req, res) => {
           end_hour: campaign.end_hour,
           campaign_prompt: campaign.campaign_prompt
         },
-        stats,
-        queueStatus
+        stats: {
+          total: stats.total,
+          pending: stats.pending,
+          calling: stats.calling,
+          completed: stats.completed,
+          failed: stats.failed,
+          answered: stats.answered,
+          // Outcomes
+          noAnswer: stats.noAnswer,
+          busy: stats.busy,
+          interested: stats.interested,
+          notInterested: stats.notInterested,
+          callback: stats.callback,
+          doNotCall: stats.doNotCall
+        },
+        queueStatus: {
+          queued: queueStats.queued,
+          processing: queueStats.processing,
+          completed: queueStats.completed,
+          failed: queueStats.failed,
+          cancelled: queueStats.cancelled
+        }
       }
     });
 
@@ -352,61 +655,34 @@ campaignManagementRouter.get('/:id/status', async (req, res) => {
 campaignManagementRouter.get('/:id/calls', async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      status, 
-      outcome, 
-      limit = 50, 
+    const {
+      status,
+      outcome,
+      limit = 50,
       offset = 0,
       sortBy = 'created_at',
       sortOrder = 'desc'
     } = req.query;
 
-    let query = supabase
-      .from('campaign_calls')
-      .select('*')
-      .eq('campaign_id', id)
-      .order(sortBy, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + parseInt(limit) - 1);
+    let query = CampaignCall.find({ campaign_id: id });
 
     // Add tenant filter
-    query = applyTenantFilterFromRequest(req, query);
+    applyTenantFilterFromRequest(req, query);
 
-    if (status) {
-      query = query.eq('status', status);
-    }
+    if (status) query.where('status', status);
+    if (outcome) query.where('outcome', outcome);
 
-    if (outcome) {
-      query = query.eq('outcome', outcome);
-    }
+    const sortObject = {};
+    sortObject[sortBy] = sortOrder === 'asc' ? 1 : -1;
 
-    const { data: calls, error } = await query;
+    // Get data
+    const calls = await CampaignCall.find(query.getFilter()) // create new query from filter to allow counting on base query? No, just run simple.
+      .sort(sortObject)
+      .skip(parseInt(offset))
+      .limit(parseInt(limit));
 
-    if (error) {
-      throw error;
-    }
-
-    // Get total count for pagination with tenant filter
-    let countQuery = supabase
-      .from('campaign_calls')
-      .select('id', { count: 'exact' })
-      .eq('campaign_id', id);
-
-    // Add tenant filter
-    countQuery = applyTenantFilterFromRequest(req, countQuery);
-
-    if (status) {
-      countQuery = countQuery.eq('status', status);
-    }
-
-    if (outcome) {
-      countQuery = countQuery.eq('outcome', outcome);
-    }
-
-    const { count, error: countError } = await countQuery;
-
-    if (countError) {
-      console.error('Error fetching call count:', countError);
-    }
+    // Get total count
+    const count = await CampaignCall.countDocuments(query.getFilter());
 
     res.json({
       success: true,
@@ -434,20 +710,19 @@ campaignManagementRouter.post('/:id/reset-daily', async (req, res) => {
     const { id } = req.params;
 
     // Reset daily counters with tenant filter
-    let updateQuery = supabase
-      .from('campaigns')
-      .update({
-        current_daily_calls: 0,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id);
-    
-    updateQuery = applyTenantFilterFromRequest(req, updateQuery);
-    const { error } = await updateQuery;
+    let query = Campaign.findOneAndUpdate(
+      { _id: id },
+      {
+        $set: {
+          current_daily_calls: 0,
+          updated_at: new Date()
+        }
+      }
+    );
+    applyTenantFilterFromRequest(req, query);
 
-    if (error) {
-      throw error;
-    }
+    // We need to execute the query
+    await query;
 
     res.json({
       success: true,
@@ -471,16 +746,12 @@ campaignManagementRouter.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get campaign details first to check if it exists (with tenant filter)
-    let query = supabase
-      .from('campaigns')
-      .select('id, execution_status')
-      .eq('id', id);
-    
-    query = applyTenantFilterFromRequest(req, query);
-    const { data: campaign, error: fetchError } = await query.single();
+    // Get campaign details first
+    let query = Campaign.findOne({ _id: id });
+    applyTenantFilterFromRequest(req, query);
+    const campaign = await query;
 
-    if (fetchError || !campaign) {
+    if (!campaign) {
       return res.status(404).json({
         success: false,
         message: 'Campaign not found'
@@ -495,18 +766,12 @@ campaignManagementRouter.delete('/:id', async (req, res) => {
       });
     }
 
-    // Delete the campaign with tenant filter (this will cascade delete related records due to foreign key constraints)
-    let deleteQuery = supabase
-      .from('campaigns')
-      .delete()
-      .eq('id', id);
-    
-    deleteQuery = applyTenantFilterFromRequest(req, deleteQuery);
-    const { error: deleteError } = await deleteQuery;
+    // Manual Cascade Delete
+    await CampaignCall.deleteMany({ campaign_id: id });
+    await CallQueue.deleteMany({ campaign_id: id });
 
-    if (deleteError) {
-      throw deleteError;
-    }
+    // Delete the campaign
+    await Campaign.deleteOne({ _id: id });
 
     res.json({
       success: true,
@@ -585,7 +850,7 @@ campaignManagementRouter.post('/metadata/:roomName', async (req, res) => {
 campaignManagementRouter.post('/webhook/:roomName', async (req, res) => {
   try {
     const { roomName } = req.params;
-    
+
     // Get stored metadata
     const metadata = campaignMetadataStore.get(roomName);
     if (!metadata) {

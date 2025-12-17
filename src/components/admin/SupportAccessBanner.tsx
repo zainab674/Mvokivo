@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Clock, Shield, X, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/SupportAccessAuthContext';
 
 interface SupportAccessBannerProps {
   session: {
@@ -35,6 +35,7 @@ export const SupportAccessBanner: React.FC<SupportAccessBannerProps> = ({
     total: number;
   }>({ minutes: 0, seconds: 0, total: 0 });
   const [isExpiringSoon, setIsExpiringSoon] = useState(false);
+  const { getAccessToken } = useAuth();
 
   useEffect(() => {
     const updateTimer = () => {
@@ -68,9 +69,8 @@ export const SupportAccessBanner: React.FC<SupportAccessBannerProps> = ({
 
   const handleEndSession = async () => {
     try {
-      // Get the current session token from Supabase
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      if (!authSession?.access_token) {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
         toast.error('No valid session found. Please log in again.');
         return;
       }
@@ -79,7 +79,7 @@ export const SupportAccessBanner: React.FC<SupportAccessBannerProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authSession.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ reason: 'completed' }),
       });

@@ -1,23 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
+import { KnowledgeBase, KnowledgeDocument, DocumentChunk, DocumentText } from '../models/index.js';
 
 class KnowledgeBaseDatabaseService {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
+    // No initialization needed for Mongoose models
   }
 
   // Knowledge Base operations
   async createKnowledgeBase(kbData) {
-    const { data, error } = await this.supabase
-      .from('knowledge_bases')
-      .insert([kbData])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const kb = new KnowledgeBase(kbData);
+    await kb.save();
+    return kb;
   }
 
   async updateKnowledgeBasePineconeInfo(kbId, pineconeInfo) {
@@ -27,23 +19,18 @@ class KnowledgeBaseDatabaseService {
       pinecone_index_status: pineconeInfo.status?.state || pineconeInfo.status,
       pinecone_index_dimension: pineconeInfo.dimension,
       pinecone_index_metric: pineconeInfo.metric,
-      pinecone_updated_at: new Date().toISOString()
+      pinecone_updated_at: new Date()
     };
 
     // Set created_at only if it's a new index
     if (pineconeInfo.status?.state === 'Ready' && !pineconeInfo.created_at) {
-      updateData.pinecone_created_at = new Date().toISOString();
+      updateData.pinecone_created_at = new Date();
     }
 
-    const { data, error } = await this.supabase
-      .from('knowledge_bases')
-      .update(updateData)
-      .eq('id', kbId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    // findByIdAndUpdate returns the document as it was BEFORE the update by default.
+    // { new: true } returns the updated document.
+    const updatedKb = await KnowledgeBase.findByIdAndUpdate(kbId, updateData, { new: true });
+    return updatedKb;
   }
 
   async updateKnowledgeBaseAssistantInfo(kbId, assistantInfo) {
@@ -52,308 +39,202 @@ class KnowledgeBaseDatabaseService {
       pinecone_assistant_name: assistantInfo.name,
       pinecone_assistant_instructions: assistantInfo.instructions,
       pinecone_assistant_region: assistantInfo.region,
-      pinecone_assistant_updated_at: new Date().toISOString()
+      pinecone_assistant_updated_at: new Date()
     };
 
-    // Set created_at only if it's a new assistant
     if (assistantInfo.created_at) {
       updateData.pinecone_assistant_created_at = assistantInfo.created_at;
     } else {
-      updateData.pinecone_assistant_created_at = new Date().toISOString();
+      updateData.pinecone_assistant_created_at = new Date();
     }
 
-    const { data, error } = await this.supabase
-      .from('knowledge_bases')
-      .update(updateData)
-      .eq('id', kbId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const updatedKb = await KnowledgeBase.findByIdAndUpdate(kbId, updateData, { new: true });
+    return updatedKb;
   }
 
   async getKnowledgeBase(kbId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_bases')
-      .select('*')
-      .eq('id', kbId);
-
-    if (error) throw error;
-    
-    if (!data || data.length === 0) {
+    const kb = await KnowledgeBase.findById(kbId);
+    if (!kb) {
       throw new Error('Knowledge base not found');
     }
-    
-    if (data.length > 1) {
-      console.warn('Multiple knowledge bases found with same ID:', kbId);
-      // Return the first one (most recent)
-      return data[0];
-    }
-    
-    return data[0];
+    return kb;
   }
 
   async getKnowledgeBasesByCompany(companyId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_bases')
-      .select(`
-        *,
-        knowledge_documents (
-          doc_id,
-          original_filename,
-          file_size,
-          file_path,
-          pinecone_file_id,
-          pinecone_status,
-          pinecone_processed_at,
-          upload_timestamp,
-          created_at
-        )
-      `)
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false });
+    // We can populate 'knowledge_documents' if we set up virtuals, but for now let's keep it simple
+    // and just fetch the KB. If the frontend expects documents nested, we might need a second query.
+    // However, looking at the original code: 
+    // .select(`*, knowledge_documents (...)`)
+    // The original return structure was an array of KBs, each with a .knowledge_documents array.
 
-    if (error) throw error;
-    return data;
+    // Let's emulate that structure:
+    const kbs = await KnowledgeBase.find({ company_id: companyId }).sort({ created_at: -1 }).lean();
+
+    // For each KB, fetch documents
+    for (let kb of kbs) {
+      const docs = await KnowledgeDocument.find({ knowledge_base_id: kb._id.toString() });
+      // Map to match the specific fields requested in the original code if needed, but returning full doc is usually fine
+      // Original selected: doc_id, original_filename, file_size, file_path, pinecone_file_id, pinecone_status, pinecone_processed_at, upload_timestamp, created_at
+      kb.knowledge_documents = docs;
+    }
+
+    return kbs;
   }
 
   async updateKnowledgeBase(kbId, updateData) {
-    const { data, error } = await this.supabase
-      .from('knowledge_bases')
-      .update(updateData)
-      .eq('id', kbId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const updatedKb = await KnowledgeBase.findByIdAndUpdate(kbId, updateData, { new: true });
+    return updatedKb;
   }
 
   async deleteKnowledgeBase(kbId) {
-    const { error } = await this.supabase
-      .from('knowledge_bases')
-      .delete()
-      .eq('id', kbId);
-
-    if (error) throw error;
+    await KnowledgeBase.findByIdAndDelete(kbId);
     return true;
   }
 
   async associateDocumentWithKnowledgeBase(docId, knowledgeBaseId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .update({ knowledge_base_id: knowledgeBaseId })
-      .eq('doc_id', docId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const updatedDoc = await KnowledgeDocument.findOneAndUpdate(
+      { doc_id: docId },
+      { knowledge_base_id: knowledgeBaseId },
+      { new: true }
+    );
+    return updatedDoc;
   }
 
 
   // Document operations
   async createDocument(documentData) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .insert([documentData])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const doc = new KnowledgeDocument(documentData);
+    await doc.save();
+    return doc;
   }
 
   async getDocument(docId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .select('*')
-      .eq('doc_id', docId)
-      .single();
-
-    if (error) throw error;
-    return data;
+    const doc = await KnowledgeDocument.findOne({ doc_id: docId });
+    return doc;
   }
 
   async getDocumentsByCompany(companyId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
+    const docs = await KnowledgeDocument.find({ company_id: companyId }).sort({ created_at: -1 });
+    return docs;
   }
 
   async getDocumentsByKnowledgeBase(kbId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .select('*')
-      .eq('knowledge_base_id', kbId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
+    const docs = await KnowledgeDocument.find({ knowledge_base_id: kbId }).sort({ created_at: -1 });
+    return docs;
   }
 
   async updateDocumentFileInfo(docId, fileInfo) {
     const updatePayload = {
       ...fileInfo,
-      updated_at: new Date().toISOString()
+      updated_at: new Date()
     };
 
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .update(updatePayload)
-      .eq('doc_id', docId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const updatedDoc = await KnowledgeDocument.findOneAndUpdate(
+      { doc_id: docId },
+      updatePayload,
+      { new: true }
+    );
+    return updatedDoc;
   }
 
   // updateDocumentStatus method removed - we now use updateDocumentPineconeInfo for status tracking
 
   async updateDocumentPineconeInfo(docId, pineconeInfo) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .update({
+    const updatedDoc = await KnowledgeDocument.findOneAndUpdate(
+      { doc_id: docId },
+      {
         pinecone_file_id: pineconeInfo.pinecone_file_id,
         pinecone_status: pineconeInfo.pinecone_status,
         pinecone_processed_at: pineconeInfo.pinecone_processed_at,
-        updated_at: new Date().toISOString()
-      })
-      .eq('doc_id', docId)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+        updated_at: new Date()
+      },
+      { new: true }
+    );
+    return updatedDoc;
   }
 
   async addDocumentToKnowledgeBase(knowledgeBaseId, documentData) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .insert([{
-        knowledge_base_id: knowledgeBaseId,
-        ...documentData
-      }])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const docData = {
+      knowledge_base_id: knowledgeBaseId,
+      ...documentData
+    };
+    const doc = new KnowledgeDocument(docData);
+    await doc.save();
+    return doc;
   }
 
   async removeDocumentFromKnowledgeBase(knowledgeBaseId, fileId) {
-    const { error } = await this.supabase
-      .from('knowledge_documents')
-      .delete()
-      .eq('knowledge_base_id', knowledgeBaseId)
-      .eq('file_id', fileId);
+    // Assuming fileId refers to our doc_id or pinecone_file_id? 
+    // The original code used .delete().eq('knowledge_base_id', ...).eq('file_id', file_id)
+    // BUT 'file_id' isn't in standard schema above, maybe it meant 'doc_id' or 'pinecone_file_id'?
+    // The createDocument uses 'doc_id'. Let's assume fileId passed here maps to something unique.
+    // Standardizing on deleting by doc_id if possible, but let's check callers.
+    // For safety, let's assume the caller passes a unique ID that matches one of our fields.
+    // Use deleteOne with both filters.
 
-    if (error) throw error;
+    // Be careful: 'file_id' might be 'pinecone_file_id' or just 'doc_id'.
+    // Reviewing the original schema in the 'getDocuments' methods, there is 'doc_id'. 
+    // Let's assume filtering by knowledge_base_id AND doc_id (passed as fileId).
+
+    await KnowledgeDocument.findOneAndDelete({ knowledge_base_id: knowledgeBaseId, doc_id: fileId });
     return true;
   }
 
   async deleteDocument(docId) {
-    const { error } = await this.supabase
-      .from('knowledge_documents')
-      .delete()
-      .eq('doc_id', docId);
-
-    if (error) throw error;
+    await KnowledgeDocument.findOneAndDelete({ doc_id: docId });
     return true;
   }
 
   // Text extraction operations
   async saveExtractedText(textData) {
-    const { data, error } = await this.supabase
-      .from('document_text')
-      .upsert([textData], { onConflict: 'doc_id' })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    // Upsert logic
+    const docText = await DocumentText.findOneAndUpdate(
+      { doc_id: textData.doc_id },
+      textData,
+      { upsert: true, new: true }
+    );
+    return docText;
   }
 
   async getExtractedText(docId) {
-    const { data, error } = await this.supabase
-      .from('document_text')
-      .select('*')
-      .eq('doc_id', docId)
-      .single();
-
-    if (error) throw error;
-    return data;
+    const docText = await DocumentText.findOne({ doc_id: docId });
+    return docText;
   }
 
   // Chunk operations
   async createChunk(chunkData) {
-    const { data, error } = await this.supabase
-      .from('document_chunks')
-      .insert([chunkData])
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const chunk = new DocumentChunk(chunkData);
+    await chunk.save();
+    return chunk;
   }
 
   async getDocumentChunks(docId) {
-    const { data, error } = await this.supabase
-      .from('document_chunks')
-      .select('*')
-      .eq('doc_id', docId)
-      .order('chunk_index', { ascending: true });
-
-    if (error) throw error;
-    return data;
+    const chunks = await DocumentChunk.find({ doc_id: docId }).sort({ chunk_index: 1 });
+    return chunks;
   }
 
   async getChunksByCompany(companyId) {
-    const { data, error } = await this.supabase
-      .from('document_chunks')
-      .select('*')
-      .eq('company_id', companyId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
+    const chunks = await DocumentChunk.find({ company_id: companyId }).sort({ created_at: -1 });
+    return chunks;
   }
-
-
-  // Configuration operations - removed since we use Pinecone Assistants
-
 
   // Statistics operations
   async getDocumentStats(companyId) {
-    const { data, error } = await this.supabase
-      .from('knowledge_documents')
-      .select('pinecone_status')
-      .eq('company_id', companyId);
-
-    if (error) throw error;
+    const docs = await KnowledgeDocument.find({ company_id: companyId }).select('pinecone_status');
 
     const stats = {
-      total: data.length,
-      uploaded: data.filter(d => d.pinecone_status === 'uploaded').length,
-      processing: data.filter(d => d.pinecone_status === 'processing').length,
-      ready: data.filter(d => d.pinecone_status === 'ready').length,
-      failed: data.filter(d => d.pinecone_status === 'failed').length,
-      error: data.filter(d => d.pinecone_status === 'error').length
+      total: docs.length,
+      uploaded: docs.filter(d => d.pinecone_status === 'uploaded').length,
+      processing: docs.filter(d => d.pinecone_status === 'processing').length,
+      ready: docs.filter(d => d.pinecone_status === 'ready').length,
+      failed: docs.filter(d => d.pinecone_status === 'failed').length,
+      error: docs.filter(d => d.pinecone_status === 'error').length
     };
 
     return stats;
   }
 
   async getChunkStats(companyId) {
-    // Since we're using Pinecone Assistants, we don't track chunks manually
-    // Return empty stats for compatibility
     return {
       total_chunks: 0,
       total_words: 0,

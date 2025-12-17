@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { extractTenantFromHostname } from '@/lib/tenant-utils';
-import { supabase } from '@/integrations/supabase/client';
 
 interface WebsiteSettings {
   slug_name?: string | null;

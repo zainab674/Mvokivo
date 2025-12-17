@@ -4,10 +4,8 @@ import { useBusinessUseCase } from "@/components/BusinessUseCaseProvider";
 import DashboardLayout from "@/layout/DashboardLayout";
 import FilterBar from "@/components/navigation/FilterBar";
 import DashboardContent from "@/components/dashboard/DashboardContent";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useRouteChangeData } from "@/hooks/useRouteChange";
-import { getCurrentUserIdAsync } from "@/lib/user-context";
 
 interface CallHistory {
   id: string;
@@ -24,28 +22,12 @@ interface CallHistory {
   updated_at: string;
 }
 
-/**
- * Get assistant IDs for the current user
- */
-async function getUserAssistantIds(): Promise<string[]> {
-  const userId = await getCurrentUserIdAsync();
-  const { data: assistants, error } = await supabase
-    .from('assistant')
-    .select('id')
-    .eq('user_id', userId);
-  
-  if (error) {
-    console.error('Error fetching user assistants:', error);
-    return [];
-  }
-  
-  return assistants?.map(a => a.id) || [];
-}
+
 
 export default function Index() {
   const { config } = useBusinessUseCase();
-  const { user, loading: isAuthLoading } = useAuth();
-  
+  const { user, loading: isAuthLoading, getAccessToken } = useAuth();
+
   // Set data-page attribute for dashboard page
   useEffect(() => {
     document.body.setAttribute('data-page', 'dashboard');
@@ -81,7 +63,7 @@ export default function Index() {
     return 'Call Dropped';
   };
 
-  // Fetch real call history from Supabase
+  // Fetch real call history from Backend API
   const fetchCallHistory = async () => {
     // Don't fetch data if auth is still loading or user is not authenticated
     if (isAuthLoading || !user?.id) {
@@ -91,31 +73,28 @@ export default function Index() {
 
     try {
       setIsLoadingRealData(true);
-      
-      // Get user's assistant IDs to filter call history
-      const assistantIds = await getUserAssistantIds();
-      console.log('Fetching call history for user assistants:', assistantIds);
-      
-      if (assistantIds.length === 0) {
-        console.log('No assistants found for user, returning empty call history');
-        setRealCallHistory([]);
+      const token = await getAccessToken();
+      if (!token) {
+        console.error("No access token available for fetching call history");
         return;
       }
 
-      const { data, error } = await supabase
-        .from('call_history' as any)
-        .select('*')
-        .in('assistant_id', assistantIds)
-        .order('start_time', { ascending: false });
+      const response = await fetch('/api/v1/call-history', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-      if (error) {
-        console.error('Error fetching call history:', error);
-        return;
+      if (!response.ok) {
+        throw new Error('Failed to fetch call history');
       }
 
-      setRealCallHistory((data || []) as unknown as CallHistory[]);
+      const data = await response.json();
+      // Handle both array response (when no assistants) and object response (normal case)
+      const calls = Array.isArray(data) ? data : (data.calls || []);
+      setRealCallHistory(calls as unknown as CallHistory[]);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching call history:', error);
     } finally {
       setIsLoadingRealData(false);
     }
@@ -215,8 +194,8 @@ export default function Index() {
       // Handle different duration formats from real data
       let duration = 0;
       if (call.call_duration) {
-        duration = typeof call.call_duration === 'string' 
-          ? parseInt(call.call_duration) 
+        duration = typeof call.call_duration === 'string'
+          ? parseInt(call.call_duration)
           : call.call_duration;
       } else if (call.duration) {
         if (typeof call.duration === 'string') {
@@ -230,14 +209,14 @@ export default function Index() {
       return sum + duration;
     }, 0);
     const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
-    
-    const appointments = callLogs.filter(call => 
-      call.call_outcome?.toLowerCase().includes('appointment') || 
+
+    const appointments = callLogs.filter(call =>
+      call.call_outcome?.toLowerCase().includes('appointment') ||
       call.resolution?.toLowerCase().includes('appointment') ||
       call.call_outcome?.toLowerCase().includes('booked') ||
       call.resolution?.toLowerCase().includes('booked')
     ).length;
-    
+
     const bookingRate = totalCalls > 0 ? Math.round((appointments / totalCalls) * 100) : 0;
     const successfulTransfers = Math.floor(appointments * 0.3);
 

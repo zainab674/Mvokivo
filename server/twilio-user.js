@@ -1,23 +1,54 @@
-// server/twilio-user.js
 import express from 'express';
 import Twilio from 'twilio';
-import { createClient } from '@supabase/supabase-js';
+import { UserTwilioCredential, PhoneNumber, Assistant } from './models/index.js';
 import { createMainTrunkForUser } from './twilio-trunk-service.js';
+import { authenticateToken } from './utils/auth.js';
 
 export const twilioUserRouter = express.Router();
 
-// Supabase client for user credentials
-const supa = createClient(
-  process.env.SUPABASE_URL, 
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Apply auth middleware to all routes
+twilioUserRouter.use(authenticateToken);
 
 /**
- * Test endpoint to verify route is working
  * GET /api/v1/twilio/user/test
  */
 twilioUserRouter.get('/test', (req, res) => {
   res.json({ success: true, message: 'Twilio user routes are working', timestamp: new Date().toISOString() });
+});
+
+/**
+ * Get phone number mappings
+ * GET /api/v1/twilio/user/mappings
+ */
+twilioUserRouter.get('/mappings', async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get mappings from database: phone numbers for this user that have an assigned assistant
+    // Select fields needed for display in AssistantDetailsDialog
+    const mappings = await PhoneNumber.find({
+      user_id: userId,
+      inbound_assistant_id: { $ne: null }
+    }).select('phone_sid number label status webhook_status inbound_assistant_id created_at');
+
+    // Map _id to id for frontend compatibility
+    const mappedResults = mappings.map(m => ({
+      id: m._id,
+      phone_sid: m.phone_sid,
+      number: m.number,
+      label: m.label,
+      status: m.status,
+      webhook_status: m.webhook_status,
+      inbound_assistant_id: m.inbound_assistant_id,
+      created_at: m.created_at
+    }));
+
+    res.json({ success: true, mappings: mappedResults, total: mappings.length });
+
+  } catch (error) {
+    console.error('Error fetching phone number mappings:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch mappings' });
+  }
 });
 
 /**
@@ -26,29 +57,116 @@ twilioUserRouter.get('/test', (req, res) => {
  */
 twilioUserRouter.get('/credentials', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'User ID required' });
-    }
+    const userId = req.user.id;
+    const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
-    const { data, error } = await supa
-      .from('user_twilio_credentials')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
+    // Map _id to id
+    const responseData = credentials ? { ...credentials.toObject(), id: credentials._id } : null;
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return res.json({ success: true, credentials: null });
-      }
-      throw error;
-    }
-
-    res.json({ success: true, credentials: data });
+    res.json({ success: true, credentials: responseData });
   } catch (error) {
     console.error('Error fetching user Twilio credentials:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch credentials' });
+  }
+});
+
+/**
+ * Get all Twilio credentials for the user
+ * GET /api/v1/twilio/user/credentials/all
+ */
+twilioUserRouter.get('/credentials/all', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const credentials = await UserTwilioCredential.find({ user_id: userId }).sort({ created_at: -1 });
+
+    // Map _id to id
+    const responseData = credentials.map(c => ({ ...c.toObject(), id: c._id }));
+
+    res.json({ success: true, credentials: responseData });
+  } catch (error) {
+    console.error('Error fetching all Twilio credentials:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch credentials' });
+  }
+});
+
+/**
+ * Update Twilio credentials
+ * PUT /api/v1/twilio/user/credentials/:id
+ */
+twilioUserRouter.put('/credentials/:id', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const updates = req.body;
+
+    const credentials = await UserTwilioCredential.findOne({ _id: id, user_id: userId });
+
+    if (!credentials) {
+      return res.status(404).json({ success: false, message: 'Credentials not found' });
+    }
+
+    if (updates.accountSid) credentials.account_sid = updates.accountSid;
+    if (updates.authToken) credentials.auth_token = updates.authToken;
+    if (updates.label) credentials.label = updates.label;
+
+    await credentials.save();
+
+    res.json({ success: true, credentials: { ...credentials.toObject(), id: credentials._id } });
+  } catch (error) {
+    console.error('Error updating Twilio credentials:', error);
+    res.status(500).json({ success: false, message: 'Failed to update credentials' });
+  }
+});
+
+/**
+ * Delete Twilio credentials
+ * DELETE /api/v1/twilio/user/credentials/:id
+ */
+twilioUserRouter.delete('/credentials/:id', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const result = await UserTwilioCredential.deleteOne({ _id: id, user_id: userId });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: 'Credentials not found' });
+    }
+
+    res.json({ success: true, message: 'Credentials deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting Twilio credentials:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete credentials' });
+  }
+});
+
+/**
+ * Set active credentials
+ * POST /api/v1/twilio/user/credentials/:id/activate
+ */
+twilioUserRouter.post('/credentials/:id/activate', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    // Deactivate all first
+    await UserTwilioCredential.updateMany({ user_id: userId }, { is_active: false });
+
+    // Activate specific one
+    const credentials = await UserTwilioCredential.findOneAndUpdate(
+      { _id: id, user_id: userId },
+      { is_active: true },
+      { new: true }
+    );
+
+    if (!credentials) {
+      return res.status(404).json({ success: false, message: 'Credentials not found' });
+    }
+
+    res.json({ success: true, credentials: { ...credentials.toObject(), id: credentials._id } });
+  } catch (error) {
+    console.error('Error activating Twilio credentials:', error);
+    res.status(500).json({ success: false, message: 'Failed to activate credentials' });
   }
 });
 
@@ -58,27 +176,10 @@ twilioUserRouter.get('/credentials', async (req, res) => {
  */
 twilioUserRouter.get('/phone-numbers', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'User ID required' });
-    }
+    const userId = req.user.id;
 
     // Get user's active credentials
-    const { data: credentials, error: credError } = await supa
-      .from('user_twilio_credentials')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
-
-    if (credError) {
-      if (credError.code === 'PGRST116') {
-        console.log('No credentials found for user:', userId);
-        return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-      }
-      console.error('Database error:', credError);
-      return res.status(500).json({ success: false, message: 'Database error occurred' });
-    }
+    const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
     if (!credentials) {
       console.log('No credentials found for user:', userId);
@@ -98,7 +199,7 @@ twilioUserRouter.get('/phone-numbers', async (req, res) => {
         voiceUrl: n.voiceUrl || '',
         voiceApplicationSid: n.voiceApplicationSid || '',
         trunkSid: n.trunkSid || null,
-        mapped: false, // TODO: Check if mapped in user's phone_number table
+        mapped: false, // TODO: Check if mapped in user's phone_number table (Mongoose)
       };
       return { ...row, usage: classifyUsage(row, credentials.trunk_sid) };
     });
@@ -122,12 +223,9 @@ twilioUserRouter.get('/phone-numbers', async (req, res) => {
  */
 twilioUserRouter.post('/trunk/attach', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'User ID required' });
-    }
-
+    const userId = req.user.id;
     const { phoneSid } = req.body;
+
     if (!phoneSid) {
       return res.status(400).json({ success: false, message: 'Phone SID required' });
     }
@@ -135,20 +233,7 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
     console.log(`Attempting to attach phone ${phoneSid} to trunk for user ${userId}`);
 
     // Get user's active credentials
-    const { data: credentials, error: credError } = await supa
-      .from('user_twilio_credentials')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
-
-    if (credError) {
-      if (credError.code === 'PGRST116') {
-        return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-      }
-      console.error('Database error:', credError);
-      return res.status(500).json({ success: false, message: 'Database error occurred' });
-    }
+    const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
     if (!credentials) {
       return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -156,9 +241,9 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
 
     if (!credentials.trunk_sid) {
       console.error('No trunk_sid found in credentials for user:', userId);
-      return res.status(400).json({ 
-        success: false, 
-        message: 'No trunk configured. Please create a main trunk first.' 
+      return res.status(400).json({
+        success: false,
+        message: 'No trunk configured. Please create a main trunk first.'
       });
     }
 
@@ -175,9 +260,9 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
     } catch (phoneError) {
       console.error('Error fetching phone number:', phoneError);
       if (phoneError.status === 404) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Phone number not found in Twilio account' 
+        return res.status(404).json({
+          success: false,
+          message: 'Phone number not found in Twilio account'
         });
       }
       throw phoneError;
@@ -190,9 +275,9 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
     } catch (trunkError) {
       console.error('Error fetching trunk:', trunkError);
       if (trunkError.status === 404) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Trunk not found. Please recreate your Twilio credentials.' 
+        return res.status(404).json({
+          success: false,
+          message: 'Trunk not found. Please recreate your Twilio credentials.'
         });
       }
       throw trunkError;
@@ -206,22 +291,22 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
       console.log(`Successfully attached phone ${phoneNumber.phoneNumber} to trunk ${credentials.trunk_sid}`);
     } catch (attachError) {
       console.error('Error attaching phone to trunk:', attachError);
-      
+
       // Handle specific Twilio errors
       if (attachError.status === 400) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Invalid request: ${attachError.message}` 
+        return res.status(400).json({
+          success: false,
+          message: `Invalid request: ${attachError.message}`
         });
       } else if (attachError.status === 403) {
-        return res.status(403).json({ 
-          success: false, 
-          message: 'Insufficient permissions to modify this phone number' 
+        return res.status(403).json({
+          success: false,
+          message: 'Insufficient permissions to modify this phone number'
         });
       } else if (attachError.status === 404) {
-        return res.status(404).json({ 
-          success: false, 
-          message: 'Phone number or trunk not found' 
+        return res.status(404).json({
+          success: false,
+          message: 'Phone number or trunk not found'
         });
       }
       throw attachError;
@@ -230,17 +315,11 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
     res.json({ success: true, message: 'Phone number attached to trunk' });
   } catch (error) {
     console.error('Error attaching phone to trunk:', error);
-    console.error('Error details:', {
-      message: error.message,
-      status: error.status,
-      code: error.code,
-      moreInfo: error.moreInfo
-    });
-    
+
     // Return more specific error message
     const errorMessage = error.message || 'Failed to attach phone to trunk';
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: errorMessage,
       details: process.env.NODE_ENV === 'development' ? {
         status: error.status,
@@ -257,16 +336,13 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
  */
 twilioUserRouter.post('/create-main-trunk', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'User ID required' });
-    }
-
+    const userId = req.user.id;
     const { accountSid, authToken, label } = req.body;
+
     if (!accountSid || !authToken || !label) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'accountSid, authToken, and label are required' 
+      return res.status(400).json({
+        success: false,
+        message: 'accountSid, authToken, and label are required'
       });
     }
 
@@ -298,9 +374,9 @@ twilioUserRouter.post('/create-main-trunk', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating main trunk:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: `Failed to create main trunk: ${error.message}` 
+    res.status(500).json({
+      success: false,
+      message: `Failed to create main trunk: ${error.message}`
     });
   }
 });
@@ -311,31 +387,15 @@ twilioUserRouter.post('/create-main-trunk', async (req, res) => {
  */
 twilioUserRouter.post('/assistant-trunk', async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'User ID required' });
-    }
-
+    const userId = req.user.id;
     const { assistantId, assistantName, phoneNumber } = req.body;
+
     if (!assistantId || !assistantName || !phoneNumber) {
       return res.status(400).json({ success: false, message: 'assistantId, assistantName, and phoneNumber required' });
     }
 
     // Get user's active credentials
-    const { data: credentials, error: credError } = await supa
-      .from('user_twilio_credentials')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
-
-    if (credError) {
-      if (credError.code === 'PGRST116') {
-        return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
-      }
-      console.error('Database error:', credError);
-      return res.status(500).json({ success: false, message: 'Database error occurred' });
-    }
+    const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
 
     if (!credentials) {
       return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
@@ -350,8 +410,8 @@ twilioUserRouter.post('/assistant-trunk', async (req, res) => {
       friendlyName: trunkName,
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       trunk: {
         sid: trunk.sid,
         friendlyName: trunk.friendlyName,
@@ -366,7 +426,7 @@ twilioUserRouter.post('/assistant-trunk', async (req, res) => {
 // Helper functions (copied from twilio-admin.js)
 function classifyUsage(row, userTrunkSid) {
   const { voiceUrl, voiceApplicationSid, trunkSid } = row;
-  
+
   if (isTwilioDemoUrl(voiceUrl)) return 'demo';
   if (trunkSid === userTrunkSid) return 'ours';
   if (trunkSid) return 'trunk';
@@ -384,6 +444,50 @@ function isStrictlyUnused(n) {
   return n.usage === 'unused';
 }
 
+/**
+ * Assign a phone number to an assistant
+ * POST /api/v1/twilio/user/phone-numbers/assign
+ */
+twilioUserRouter.post('/phone-numbers/assign', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { phoneNumber, assistantId, label } = req.body;
+
+    if (!phoneNumber || !assistantId) {
+      return res.status(400).json({ success: false, message: 'Phone number and assistant ID are required' });
+    }
+
+    // Find and update, or create if not exists (upsert behavior)
+    // We match by number. We also ensure it belongs to the user if it exists?
+    // If it doesn't exist, we create it.
+    // Wait, normally PhoneNumber should exist if it was purchased or synchronized.
+    // But the frontend code used upsert.
+
+    const updated = await PhoneNumber.findOneAndUpdate(
+      { number: phoneNumber },
+      {
+        user_id: userId,
+        number: phoneNumber,
+        inbound_assistant_id: assistantId,
+        label: label || `Assistant ${assistantId}`,
+        status: 'active',
+        webhook_status: 'configured', // Assume we configure it
+        updated_at: new Date()
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ success: true, message: 'Phone number assigned successfully', data: updated });
+
+  } catch (error) {
+    console.error('Error assigning phone number:', error);
+    res.status(500).json({ success: false, message: 'Failed to assign phone number' });
+  }
+});
+
+/**
+ * Check if usage is unused for our webhook
+ */
 function isUnusedForOurWebhook(n, userTrunkSid) {
   return n.usage === 'unused' || (n.usage === 'trunk' && n.trunkSid !== userTrunkSid);
 }

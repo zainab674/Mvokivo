@@ -116,14 +116,14 @@ export default function Contacts() {
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // CSV upload states
   const [csvFiles, setCsvFiles] = useState<CSVFile[]>([]);
   const [selectedCsvFile, setSelectedCsvFile] = useState<string | null>(null);
   const [showCsvPreview, setShowCsvPreview] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // CSV delete states
   const [deleteCsvOpen, setDeleteCsvOpen] = useState(false);
   const [csvToDelete, setCsvToDelete] = useState<{ id: string; name: string; contactCount: number; campaigns?: Array<{ id: string; name: string }> } | null>(null);
@@ -138,7 +138,7 @@ export default function Contacts() {
 
     try {
       setIsLoading(true);
-      
+
       // Load contact lists
       const listsResponse = await fetchContactLists();
       const transformedLists: ContactList[] = listsResponse.contactLists.map(list => ({
@@ -178,14 +178,14 @@ export default function Contacts() {
   }, [user?.id]);
 
   const filteredContacts = contacts.filter(contact => {
-    const matchesSearch = searchQuery === "" || 
+    const matchesSearch = searchQuery === "" ||
       contact.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contact.phone.includes(searchQuery);
-    
+
     const matchesList = selectedList === "all" || contact.listId === selectedList;
-    
+
     return matchesSearch && matchesList;
   });
 
@@ -243,7 +243,7 @@ export default function Contacts() {
         try {
           const csvText = e.target?.result as string;
           const csvData = parseCSV(csvText);
-          
+
           if (csvData.length === 0) {
             alert('No valid contact data found in CSV file');
             setIsUploading(false);
@@ -259,7 +259,7 @@ export default function Contacts() {
           };
 
           const csvFileResult = await saveCsvFile(csvFileData);
-          
+
           if (!csvFileResult.success || !csvFileResult.csvFileId) {
             alert('Failed to save CSV file: ' + csvFileResult.error);
             setIsUploading(false);
@@ -274,7 +274,7 @@ export default function Contacts() {
           };
 
           const csvContactsResult = await saveCsvContacts(csvContactsData);
-          
+
           if (!csvContactsResult.success) {
             alert('Failed to save CSV contacts: ' + csvContactsResult.error);
             setIsUploading(false);
@@ -293,7 +293,7 @@ export default function Contacts() {
           setCsvFiles(prev => [...prev, newCsvFile]);
           setSelectedCsvFile(newCsvFile.id);
           setShowCsvPreview(true);
-          
+
           alert(`Successfully uploaded ${csvContactsResult.savedCount} contacts from ${file.name}`);
         } catch (error) {
           console.error('Error processing CSV file:', error);
@@ -316,7 +316,7 @@ export default function Contacts() {
 
     // Load CSV contacts from database if not already loaded
     const csvFile = csvFiles.find(file => file.id === csvId);
-    
+
     if (csvFile && csvFile.data.length === 0) {
       try {
         const response = await fetchCsvContacts(csvId);
@@ -330,8 +330,8 @@ export default function Contacts() {
         }));
 
         // Update the CSV file with loaded data
-        setCsvFiles(prev => prev.map(file => 
-          file.id === csvId 
+        setCsvFiles(prev => prev.map(file =>
+          file.id === csvId
             ? { ...file, data: csvContactsData }
             : file
         ));
@@ -360,7 +360,7 @@ export default function Contacts() {
     setDeletingCsv(true);
     try {
       const result = await deleteCsvFileAPI({ csvFileId: csvToDelete.id });
-      
+
       if (result.success) {
         // Remove from local state
         setCsvFiles(prev => prev.filter(file => file.id !== csvToDelete.id));
@@ -393,7 +393,7 @@ export default function Contacts() {
   useEffect(() => {
     const loadCsvFiles = async () => {
       if (!user?.id) return;
-      
+
       try {
         const response = await fetchCsvFiles();
         const csvFilesData: CSVFile[] = response.csvFiles.map(file => ({
@@ -415,11 +415,11 @@ export default function Contacts() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="h-screen flex flex-col bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
+        <div className="h-screen flex flex-col bg-background">
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-zinc-400">
-              <div className="animate-spin rounded-full h-10 w-10 border-2 border-indigo-500 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-white">Loading contacts...</p>
+            <div className="text-center text-muted-foreground">
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4"></div>
+              <p className="text-foreground">Loading contacts...</p>
             </div>
           </div>
         </div>
@@ -429,27 +429,27 @@ export default function Contacts() {
 
   return (
     <DashboardLayout>
-      <div className="h-screen flex flex-col bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950">
+      <div className="h-screen flex flex-col bg-background">
         {/* Top Header Bar */}
-        <div className="flex-shrink-0 border-b border-white/5 bg-zinc-900/50 backdrop-blur-xl">
+        <div className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-semibold text-white mb-1">
+                <h1 className="text-2xl font-semibold text-foreground mb-1">
                   Contacts
                 </h1>
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-muted-foreground">
                   {totalContacts} {totalContacts === 1 ? 'contact' : 'contacts'} • {activeContacts} active
                 </p>
               </div>
-              
+
               {/* Action Buttons */}
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="h-9 bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50 hover:border-zinc-600/50"
+                  className="h-9"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   {isUploading ? 'Uploading...' : 'Upload CSV'}
@@ -457,14 +457,14 @@ export default function Contacts() {
                 <Button
                   variant="outline"
                   onClick={() => setUploadContactsOpen(true)}
-                  className="h-9 bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50 hover:border-zinc-600/50"
+                  className="h-9"
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Upload List
                 </Button>
                 <Button
                   onClick={() => setAddContactOpen(true)}
-                  className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  className="h-9"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add Contact
@@ -477,58 +477,57 @@ export default function Contacts() {
         {/* Main Content Area */}
         <div className="flex-1 flex min-h-0 overflow-hidden">
           {/* Left Sidebar - Contact Lists & CSV Files */}
-          <div className="w-72 flex-shrink-0 border-r border-white/5 bg-zinc-900/30 backdrop-blur-sm overflow-y-auto">
-            <div className="p-6 border-b border-white/5">
+          <div className="w-72 flex-shrink-0 border-r border-border bg-card/50 backdrop-blur-sm overflow-y-auto">
+            <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-white">Contact Lists</h2>
+                <h2 className="text-sm font-semibold text-foreground">Contact Lists</h2>
                 <Button
                   size="sm"
+                  variant="ghost"
                   onClick={() => setAddListOpen(true)}
-                  className="h-7 w-7 p-0 bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50"
+                  className="h-7 w-7 p-0 hover:bg-accent"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              
+
               <div className="space-y-2">
                 <div
-                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                    selectedList === "all" && !showCsvPreview
-                      ? "bg-indigo-600/20 border border-indigo-500/50" 
-                      : "bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800/70 hover:border-zinc-600/50"
-                  }`}
+                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedList === "all" && !showCsvPreview
+                      ? "bg-primary/10 border border-primary/20 text-primary"
+                      : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                    }`}
                   onClick={() => {
                     setSelectedList("all");
                     setShowCsvPreview(false);
                   }}
                 >
                   <div className="flex items-center gap-3">
-                    <Users className="h-4 w-4 text-zinc-400" />
-                    <span className="font-medium text-white text-sm">All Contacts</span>
+                    <Users className="h-4 w-4" />
+                    <span className="font-medium text-sm">All Contacts</span>
                   </div>
-                  <Badge variant="secondary" className="text-xs bg-zinc-700/50 text-zinc-300">
+                  <Badge variant="secondary" className="text-xs">
                     {totalContacts}
                   </Badge>
                 </div>
-                
+
                 {contactLists.map(list => (
                   <div
                     key={list.id}
-                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                      selectedList === list.id && !showCsvPreview
-                        ? "bg-indigo-600/20 border border-indigo-500/50" 
-                        : "bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800/70 hover:border-zinc-600/50"
-                    }`}
+                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedList === list.id && !showCsvPreview
+                        ? "bg-primary/10 border border-primary/20 text-primary"
+                        : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                      }`}
                     onClick={() => {
                       setSelectedList(list.id);
                       setShowCsvPreview(false);
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                      <span className="font-medium text-white text-sm">{list.name}</span>
+                      <div className="w-2 h-2 rounded-full bg-primary" />
+                      <span className="font-medium text-sm">{list.name}</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs bg-zinc-700/50 text-zinc-300">
+                    <Badge variant="secondary" className="text-xs">
                       {list.count}
                     </Badge>
                   </div>
@@ -537,20 +536,21 @@ export default function Contacts() {
             </div>
 
             {/* CSV Files Section */}
-            <div className="p-6 border-b border-white/5">
+            <div className="p-6 border-b border-border">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-white">CSV Files</h2>
+                <h2 className="text-sm font-semibold text-foreground">CSV Files</h2>
                 <Button
                   size="sm"
+                  variant="ghost"
                   onClick={() => fileInputRef.current?.click()}
-                  className="h-7 w-7 p-0 bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50"
+                  className="h-7 w-7 p-0 hover:bg-accent"
                 >
                   <Upload className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              
+
               {csvFiles.length === 0 ? (
-                <div className="text-center py-4 text-zinc-500 text-sm">
+                <div className="text-center py-4 text-muted-foreground text-sm">
                   No CSV files uploaded yet
                 </div>
               ) : (
@@ -558,11 +558,10 @@ export default function Contacts() {
                   {csvFiles.map(file => (
                     <div
                       key={file.id}
-                      className={`flex items-center justify-between p-3 rounded-lg transition-all group cursor-pointer ${
-                        selectedCsvFile === file.id && showCsvPreview
-                          ? "bg-indigo-600/20 border border-indigo-500/50" 
-                          : "bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-800/70 hover:border-zinc-600/50"
-                      }`}
+                      className={`flex items-center justify-between p-3 rounded-lg transition-all group cursor-pointer ${selectedCsvFile === file.id && showCsvPreview
+                          ? "bg-primary/10 border border-primary/20 text-primary"
+                          : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                        }`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -571,24 +570,24 @@ export default function Contacts() {
                       style={{ position: 'relative', zIndex: 10, pointerEvents: 'auto' }}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="h-4 w-4 text-zinc-400 flex-shrink-0" />
+                        <FileText className="h-4 w-4 flex-shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-white text-sm truncate">
+                          <div className="font-medium text-sm truncate">
                             {file.name}
                           </div>
-                          <div className="text-xs text-zinc-400">
+                          <div className="text-xs text-muted-foreground">
                             {file.rowCount} contacts
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs bg-zinc-700/50 text-zinc-300">
+                        <Badge variant="secondary" className="text-xs">
                           {file.rowCount}
                         </Badge>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-white hover:bg-zinc-700/50"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleRemoveCsvFile(file.id);
@@ -602,22 +601,22 @@ export default function Contacts() {
                 </div>
               )}
             </div>
-            
+
             {/* Stats Section */}
             <div className="p-6">
               <div className="space-y-3">
-                <div className="text-sm text-zinc-400">
+                <div className="text-sm text-muted-foreground">
                   <div className="flex justify-between mb-2">
                     <span>Total Contacts</span>
-                    <span className="font-semibold text-white">{totalContacts}</span>
+                    <span className="font-semibold text-foreground">{totalContacts}</span>
                   </div>
                   <div className="flex justify-between mb-2">
                     <span>Active</span>
-                    <span className="font-semibold text-green-400">{activeContacts}</span>
+                    <span className="font-semibold text-green-500">{activeContacts}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Inactive</span>
-                    <span className="font-semibold text-orange-400">{totalContacts - activeContacts}</span>
+                    <span className="font-semibold text-orange-500">{totalContacts - activeContacts}</span>
                   </div>
                 </div>
               </div>
@@ -625,16 +624,16 @@ export default function Contacts() {
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col min-h-0 bg-zinc-900/20">
+          <div className="flex-1 flex flex-col min-h-0 bg-background/50">
             {/* Search Bar */}
-            <div className="flex-shrink-0 p-4 border-b border-white/5 bg-zinc-800/30 backdrop-blur-sm">
+            <div className="flex-shrink-0 p-4 border-b border-border bg-background/95 backdrop-blur-sm">
               <div className="relative max-w-md">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-zinc-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={showCsvPreview ? "Search CSV contacts..." : "Search contacts..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9 bg-zinc-800/50 border-zinc-700/50 text-white placeholder:text-zinc-500 focus:border-indigo-500/50"
+                  className="pl-10"
                 />
               </div>
             </div>
@@ -654,10 +653,10 @@ export default function Contacts() {
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-1">
+                      <h3 className="text-lg font-semibold text-foreground mb-1">
                         CSV Preview: {selectedCsvData.name}
                       </h3>
-                      <p className="text-sm text-zinc-400">
+                      <p className="text-sm text-muted-foreground">
                         {selectedCsvData.rowCount} contacts • Uploaded on {selectedCsvData.uploadedAt}
                       </p>
                     </div>
@@ -667,22 +666,22 @@ export default function Contacts() {
                         setShowCsvPreview(false);
                         setSelectedCsvFile(null);
                       }}
-                      className="h-9 bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50"
+                      className="h-9 hover:bg-accent hover:text-accent-foreground"
                     >
                       <Eye className="h-4 w-4 mr-2" />
                       View Regular Contacts
                     </Button>
                   </div>
-                  
-                  <div className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 overflow-hidden">
+
+                  <div className="bg-card rounded-lg border border-border overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-b border-white/5 hover:bg-transparent">
-                          <TableHead className="w-[200px] text-white font-semibold text-sm">Name</TableHead>
-                          <TableHead className="w-[250px] text-white font-semibold text-sm">Email</TableHead>
-                          <TableHead className="w-[160px] text-white font-semibold text-sm">Phone Number</TableHead>
-                          <TableHead className="w-[120px] text-white font-semibold text-sm">Status</TableHead>
-                          <TableHead className="w-[100px] text-white font-semibold text-sm">DND</TableHead>
+                        <TableRow className="border-b border-border hover:bg-transparent">
+                          <TableHead className="w-[200px] text-foreground font-semibold text-sm">Name</TableHead>
+                          <TableHead className="w-[250px] text-foreground font-semibold text-sm">Email</TableHead>
+                          <TableHead className="w-[160px] text-foreground font-semibold text-sm">Phone Number</TableHead>
+                          <TableHead className="w-[120px] text-foreground font-semibold text-sm">Status</TableHead>
+                          <TableHead className="w-[100px] text-foreground font-semibold text-sm">DND</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -697,37 +696,36 @@ export default function Contacts() {
                             );
                           })
                           .map((contact, index) => (
-                            <TableRow key={index} className="border-b border-white/5 hover:bg-zinc-800/50 transition-colors">
-                              <TableCell className="font-medium text-white">
+                            <TableRow key={index} className="border-b border-border hover:bg-accent/50 transition-colors">
+                              <TableCell className="font-medium text-foreground">
                                 {contact.first_name} {contact.last_name}
                               </TableCell>
-                              <TableCell className="text-zinc-400">
+                              <TableCell className="text-muted-foreground">
                                 {contact.email || '-'}
                               </TableCell>
-                              <TableCell className="text-zinc-400">
+                              <TableCell className="text-muted-foreground">
                                 {contact.phone ? formatPhoneNumber(contact.phone) : '-'}
                               </TableCell>
                               <TableCell className="text-center">
-                                <Badge 
+                                <Badge
                                   variant={contact.status === 'active' ? 'default' : contact.status === 'inactive' ? 'secondary' : 'destructive'}
-                                  className={`text-xs ${
-                                    contact.status === 'active' 
-                                      ? 'bg-green-600/20 text-green-300 border-green-500/30' 
+                                  className={`text-xs ${contact.status === 'active'
+                                      ? 'bg-green-500/10 text-green-500 border-green-500/20'
                                       : contact.status === 'inactive'
-                                      ? 'bg-zinc-700/50 text-zinc-300 border-zinc-600/50'
-                                      : 'bg-red-600/20 text-red-300 border-red-500/30'
-                                  }`}
+                                        ? 'bg-muted text-muted-foreground border-border'
+                                        : 'bg-destructive/10 text-destructive border-destructive/20'
+                                    }`}
                                 >
                                   {contact.status}
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-center">
                                 {contact.do_not_call ? (
-                                  <Badge variant="destructive" className="text-xs bg-red-600/20 text-red-300 border-red-500/30">
+                                  <Badge variant="destructive" className="text-xs">
                                     Yes
                                   </Badge>
                                 ) : (
-                                  <span className="text-zinc-400 text-sm">No</span>
+                                  <span className="text-muted-foreground text-sm">No</span>
                                 )}
                               </TableCell>
                             </TableRow>
@@ -738,15 +736,15 @@ export default function Contacts() {
                 </div>
               ) : (
                 <div className="p-6">
-                  <div className="bg-zinc-800/30 rounded-lg border border-zinc-700/50 overflow-hidden">
+                  <div className="bg-card rounded-lg border border-border overflow-hidden">
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-b border-white/5 hover:bg-transparent">
-                          <TableHead className="w-[200px] text-white font-semibold text-sm">Name</TableHead>
-                          <TableHead className="w-[250px] text-white font-semibold text-sm">Email</TableHead>
-                          <TableHead className="w-[160px] text-white font-semibold text-sm">Phone Number</TableHead>
-                          <TableHead className="w-[120px] text-white font-semibold text-sm">List</TableHead>
-                          <TableHead className="w-[100px] text-white font-semibold text-sm">DND</TableHead>
+                        <TableRow className="border-b border-border hover:bg-transparent">
+                          <TableHead className="w-[200px] text-foreground font-semibold text-sm">Name</TableHead>
+                          <TableHead className="w-[250px] text-foreground font-semibold text-sm">Email</TableHead>
+                          <TableHead className="w-[160px] text-foreground font-semibold text-sm">Phone Number</TableHead>
+                          <TableHead className="w-[120px] text-foreground font-semibold text-sm">List</TableHead>
+                          <TableHead className="w-[100px] text-foreground font-semibold text-sm">DND</TableHead>
                           <TableHead className="w-[60px]"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -754,14 +752,14 @@ export default function Contacts() {
                         {filteredContacts.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={6} className="text-center py-12">
-                              <div className="text-zinc-400">
-                                <div className="w-16 h-16 mx-auto mb-4 bg-zinc-800/50 rounded-2xl flex items-center justify-center border border-zinc-700/50">
-                                  <Users className="w-8 h-8 text-zinc-500" />
+                              <div className="text-muted-foreground">
+                                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-2xl flex items-center justify-center border border-border">
+                                  <Users className="w-8 h-8 text-muted-foreground" />
                                 </div>
-                                <p className="text-white font-medium mb-1">
+                                <p className="text-foreground font-medium mb-1">
                                   {searchQuery ? "No contacts found" : "No contacts yet"}
                                 </p>
-                                <p className="text-sm text-zinc-500">
+                                <p className="text-sm text-muted-foreground">
                                   {searchQuery ? "Try adjusting your search." : "Add your first contact to get started."}
                                 </p>
                               </div>
@@ -769,43 +767,43 @@ export default function Contacts() {
                           </TableRow>
                         ) : (
                           filteredContacts.map(contact => (
-                            <TableRow key={contact.id} className="border-b border-white/5 hover:bg-zinc-800/50 transition-colors">
-                              <TableCell className="font-medium text-white">
+                            <TableRow key={contact.id} className="border-b border-border hover:bg-accent/50 transition-colors">
+                              <TableCell className="font-medium text-foreground">
                                 {contact.firstName} {contact.lastName}
                               </TableCell>
-                              <TableCell className="text-zinc-400">
+                              <TableCell className="text-muted-foreground">
                                 {contact.email}
                               </TableCell>
-                              <TableCell className="text-zinc-400">
+                              <TableCell className="text-muted-foreground">
                                 {formatPhoneNumber(contact.phone)}
                               </TableCell>
-                              <TableCell className="text-zinc-400 text-sm">
+                              <TableCell className="text-muted-foreground text-sm">
                                 {contact.listName}
                               </TableCell>
                               <TableCell className="text-center">
                                 {contact.doNotCall ? (
-                                  <Badge variant="destructive" className="text-xs bg-red-600/20 text-red-300 border-red-500/30">
+                                  <Badge variant="destructive" className="text-xs">
                                     Yes
                                   </Badge>
                                 ) : (
-                                  <span className="text-zinc-400 text-sm">No</span>
+                                  <span className="text-muted-foreground text-sm">No</span>
                                 )}
                               </TableCell>
                               <TableCell>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-400 hover:text-white hover:bg-zinc-700/50">
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-accent">
                                       <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" className="bg-zinc-800/95 border-zinc-700/50 backdrop-blur-sm">
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
                                       onClick={() => handleEditContact(contact)}
                                       className="text-white hover:bg-zinc-700/50"
                                     >
                                       Edit Contact
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem 
+                                    <DropdownMenuItem
                                       className="text-red-400 hover:bg-red-600/20"
                                       onClick={() => handleDeleteContact(contact)}
                                     >
@@ -833,20 +831,20 @@ export default function Contacts() {
         onOpenChange={setAddListOpen}
         onCreateList={handleCreateList}
       />
-      
+
       <AddContactDialog
         open={addContactOpen}
         onOpenChange={setAddContactOpen}
         onCreateContact={handleCreateContact}
         contactLists={contactLists}
       />
-      
+
       <UploadContactsDialog
         open={uploadContactsOpen}
         onOpenChange={setUploadContactsOpen}
         contactLists={contactLists}
       />
-      
+
       <DeleteCsvFileDialog
         open={deleteCsvOpen}
         onOpenChange={setDeleteCsvOpen}
@@ -856,7 +854,7 @@ export default function Contacts() {
         campaigns={csvToDelete?.campaigns || []}
         loading={deletingCsv}
       />
-      
+
       <EditContactDialog
         open={editContactOpen}
         onOpenChange={setEditContactOpen}
@@ -864,7 +862,7 @@ export default function Contacts() {
         contactLists={contactLists}
         onContactUpdated={handleContactUpdated}
       />
-      
+
       <DeleteContactDialog
         open={deleteContactOpen}
         onOpenChange={setDeleteContactOpen}

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Clock, Shield, Eye, X, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/SupportAccessAuthContext';
 
 interface SupportSession {
   id: string;
@@ -36,6 +36,7 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
 }) => {
   const [sessions, setSessions] = useState<SupportSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const { getAccessToken } = useAuth();
 
   useEffect(() => {
     fetchActiveSessions();
@@ -43,16 +44,15 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
 
   const fetchActiveSessions = async () => {
     try {
-      // Get the current session token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
         toast.error('No valid session found. Please log in again.');
         return;
       }
 
       const response = await fetch('/api/v1/support-access/support-sessions/active', {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
 
@@ -72,9 +72,8 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
 
   const handleEndSession = async (sessionId: string) => {
     try {
-      // Get the current session token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
         toast.error('No valid session found. Please log in again.');
         return;
       }
@@ -83,7 +82,7 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ reason: 'revoked' }),
       });
@@ -113,11 +112,11 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
 
   const getStatusBadge = (session: SupportSession) => {
     const timeRemaining = getTimeRemaining(session.expires_at);
-    
+
     if (timeRemaining.total === 0) {
       return <Badge variant="destructive">Expired</Badge>;
     }
-    
+
     if (timeRemaining.total < 5 * 60 * 1000) { // Less than 5 minutes
       return (
         <Badge variant="outline" className="text-amber-600 border-amber-300">
@@ -126,7 +125,7 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
         </Badge>
       );
     }
-    
+
     return <Badge variant="default" className="bg-green-600">Active</Badge>;
   };
 
@@ -205,7 +204,7 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
             {sessions.map((session) => {
               const timeRemaining = getTimeRemaining(session.expires_at);
               const targetUser = session.target_user;
-              
+
               return (
                 <TableRow key={session.id}>
                   <TableCell>

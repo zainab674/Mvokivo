@@ -14,7 +14,6 @@ import {
 import { CreateAssistantDialog } from "@/components/assistants/CreateAssistantDialog";
 import { AssistantDetailsDialog } from "@/components/assistants/AssistantDetailsDialog";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   ThemedDialog,
@@ -22,6 +21,7 @@ import {
   ThemedDialogContent,
   ThemedDialogHeader,
 } from "@/components/ui/themed-dialog";
+import { fetchAssistants } from "@/lib/api/assistants/fetchAssistants";
 
 interface Assistant {
   id: string;
@@ -43,28 +43,28 @@ interface Assistant {
   updated_at?: string;
 }
 
-function AssistantTableRow({ 
-  assistant, 
-  onDelete, 
-  onCardClick 
-}: { 
-  assistant: Assistant; 
-  onDelete: (id: string) => void; 
+function AssistantTableRow({
+  assistant,
+  onDelete,
+  onCardClick
+}: {
+  assistant: Assistant;
+  onDelete: (id: string) => void;
   onCardClick: (assistant: Assistant) => void;
 }) {
   const navigate = useNavigate();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  
+
   const statusConfig = {
-    draft: { 
+    draft: {
       color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
       dot: 'bg-yellow-500'
     },
-    active: { 
+    active: {
       color: 'bg-green-600/20 text-green-300 border-green-500/30',
       dot: 'bg-green-500'
     },
-    inactive: { 
+    inactive: {
       color: 'bg-zinc-700/50 text-zinc-300 border-zinc-600/50',
       dot: 'bg-zinc-500'
     }
@@ -125,20 +125,20 @@ function AssistantTableRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-zinc-800/95 border-zinc-700/50 backdrop-blur-sm">
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={handleView}
               className="text-white hover:bg-zinc-700/50"
             >
               View Details
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={handleEdit}
               className="text-white hover:bg-zinc-700/50"
             >
               <Edit2 className="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={() => setIsDeleteOpen(true)}
               className="text-red-400 hover:bg-red-600/20"
             >
@@ -202,65 +202,17 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
     }
 
     console.log("Loading assistants for user:", user.id);
-    
-    const { data, error } = await supabase
-      .from("assistant")
-      .select(
-        "id, name, prompt, first_message, first_sms, sms_prompt, cal_api_key, cal_event_type_slug, cal_event_type_id, cal_timezone, created_at, updated_at, user_id"
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
 
-    console.log("Load assistants - data:", data);
-    console.log("Load assistants - error:", error);
-    console.log("Number of assistants loaded:", data?.length || 0);
+    try {
+      const { assistants: data } = await fetchAssistants(user.id);
+      console.log("Number of assistants loaded:", data.length);
 
-    if (error) {
+      // Cast to local Assistant type as API returns full object
+      setAssistants(data as unknown as Assistant[]);
+    } catch (error) {
       console.warn("Failed to load assistants:", error);
       setAssistants([]);
-      return;
     }
-
-    type AssistantRow = {
-      id: string;
-      name: string | null;
-      prompt: string | null;
-      first_message: string | null;
-      first_sms: string | null;
-      sms_prompt: string | null;
-      cal_api_key: string | null;
-      cal_event_type_slug: string | null;
-      cal_event_type_id: string | null;
-      cal_timezone: string | null;
-      created_at: string | null;
-      updated_at: string | null;
-    };
-
-    const mapped: Assistant[] =
-      (data as AssistantRow[] | null)?.map((row) => {
-        const descriptionSource = row.prompt || row.first_message || "";
-        return {
-          id: row.id,
-          name: row.name || "Untitled Assistant",
-          description: descriptionSource.substring(0, 200),
-          prompt: row.prompt || undefined,
-          first_message: row.first_message || undefined,
-          first_sms: row.first_sms || undefined,
-          sms_prompt: row.sms_prompt || undefined,
-          status: "active",
-          interactionCount: 0,
-          userCount: 0,
-          cal_api_key: row.cal_api_key || undefined,
-          cal_event_type_slug: row.cal_event_type_slug || undefined,
-          cal_event_type_id: row.cal_event_type_id || undefined,
-          cal_timezone: row.cal_timezone || undefined,
-          cal_enabled: !!row.cal_api_key,
-          created_at: row.created_at || undefined,
-          updated_at: row.updated_at || undefined,
-        };
-      }) || [];
-
-    setAssistants(mapped);
   };
 
   const deleteAssistant = async (assistantId: string) => {
@@ -274,32 +226,26 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
     }
 
     try {
-      // Make sure we only delete assistants that belong to the current user
-      const { error } = await supabase
-        .from("assistant")
-        .delete()
-        .eq("id", assistantId)
-        .eq("user_id", user.id);
+      const response = await fetch(`/api/v1/assistants/${assistantId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': user.id
+        }
+      });
 
-      if (error) {
-        console.error("Failed to delete assistant:", error);
-        toast({
-          title: "Error",
-          description: `Failed to delete assistant: ${error.message}`,
-          variant: "destructive",
-        });
-        return;
+      if (!response.ok) {
+        throw new Error('Failed to delete assistant');
       }
 
       // Remove the assistant from the local state
       setAssistants(prev => prev.filter(assistant => assistant.id !== assistantId));
-      
+
       // Close the detail modal if the deleted assistant is currently being viewed
       if (selectedAssistant?.id === assistantId) {
         setIsDialogOpen(false);
         setSelectedAssistant(null);
       }
-      
+
       toast({
         title: "Assistant deleted",
         description: "The assistant has been permanently deleted.",
@@ -354,7 +300,7 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
             Manage and configure your AI assistants for different use cases
           </p>
         </div>
-        <Button 
+        <Button
           variant="default"
           className="font-medium gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
           onClick={(e) => {
@@ -400,9 +346,9 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
             </TableHeader>
             <TableBody>
               {filteredAssistants.map((assistant) => (
-                <AssistantTableRow 
-                  key={assistant.id} 
-                  assistant={assistant} 
+                <AssistantTableRow
+                  key={assistant.id}
+                  assistant={assistant}
                   onDelete={deleteAssistant}
                   onCardClick={handleAssistantClick}
                 />
@@ -418,13 +364,13 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
               No assistants found
             </h3>
             <p className="text-zinc-400 mb-4">
-              {searchQuery 
-                ? "Try adjusting your search criteria" 
+              {searchQuery
+                ? "Try adjusting your search criteria"
                 : "Get started by creating your first AI assistant"
               }
             </p>
             {!searchQuery && (
-              <Button 
+              <Button
                 variant="default"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => setCreateDialogOpen(true)}
@@ -439,7 +385,7 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
 
       {/* Create Assistant Dialog */}
       {createDialogOpen && (
-        <CreateAssistantDialog 
+        <CreateAssistantDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
           onCreateAssistant={(name: string, description: string) => {

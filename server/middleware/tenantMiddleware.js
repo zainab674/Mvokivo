@@ -1,20 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-// Initialize Supabase client with service role key for admin operations
-// Add custom headers to help bypass Cloudflare bot detection
-const supabase = supabaseUrl && supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
-    global: {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Server/1.0)',
-        'X-Client-Info': 'supabase-js-server',
-      },
-    },
-  })
-  : null;
+import { User } from '../models/index.js';
 
 // Hardcoded hosts that should always map to the main tenant
 const hardcodedMainHosts = [
@@ -91,48 +75,16 @@ async function extractTenantFromUrl(url) {
         console.log('[extractTenantFromUrl] Detected subdomain:', subdomain, 'from hostname:', hostname);
       }
 
-      if (!supabase) {
-        console.warn('Supabase not initialized, returning main tenant');
-        return 'main';
-      }
-
-      // Retry logic for Cloudflare-protected Supabase queries
+      // Query MongoDB for the tenant
+      // We are looking for a user where slug_name matches the subdomain
       let tenantOwner = null;
-      let error = null;
-      const maxRetries = 3;
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        const result = await supabase
-          .from('users')
-          .select('slug_name, tenant')
-          .eq('slug_name', subdomain)
-          .maybeSingle();
-
-        error = result.error;
-        tenantOwner = result.data;
-
-        // If successful or not a network/Cloudflare error, break
-        if (!error || (error.code !== 'PGRST116' && error.code !== 'PGRST301' && !error.message?.includes('fetch'))) {
-          break;
-        }
-
-        // If it's a network error (possibly Cloudflare), retry with exponential backoff
-        if (attempt < maxRetries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Max 5 seconds
-          console.warn(`[extractTenantFromUrl] Supabase query failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms:`, error.message);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-
-      if (error) {
-        console.error('Error fetching tenant by slug after retries:', {
+      try {
+        tenantOwner = await User.findOne({ slug_name: subdomain }).select('slug_name tenant');
+      } catch (error) {
+        console.error('Error fetching tenant by slug:', {
           error: error.message,
-          code: error.code,
-          subdomain,
-          attempts: maxRetries
+          subdomain
         });
-        // Don't return null immediately - Cloudflare might be blocking, but we should still try to proceed
-        // Return null so the middleware can handle it appropriately
         return null;
       }
 

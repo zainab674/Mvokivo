@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { toast } from "sonner";
 import { Loader2, CreditCard, History, Plus, Check } from "lucide-react";
 
@@ -62,6 +62,8 @@ export function MinutesPurchaseDialog({
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
     const [showNewCardForm, setShowNewCardForm] = useState(false);
 
+    const { getAccessToken } = useAuth(); // Destructure getAccessToken
+
     // Fetch pricing configuration and payment methods
     useEffect(() => {
         if (open) {
@@ -74,15 +76,13 @@ export function MinutesPurchaseDialog({
     const fetchPricing = async () => {
         try {
             setLoadingPricing(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) {
-                throw new Error('No session found');
-            }
+            const token = await getAccessToken();
+            if (!token) return;
 
             const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
             const response = await fetch(`${backendUrl}/api/v1/minutes-pricing`, {
                 headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
@@ -107,18 +107,21 @@ export function MinutesPurchaseDialog({
     const fetchPurchaseHistory = async () => {
         try {
             setLoadingHistory(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) return;
+            const token = await getAccessToken();
+            if (!token) return;
 
             const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
             const response = await fetch(`${backendUrl}/api/v1/minutes/purchase-history`, {
                 headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
+                    'Authorization': `Bearer ${token}`,
                 },
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch purchase history');
+                const errorData = await response.json().catch(() => ({}));
+                console.error("Purchase history fetch failed", errorData);
+                // Don't throw, just handle gracefully
+                return;
             }
 
             const result = await response.json();
@@ -135,17 +138,22 @@ export function MinutesPurchaseDialog({
     const fetchPaymentMethods = async () => {
         try {
             setLoadingPaymentMethods(true);
-            const { data, error } = await (supabase as any)
-                .from('payment_methods')
-                .select('*')
-                .eq('is_active', true)
-                .order('is_default', { ascending: false })
-                .order('created_at', { ascending: false });
+            const token = await getAccessToken();
+            if (!token) return;
 
-            if (error) {
-                console.error('Error fetching payment methods:', error);
-                return;
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
+            const response = await fetch(`${backendUrl}/api/v1/billing/payment-methods`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch payment methods');
             }
+
+            const result = await response.json();
+            const data = result.paymentMethods; // API returns { success: true, paymentMethods: [...] }
 
             if (data && data.length > 0) {
                 setPaymentMethods(data);
@@ -187,8 +195,8 @@ export function MinutesPurchaseDialog({
 
         try {
             setLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) {
+            const token = await getAccessToken();
+            if (!token) {
                 throw new Error('No session found');
             }
 
@@ -197,7 +205,7 @@ export function MinutesPurchaseDialog({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`,
+                    'Authorization': `Bearer ${token}`,
                 },
                 body: JSON.stringify({ minutes: minutesToPurchase }),
             });
@@ -452,8 +460,8 @@ export function MinutesPurchaseDialog({
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
-                    <Button 
-                        onClick={handlePurchase} 
+                    <Button
+                        onClick={handlePurchase}
                         disabled={loading || !pricing || (!showNewCardForm && !selectedPaymentMethod)}
                     >
                         {loading ? (

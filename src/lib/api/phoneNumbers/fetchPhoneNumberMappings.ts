@@ -1,5 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
-
 export interface PhoneNumberMapping {
   number: string;
   inbound_assistant_id: string | null;
@@ -13,29 +11,27 @@ export interface PhoneNumberMappingsResponse {
 /**
  * Fetch phone number to assistant mappings
  */
-export const fetchPhoneNumberMappings = async (): Promise<PhoneNumberMappingsResponse> => {
+export const fetchPhoneNumberMappings = async (userId: string): Promise<PhoneNumberMappingsResponse> => {
   try {
-    const { data: mappings, error } = await supabase
-      .from('phone_number')
-      .select('number, inbound_assistant_id')
-      .not('inbound_assistant_id', 'is', null); // Only get numbers with assigned assistants
-
-    if (error) {
-      console.error('Error fetching phone number mappings:', error);
-      throw error;
+    if (!userId) {
+      throw new Error('User ID is required to fetch mappings');
     }
 
-    if (!mappings || mappings.length === 0) {
-      return {
-        mappings: [],
-        total: 0
-      };
+    const response = await fetch('/api/v1/twilio/user/mappings', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': userId
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch phone number mappings');
     }
 
-    return {
-      mappings: mappings as PhoneNumberMapping[],
-      total: mappings.length
-    };
+    const data = await response.json();
+    return data;
 
   } catch (error) {
     console.error('Error fetching phone number mappings:', error);

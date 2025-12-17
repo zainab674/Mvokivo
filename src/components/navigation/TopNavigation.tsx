@@ -69,17 +69,16 @@ export default function TopNavigation() {
               {websiteSettings?.logo ? (
                 <img
                   src={websiteSettings.logo}
-                  alt={websiteSettings.website_name || "Logo"}
                   className="h-8 w-auto object-contain max-w-[150px]"
                 />
               ) : (
                 <h1 className="font-sans font-light text-xl tracking-tight text-foreground">
-                  {websiteSettings?.website_name || "AI Call Center"}
+                  {websiteSettings?.website_name || "Vokivo"}
                 </h1>
               )}
             </Link>
             <h1 className="font-sans font-light text-xl tracking-tight text-foreground">
-              {websiteSettings?.website_name || "AI Call Center"}
+              {websiteSettings?.website_name || "Vokivo"}
             </h1>
 
             {/* Impersonation Indicator */}

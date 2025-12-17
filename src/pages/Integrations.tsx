@@ -79,7 +79,7 @@ export default function Integrations() {
       <div className="container mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Integrations</h1>
-          <p className="text-muted-foreground">Connect your AI Call Center with external services and APIs</p>
+          <p className="text-muted-foreground">Connect your Vokivo with external services and APIs</p>
         </div>
 
         <div className="grid gap-6">
@@ -118,7 +118,7 @@ export default function Integrations() {
                       <CardContent className="pt-0">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Switch 
+                            <Switch
                               checked={integration.status === 'connected' || integration.status === 'configured' || integration.status === 'active'}
                               disabled={integration.status === 'available'}
                             />
@@ -126,8 +126,8 @@ export default function Integrations() {
                               {integration.status === 'available' ? 'Available' : 'Enabled'}
                             </span>
                           </div>
-                          <Button 
-                            variant={integration.status === 'available' ? 'default' : 'outline'} 
+                          <Button
+                            variant={integration.status === 'available' ? 'default' : 'outline'}
                             size="sm"
                           >
                             {integration.status === 'available' ? 'Connect' : 'Configure'}

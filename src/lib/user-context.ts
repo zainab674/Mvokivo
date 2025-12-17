@@ -42,20 +42,35 @@ export function getCurrentUserId(): string | null {
 
 /**
  * Get the current user ID with fallback to authenticated user
- * This is an async version that can fetch from Supabase auth if needed
  */
 export async function getCurrentUserIdAsync(): Promise<string> {
   const impersonatedUserId = getCurrentUserId();
   if (impersonatedUserId) {
     return impersonatedUserId;
   }
-  
+
   // Fallback to authenticated user
-  const { supabase } = await import('@/integrations/supabase/client');
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    throw new Error('User not authenticated');
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('User not authenticated (no token)');
   }
-  console.log('Using authenticated user ID:', user.id);
-  return user.id;
+
+  try {
+    const response = await fetch('/api/auth/me', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('User not authenticated (invalid token)');
+    }
+
+    const { user } = await response.json();
+    console.log('Using authenticated user ID:', user.id);
+    return user.id;
+  } catch (error) {
+    console.error('Error fetching current user ID:', error);
+    throw error;
+  }
 }

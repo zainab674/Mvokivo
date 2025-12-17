@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Shield, Clock, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/SupportAccessAuthContext';
 
 interface SupportAccessDialogProps {
   userId: string;
@@ -28,6 +28,7 @@ export const SupportAccessDialog: React.FC<SupportAccessDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [duration, setDuration] = useState('30');
+  const { getAccessToken } = useAuth();
 
   const handleSupportAccess = async () => {
     if (!reason.trim()) {
@@ -37,9 +38,8 @@ export const SupportAccessDialog: React.FC<SupportAccessDialogProps> = ({
 
     setLoading(true);
     try {
-      // Get the current session token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
         toast.error('No valid session found. Please log in again.');
         return;
       }
@@ -48,7 +48,7 @@ export const SupportAccessDialog: React.FC<SupportAccessDialogProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           targetUserId: userId,

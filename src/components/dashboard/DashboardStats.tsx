@@ -104,7 +104,7 @@ export default function DashboardStats({
             <div key={metric.key} className="relative">
               {/* Divider for every item except the last one, visible on large screens */}
               {index !== config.metrics.length - 1 && (
-                <div className="hidden lg:block absolute right-[-24px] top-1/2 -translate-y-1/2 h-8 w-px bg-white/10" />
+                <div className="hidden lg:block absolute right-[-24px] top-1/2 -translate-y-1/2 h-8 w-px bg-border" />
               )}
 
               <StatCard

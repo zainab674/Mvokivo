@@ -4,7 +4,7 @@
  * Fetches from database with fallback to defaults
  */
 
-import { supabase } from '@/integrations/supabase/client';
+
 import { extractTenantFromHostname } from './tenant-utils';
 
 export interface PlanConfig {
@@ -101,74 +101,47 @@ function getCurrentTenant(): string | null {
 /**
  * Fetch plan configs from database (filtered by tenant)
  */
+/**
+ * Fetch plan configs from database (filtered by tenant)
+ */
 async function fetchPlanConfigsFromDB(tenant?: string | null): Promise<Record<string, PlanConfig>> {
   try {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
     // Get tenant from hostname if not provided
     const currentTenant = tenant ?? getCurrentTenant();
 
-    let mergedPlans: Record<string, PlanConfig> = {};
-
+    // Construct URL
+    const url = new URL(`${backendUrl}/api/v1/plans`);
     if (currentTenant) {
-      // For whitelabel tenant: ONLY get their tenant-specific plans
-      console.log(`[Plan Config] Fetching plans for whitelabel tenant: ${currentTenant}`);
-
-      const tenantPlansResult = await (supabase as any)
-        .from('plan_configs')
-        .select('*')
-        .eq('tenant', currentTenant)
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
-
-      if (tenantPlansResult.error) {
-        console.warn('Error fetching tenant plans:', tenantPlansResult.error);
-        return {};
-      }
-
-      const tenantPlans = tenantPlansResult.data || [];
-
-      // Only include active tenant plans
-      tenantPlans.forEach((plan: any) => {
-        mergedPlans[plan.plan_key] = {
-          key: plan.plan_key,
-          name: plan.name,
-          price: Number(plan.price),
-          features: Array.isArray(plan.features) ? plan.features : [],
-          whitelabelEnabled: plan.whitelabel_enabled ?? false
-        };
-      });
-
-      return mergedPlans;
-    } else {
-      // For main tenant: ONLY get main tenant plans (no defaults)
-      console.log('[Plan Config] Fetching plans for main tenant');
-
-      const result = await (supabase as any)
-        .from('plan_configs')
-        .select('*')
-        .is('tenant', null)
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
-
-      if (result.error) {
-        console.warn('Error fetching main plans:', result.error);
-        return {};
-      }
-
-      const data = result.data || [];
-
-      // Only include active main plans
-      data.forEach((plan: any) => {
-        mergedPlans[plan.plan_key] = {
-          key: plan.plan_key,
-          name: plan.name,
-          price: Number(plan.price),
-          features: Array.isArray(plan.features) ? plan.features : [],
-          whitelabelEnabled: plan.whitelabel_enabled ?? false
-        };
-      });
-
-      return mergedPlans;
+      url.searchParams.append('tenant', currentTenant);
     }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      console.warn('Failed to fetch from plans API:', response.statusText);
+      return {};
+    }
+
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      return {};
+    }
+
+    const plansArray = result.data;
+    const mergedPlans: Record<string, PlanConfig> = {};
+
+    plansArray.forEach((plan: any) => {
+      mergedPlans[plan.key] = {
+        key: plan.key,
+        name: plan.name || "Unknown Plan",
+        price: isNaN(Number(plan.price)) ? 0 : Number(plan.price),
+        features: Array.isArray(plan.features) ? plan.features : [],
+        whitelabelEnabled: plan.whitelabelEnabled
+      };
+    });
+
+    return mergedPlans;
+
   } catch (error) {
     console.error('Error fetching plan configs:', error);
     return {};

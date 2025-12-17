@@ -1,22 +1,12 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { User, PlanConfig } from '../models/index.js';
+import { authenticateToken } from '../utils/auth.js';
 
 const router = express.Router();
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Supabase credentials not configured for white label routes');
-}
-
-const supabase = supabaseUrl && supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,10 +15,6 @@ const SLUG_REGEX = /^[a-z0-9-]+$/;
 const RESERVED_SLUGS = ['www', 'api', 'admin', 'app', 'mail', 'ftp', 'localhost', 'main', 'test', 'staging', 'dev', 'prod'];
 
 async function isPlanWhitelabelEnabled(planKey, tenant) {
-  if (!supabase) {
-    return false;
-  }
-
   if (!planKey) {
     return false;
   }
@@ -36,23 +22,24 @@ async function isPlanWhitelabelEnabled(planKey, tenant) {
   const normalizedPlanKey = planKey.toLowerCase();
 
   const fetchPlan = async (tenantFilter) => {
-    let query = supabase
-      .from('plan_configs')
-      .select('whitelabel_enabled')
-      .eq('plan_key', normalizedPlanKey)
-      .eq('is_active', true);
+    const query = {
+      plan_key: normalizedPlanKey,
+      is_active: true
+    };
 
     if (tenantFilter) {
-      query = query.eq('tenant', tenantFilter);
+      query.tenant = tenantFilter;
     } else {
-      query = query.is('tenant', null);
+      query.tenant = { $in: [null, undefined] }; // Check for null or undefined
     }
 
-    const { data, error } = await query.maybeSingle();
-    if (error && error.code !== 'PGRST116') {
+    try {
+      const planConfig = await PlanConfig.findOne(query);
+      return planConfig;
+    } catch (error) {
       console.error('Error fetching plan config for whitelabel check:', error);
+      return null;
     }
-    return data;
   };
 
   const tenantFilter = tenant && tenant !== 'main' ? tenant : null;
@@ -99,25 +86,15 @@ function validateSlug(slug) {
 }
 
 async function ensureSlugAvailable(lowerSlug) {
-  if (!supabase) {
-    throw new Error('Database not configured');
-  }
-
-  const { data: existingUser, error } = await supabase
-    .from('users')
-    .select('slug_name')
-    .eq('slug_name', lowerSlug)
-    .maybeSingle();
-
-  if (error) {
+  try {
+    const existingUser = await User.findOne({ slug_name: lowerSlug }).select('slug_name');
+    if (existingUser) {
+      return false;
+    }
+    return true;
+  } catch (error) {
     throw new Error(error.message || 'Error checking slug availability');
   }
-
-  if (existingUser) {
-    return false;
-  }
-
-  return true;
 }
 
 async function setupReverseProxyForSlug(lowerSlug) {
@@ -190,13 +167,6 @@ router.post('/check-slug-available', async (req, res) => {
 
     const lowerSlug = slug.toLowerCase();
 
-    if (!supabase) {
-      return res.status(500).json({
-        success: false,
-        message: 'Database not configured'
-      });
-    }
-
     try {
       const available = await ensureSlugAvailable(lowerSlug);
       if (!available) {
@@ -227,9 +197,10 @@ router.post('/check-slug-available', async (req, res) => {
 });
 
 // Activate whitelabel for eligible plans
-router.post('/activate', async (req, res) => {
+router.post('/activate', authenticateToken, async (req, res) => {
   try {
     const { slug, website_name, logo, stripe_publishable_key, stripe_secret_key } = req.body;
+    const authUser = req.user;
 
     const validationError = validateSlug(slug);
     if (validationError) {
@@ -246,75 +217,16 @@ router.post('/activate', async (req, res) => {
       });
     }
 
-    if (!supabase) {
-      return res.status(500).json({
-        success: false,
-        message: 'Database not configured'
-      });
-    }
+    let userData = await User.findOne({ id: authUser.id }).select('id slug_name tenant role plan name');
 
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !authUser) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid authentication token'
-      });
-    }
-
-    let { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, slug_name, tenant, role, plan, name')
-      .eq('id', authUser.id)
-      .maybeSingle();
-
-    if (userError) {
-      console.error('Error fetching user data:', userError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error fetching user data'
-      });
-    }
-
-    // If profile doesn't exist yet, create a basic one
     if (!userData) {
-      const metadata = authUser.user_metadata || {};
-      const userName = metadata.full_name || metadata.name || authUser.email?.split('@')[0] || 'User';
-      const initialTenant = metadata.tenant || 'main';
-
-      const { data: newUserData, error: createError } = await supabase
-        .from('users')
-        .upsert({
-          id: authUser.id,
-          name: userName,
-          tenant: initialTenant,
-          role: 'user',
-          plan: null
-        }, {
-          onConflict: 'id',
-          ignoreDuplicates: false
-        })
-        .select('id, slug_name, tenant, role, plan, name')
-        .single();
-
-      if (createError) {
-        console.error('Error creating user profile:', createError);
-        return res.status(500).json({
-          success: false,
-          message: 'Error creating user profile. Please try again.'
-        });
-      }
-
-      userData = newUserData;
+      console.error('Error fetching user data: User not found');
+      // If profile doesn't exist yet, we can try to create it, but usually authenticateToken ensures user exists or we should handle it
+      // Here we rely on user existing
+      return res.status(404).json({
+        success: false,
+        message: 'User profile not found'
+      });
     }
 
     if (userData.slug_name) {
@@ -360,13 +272,13 @@ router.post('/activate', async (req, res) => {
       stripe_enabled: !!(stripe_publishable_key && stripe_secret_key)
     };
 
-    const { error: updateError } = await supabase
-      .from('users')
-      .update(updatePayload)
-      .eq('id', authUser.id);
+    const updatedUser = await User.findOneAndUpdate(
+      { id: authUser.id },
+      updatePayload,
+      { new: true }
+    );
 
-    if (updateError) {
-      console.error('Error activating whitelabel:', updateError);
+    if (!updatedUser) {
       return res.status(500).json({
         success: false,
         message: 'Failed to activate whitelabel. Please try again.'
@@ -401,39 +313,32 @@ router.get('/website-settings', async (req, res) => {
     // Allow explicit slug from query param (for public fetching) or fall back to middleware detection
     const tenant = req.query.slug || req.tenant || 'main';
 
-    if (!supabase) {
-      return res.status(500).json({
-        success: false,
-        message: 'Database not configured'
-      });
-    }
-
     // For whitelabel tenants, find by slug_name
     // For main tenant, check if authenticated user wants their own settings
-    let query = supabase
-      .from('users')
-      .select('slug_name, custom_domain, website_name, logo, contact_email, meta_description, live_demo_agent_id, live_demo_phone_number, policy_text, stripe_publishable_key, stripe_enabled');
+    let query = {};
 
     if (tenant !== 'main') {
       // Whitelabel tenant: find by slug_name
-      query = query.eq('slug_name', tenant);
+      query = { slug_name: tenant };
     } else {
       // Main tenant: check if authenticated user wants their settings
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.replace('Bearer ', '');
+        // We can't use authenticateToken middleware here because this route might be public
+        // So we manually verify if token is present, but reusing middleware logic is cleaner.
+        // However, since this is a conditional auth, we call jwt verify manually or use a helper if we extracted one.
+        // Importing jwt for manual verification in this specific edge case
+        const { default: jwt } = await import('jsonwebtoken');
+        const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
         try {
-          const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+          const decoded = jwt.verify(token, JWT_SECRET);
+          if (decoded && decoded.id) {
+            const userSettings = await User.findOne({ id: decoded.id })
+              .select('slug_name custom_domain website_name logo contact_email meta_description live_demo_agent_id live_demo_phone_number policy_text stripe_publishable_key stripe_enabled');
 
-          if (!authError && authUser) {
-            // Get authenticated user's settings for main tenant
-            const { data: userSettings, error: userError } = await supabase
-              .from('users')
-              .select('slug_name, custom_domain, website_name, logo, contact_email, meta_description, live_demo_agent_id, live_demo_phone_number, policy_text, stripe_publishable_key, stripe_enabled')
-              .eq('id', authUser.id)
-              .maybeSingle();
-
-            if (!userError && userSettings) {
+            if (userSettings) {
               return res.status(200).json({
                 success: true,
                 message: 'Website name and logo fetched',
@@ -453,13 +358,12 @@ router.get('/website-settings', async (req, res) => {
               });
             }
           }
-        } catch (authErr) {
-          // If auth fails, fall through to return defaults
+        } catch (e) {
+          // ignore auth error, treat as public
         }
       }
 
       // For main tenant without auth or if no user found, return defaults
-      // (No user has slug_name='main', so query would fail anyway)
       return res.status(200).json({
         success: true,
         message: 'Website name and logo fetched',
@@ -477,15 +381,8 @@ router.get('/website-settings', async (req, res) => {
       });
     }
 
-    const { data: settings, error } = await query.maybeSingle();
-
-    if (error) {
-      console.error('Error fetching website settings:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Error fetching website settings'
-      });
-    }
+    const settings = await User.findOne(query)
+      .select('slug_name custom_domain website_name logo contact_email meta_description live_demo_agent_id live_demo_phone_number policy_text stripe_publishable_key stripe_enabled');
 
     if (!settings) {
       // Return default settings if tenant not found
@@ -519,6 +416,8 @@ router.get('/website-settings', async (req, res) => {
         live_demo_agent_id: settings.live_demo_agent_id,
         live_demo_phone_number: settings.live_demo_phone_number,
         policy_text: settings.policy_text,
+        stripe_publishable_key: settings.stripe_publishable_key,
+        stripe_enabled: settings.stripe_enabled,
       }
     });
   } catch (error) {
@@ -531,7 +430,7 @@ router.get('/website-settings', async (req, res) => {
 });
 
 // Update website settings (requires authentication and tenant ownership)
-router.post('/website-settings', async (req, res) => {
+router.post('/website-settings', authenticateToken, async (req, res) => {
   try {
     console.log('POST /website-settings called, tenant:', req.tenant);
     const tenant = req.tenant || 'main';
@@ -548,106 +447,17 @@ router.post('/website-settings', async (req, res) => {
       stripe_secret_key
     } = req.body;
 
-    // Get user from auth header
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-
-    if (!supabase) {
-      return res.status(500).json({
-        success: false,
-        message: 'Database not configured'
-      });
-    }
-
-    // Verify user token
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !authUser) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid authentication token'
-      });
-    }
+    // Auth user is attached by middleware
+    const authUser = req.user;
 
     // Get authenticated user data to verify permissions
-    let { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, slug_name, tenant, role, plan')
-      .eq('id', authUser.id)
-      .maybeSingle();
+    let userData = await User.findOne({ id: authUser.id }).select('id slug_name tenant role plan');
 
-    if (userError) {
-      console.error('Error fetching user data:', userError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error fetching user data'
-      });
-    }
-
-    // If user profile doesn't exist, create it from auth metadata
     if (!userData) {
-      console.log('User profile not found, creating profile for:', authUser.id);
-
-      // Extract metadata from auth user
-      const metadata = authUser.user_metadata || {};
-      const slug = metadata.slug || null;
-      const isWhitelabel = metadata.whitelabel === true || metadata.whitelabel === 'true';
-      const userName = metadata.full_name || metadata.name || authUser.email?.split('@')[0] || 'User';
-
-      // Set role: admin if whitelabel with slug, otherwise user
-      const userRole = (isWhitelabel && slug) ? 'admin' : 'user';
-
-      // Create user profile (use upsert in case trigger already created it)
-      const { data: newUserData, error: createError } = await supabase
-        .from('users')
-        .upsert({
-          id: authUser.id,
-          name: userName,
-          slug_name: slug,
-          tenant: slug || 'main',
-          role: userRole,
-        }, {
-          onConflict: 'id',
-          ignoreDuplicates: false
-        })
-        .select('id, slug_name, tenant, role')
-        .single();
-
-      if (createError) {
-        console.error('Error creating user profile:', createError);
-        // If it's a conflict error, try to fetch the existing user
-        if (createError.code === '23505' || createError.message?.includes('duplicate')) {
-          const { data: existingUser, error: fetchError } = await supabase
-            .from('users')
-            .select('id, slug_name, tenant, role')
-            .eq('id', authUser.id)
-            .single();
-
-          if (!fetchError && existingUser) {
-            console.log('User profile already exists, using existing:', existingUser);
-            userData = existingUser;
-          } else {
-            return res.status(500).json({
-              success: false,
-              message: 'Error creating user profile. Please try again.'
-            });
-          }
-        } else {
-          return res.status(500).json({
-            success: false,
-            message: 'Error creating user profile. Please try again.'
-          });
-        }
-      } else {
-        userData = newUserData;
-      }
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
     // Verify user has permission to update this tenant's settings
@@ -688,8 +498,6 @@ router.post('/website-settings', async (req, res) => {
     const updateData = {};
     if (website_name !== undefined) updateData.website_name = website_name;
     if (logo !== undefined) {
-      // In urban-new, logo is base64 string that gets uploaded to cloudinary
-      // For now, we'll accept it as-is (assuming it's already a URL or base64)
       updateData.logo = logo;
     }
     if (custom_domain !== undefined) {
@@ -714,11 +522,11 @@ router.post('/website-settings', async (req, res) => {
     if (live_demo_agent_id !== undefined) updateData.live_demo_agent_id = live_demo_agent_id;
     if (live_demo_phone_number !== undefined) updateData.live_demo_phone_number = live_demo_phone_number;
     if (policy_text !== undefined) updateData.policy_text = policy_text;
-    
+
     // Handle Stripe credentials
     if (stripe_publishable_key !== undefined) updateData.stripe_publishable_key = stripe_publishable_key;
     if (stripe_secret_key !== undefined) updateData.stripe_secret_key = stripe_secret_key;
-    
+
     // Set stripe_enabled flag if both keys are provided
     if (stripe_publishable_key && stripe_secret_key) {
       updateData.stripe_enabled = true;
@@ -737,56 +545,23 @@ router.post('/website-settings', async (req, res) => {
     // Update tenant owner's settings
     // For whitelabel tenants, update by slug_name (tenant)
     // For main tenant, always update the authenticated user's own record by id
-    let updateQuery = supabase
-      .from('users')
-      .update(updateData);
+    let filter = {};
 
     if (tenant === 'main') {
       // For main tenant, always update the authenticated user's own record by id
-      updateQuery = updateQuery.eq('id', authUser.id);
+      filter = { id: authUser.id };
     } else {
       // For whitelabel tenants, update by slug_name (tenant owner)
-      updateQuery = updateQuery.eq('slug_name', tenant);
+      filter = { slug_name: tenant };
     }
 
-    // First, perform the update and check if any rows were affected
-    const { data: updateResult, error: updateError } = await updateQuery.select('id');
+    const updatedSettings = await User.findOneAndUpdate(filter, updateData, { new: true })
+      .select('slug_name custom_domain website_name logo contact_email meta_description live_demo_agent_id live_demo_phone_number policy_text stripe_publishable_key stripe_enabled');
 
-    if (updateError) {
-      console.error('Error updating website settings:', updateError);
-      return res.status(500).json({
-        success: false,
-        message: 'Error updating website settings'
-      });
-    }
-
-    // Check if any rows were updated
-    if (!updateResult || updateResult.length === 0) {
-      console.error('No rows updated. User ID:', authUser.id, 'Tenant:', tenant, 'UserData:', userData);
+    if (!updatedSettings) {
       return res.status(404).json({
         success: false,
         message: 'No matching record found to update. Please ensure your profile exists.'
-      });
-    }
-
-    // Now fetch the updated settings
-    let fetchQuery = supabase
-      .from('users')
-      .select('slug_name, custom_domain, website_name, logo, contact_email, meta_description, live_demo_agent_id, live_demo_phone_number, policy_text');
-
-    if (tenant === 'main' && !userData.slug_name) {
-      fetchQuery = fetchQuery.eq('id', authUser.id);
-    } else {
-      fetchQuery = fetchQuery.eq('slug_name', tenant);
-    }
-
-    const { data: updatedSettings, error: fetchError } = await fetchQuery.single();
-
-    if (fetchError) {
-      console.error('Error fetching updated settings:', fetchError);
-      return res.status(500).json({
-        success: false,
-        message: 'Settings updated but failed to retrieve updated values'
       });
     }
 
@@ -805,4 +580,3 @@ router.post('/website-settings', async (req, res) => {
 });
 
 export default router;
-

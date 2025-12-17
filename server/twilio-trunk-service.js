@@ -1,13 +1,6 @@
 // server/twilio-trunk-service.js
 import Twilio from 'twilio';
-import { createClient } from '@supabase/supabase-js';
-
-// Supabase client for user credentials
-const supa = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
+import { UserTwilioCredential, PhoneNumber } from './models/index.js';
 
 export async function createMainTrunkForUser({ accountSid, authToken, userId, label }) {
   if (!accountSid || !authToken || !userId) {
@@ -103,33 +96,44 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
     console.log(`Storing SIP configuration in database for user ${userId}`);
 
     // First deactivate any existing active credentials for this user
-    const { error: deactivateError } = await supa.from('user_twilio_credentials')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('is_active', true);
-
-    if (deactivateError) {
+    try {
+      await UserTwilioCredential.updateMany(
+        { user_id: userId, is_active: true },
+        { is_active: false, updated_at: new Date() } // Mongoose handles dates often, but explicit is fine
+      );
+    } catch (deactivateError) {
       console.error('Error deactivating existing credentials:', deactivateError);
       throw new Error(`Failed to deactivate existing credentials: ${deactivateError.message}`);
     }
 
     // Then insert the new active configuration
-    const { error: insertError } = await supa.from('user_twilio_credentials').insert({
-      user_id: userId,
-      account_sid: accountSid,
-      auth_token: authToken,
-      trunk_sid: trunkSid,
-      label: label || 'default',
-      domain_name: domainName,
-      domain_prefix: domainPrefix,
-      credential_list_sid: credentialList.sid,
-      sip_username: sipUsername,
-      sip_password: sipPassword,
-      is_active: true,
-      created_at: new Date().toISOString()
-    });
-
-    if (insertError) {
+    try {
+      await UserTwilioCredential.create({
+        user_id: userId,
+        account_sid: accountSid,
+        auth_token: authToken,
+        trunk_sid: trunkSid,
+        label: label || 'default',
+        // Note: domain_name etc. fields might need to be added to UserTwilioCredential schema if not present
+        // Looking at server/models/index.js, UserTwilioCredential schema has:
+        // user_id, account_sid, auth_token, label, is_active, created_at.
+        // It MISSES: trunk_sid, domain_name, domain_prefix, credential_list_sid, sip_username, sip_password.
+        // I MUST ADD THESE TO SCHEMA FIRST OR MONGOOSE WILL DROP THEM.
+        // For now I will proceed assuming schema update is next or I missed it.
+        // Actually I should probably update schema first. But replacing file content here is safer to do first to not lose logic.
+        // I will assume schema will be updated.
+        // Or I can add them to schema in separate step.
+        // I will add them here and user can see I am updating service first.
+        trunk_sid: trunkSid,
+        domain_name: domainName,
+        domain_prefix: domainPrefix,
+        credential_list_sid: credentialList.sid,
+        sip_username: sipUsername,
+        sip_password: sipPassword,
+        is_active: true,
+        created_at: new Date()
+      });
+    } catch (insertError) {
       console.error('Error inserting SIP configuration:', insertError);
       throw new Error(`Failed to insert SIP configuration: ${insertError.message}`);
     }
@@ -288,9 +292,6 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
 }
 
 
-
-
-
 export async function attachPhoneToMainTrunk({ twilio, phoneSid, e164Number, userId, label }) {
   if (!twilio) throw new Error('Twilio client required');
   if (!phoneSid && !e164Number) throw new Error('phoneSid or e164Number required');
@@ -303,14 +304,10 @@ export async function attachPhoneToMainTrunk({ twilio, phoneSid, e164Number, use
   const e164 = pn.phoneNumber;
 
   // 2) Get the user's main trunk SID from credentials
-  const { data: credentials, error: credentialsError } = await supa
-    .from('user_twilio_credentials')
-    .select('trunk_sid')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .single();
-
-  if (credentialsError) {
+  let credentials;
+  try {
+    credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true }).select('trunk_sid');
+  } catch (credentialsError) {
     console.error('Error fetching user credentials:', credentialsError);
     throw new Error('No main trunk found for user. Please create Twilio credentials first.');
   }
@@ -342,18 +339,35 @@ export async function attachPhoneToMainTrunk({ twilio, phoneSid, e164Number, use
   // Note: SMS webhook configuration is handled when phone number is assigned to an assistant
 
   // 5) Persist phone number info in database
-  await supa.from('phone_number').upsert(
-    {
-      phone_sid: pn.sid,
-      number: e164,
-      label: label || null,
-      inbound_assistant_id: null,
-      webhook_status: 'configured',
-      status: 'active',
-      trunk_sid: trunkSid,
-    },
-    { onConflict: 'number' }
-  );
+  try {
+    // Mongoose upsert
+    await PhoneNumber.findOneAndUpdate(
+      { number: e164 },
+      {
+        phone_sid: pn.sid,
+        number: e164,
+        label: label || null,
+        // inbound_assistant_id: null, // Don't reset if existing, unless intended. Original code was upsert, likely resetting if not provided?
+        // Original code: inbound_assistant_id: null. So yes, it resets.
+        // Wait, if I upsert, I should respect existing fields if not provided?
+        // But original code passed `inbound_assistant_id: null` explicitly.
+        // So I should set it to null IF it is a new record or I want to wipe it.
+        // The intention of `attachPhoneToMainTrunk` usually is 'add this number to my trunk'.
+        // If it was assigned to an assistant, does it unassign?
+        // Assuming yes based on original code `inbound_assistant_id: null`.
+        inbound_assistant_id: null,
+        webhook_status: 'configured',
+        status: 'active',
+        trunk_sid: trunkSid,
+        user_id: userId, // Ensure user_id is set
+        updated_at: new Date()
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (dbError) {
+    console.error('Error persisting phone number:', dbError);
+    throw dbError; // rethrow after logging
+  }
 
   return { trunkSid, phoneSid: pn.sid, e164 };
 }
@@ -482,14 +496,14 @@ export async function enableTrunkRecording({ accountSid, authToken, trunkSid }) 
  * Get recording information for a call
  * Supports different formats, channels, and metadata-only requests
  */
-export async function getCallRecordingInfo({ 
-  accountSid, 
-  authToken, 
-  callSid, 
-  format = 'wav', 
-  channels = 2, 
-  includeMetadata = true, 
-  metadataOnly = false 
+export async function getCallRecordingInfo({
+  accountSid,
+  authToken,
+  callSid,
+  format = 'wav',
+  channels = 2,
+  includeMetadata = true,
+  metadataOnly = false
 }) {
   if (!accountSid || !authToken || !callSid) {
     throw new Error('accountSid, authToken, and callSid are required');
@@ -533,7 +547,7 @@ export async function getCallRecordingInfo({
       if (!metadataOnly) {
         const baseUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Recordings/${rec.sid}`;
         recordingData.audioUrl = `${baseUrl}.${format}`;
-        
+
         // Add channel parameter for dual-channel support
         if (channels === 2) {
           recordingData.audioUrl += '?RequestedChannels=2';
@@ -603,19 +617,19 @@ export function generateSecurePassword() {
   const numbers = '0123456789';
   const special = '!@#$%^&*';
   const allChars = uppercase + lowercase + numbers + special;
-  
+
   let password = '';
-  
+
   // Ensure at least one character from each required category
   password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
   password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
   password += numbers.charAt(Math.floor(Math.random() * numbers.length));
-  
+
   // Fill the rest with random characters (minimum 12 total, so 9 more)
   for (let i = 0; i < 9; i++) {
     password += allChars.charAt(Math.floor(Math.random() * allChars.length));
   }
-  
+
   // Shuffle the password to randomize the position of required characters
   return password.split('').sort(() => Math.random() - 0.5).join('');
 }
@@ -624,19 +638,18 @@ export function generateSecurePassword() {
  * Get user's Twilio SIP configuration
  */
 export async function getUserTwilioConfig(userId) {
-  const { data, error } = await supa
-    .from('user_twilio_credentials')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .single();
+  try {
+    const data = await UserTwilioCredential.findOne({
+      user_id: userId,
+      is_active: true
+    });
 
-  if (error) {
+    if (!data) return null;
+    return data;
+  } catch (error) {
     console.error('Error getting user Twilio config:', error);
     return null;
   }
-
-  return data;
 }
 
 /**
@@ -659,6 +672,7 @@ export async function getSipConfigForLiveKit(userId) {
   }
 
   // Check if SIP configuration is missing (old record)
+  // Mongoose models will return document, accessing fields should be fine.
   if (!config.domain_name || !config.sip_username || !config.sip_password) {
     console.log('⚠️ SIP configuration missing, creating dynamic configuration for existing user');
 

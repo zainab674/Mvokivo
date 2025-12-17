@@ -6,9 +6,8 @@ import { BillingSettings } from "./BillingSettings";
 import BusinessUseCaseSettings from "./BusinessUseCaseSettings";
 import WhitelabelSettings from "./WhitelabelSettings";
 import { useAuth } from '@/contexts/SupportAccessAuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { getPlanConfigs } from '@/lib/plan-config';
- 
+
 const tabVariants = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0 },
@@ -34,17 +33,23 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
   useEffect(() => {
     const determineWhitelabelAccess = async () => {
       try {
-        if (!user) {
+        const token = localStorage.getItem('token');
+        if (!token) {
           setWhitelabelAvailable(false);
           setCheckingWhitelabel(false);
           return;
         }
 
-        const { data: profile } = await supabase
-          .from('users')
-          .select('plan, tenant, role, slug_name')
-          .eq('id', user.id)
-          .maybeSingle();
+        // Fetch user profile from API to get latest plan/role/tenant info
+        const response = await fetch('/api/v1/user/profile', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        let profile = null;
+        if (response.ok) {
+          const data = await response.json();
+          profile = data.user;
+        }
 
         console.log('[Whitelabel Check] User profile:', profile);
 

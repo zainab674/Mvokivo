@@ -1,5 +1,6 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from "@/lib/auth";
 import type { TwilioCredentials } from "@/components/settings/integrations/types";
+import { getCurrentUser } from "@/lib/auth";
 
 export interface UserTwilioCredentials {
   id: string;
@@ -19,76 +20,35 @@ export interface TwilioCredentialsInput {
   label: string;
 }
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 /**
  * Service for managing user-specific Twilio credentials
  */
 export class TwilioCredentialsService {
-  // Cache for user authentication to avoid repeated calls
-  private static userCache: { user: any; timestamp: number } | null = null;
-  private static readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-  /**
-   * Get current user with caching to avoid repeated auth calls
-   * Uses session instead of getUser() to be more efficient
-   */
-  private static async getCurrentUser() {
-    const now = Date.now();
-    
-    // Return cached user if still valid
-    if (this.userCache && (now - this.userCache.timestamp) < this.CACHE_DURATION) {
-      return this.userCache.user;
-    }
-
-    // Fetch fresh session data (includes user + token) - more efficient than getUser()
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session?.user) {
-      this.userCache = null;
-      return null;
-    }
-
-    // Cache the user data
-    this.userCache = { user: session.user, timestamp: now };
-    
-    return session.user;
-  }
-
-  /**
-   * Clear user cache (useful for logout or when user changes)
-   */
-  static clearUserCache() {
-    this.userCache = null;
-  }
 
   /**
    * Get the active Twilio credentials for the current user
-   * Since there's no is_active column, we'll get the credential for the current user
    */
   static async getActiveCredentials(): Promise<UserTwilioCredentials | null> {
     try {
-      const user = await this.getCurrentUser();
-      if (!user) return null;
+      const token = await getAccessToken();
+      if (!token) return null;
 
-      console.log('Fetching credentials for user:', user.id);
-
-      const { data, error } = await supabase
-        .from("user_twilio_credentials")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          // No rows found for this user
-          console.log('No credentials found for user:', user.id);
-          return null;
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/credentials`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-        console.error("Error fetching Twilio credentials:", error);
-        return null;
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch credentials: ${errorText}`);
       }
 
-      console.log('Found credentials for user:', user.id);
-      return data;
+      const data = await response.json();
+      return data.credentials;
     } catch (error) {
       console.error("Error fetching Twilio credentials:", error);
       return null;
@@ -101,16 +61,15 @@ export class TwilioCredentialsService {
    */
   static async saveCredentials(credentials: TwilioCredentialsInput): Promise<UserTwilioCredentials> {
     try {
-      const user = await this.getCurrentUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      // First, create the main trunk for the user
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      const response = await fetch(`${backendUrl}/api/v1/twilio/user/create-main-trunk`, {
+      // Use the existing create-main-trunk endpoint which acts as save + setup
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/create-main-trunk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': user.id
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           accountSid: credentials.accountSid,
@@ -124,21 +83,25 @@ export class TwilioCredentialsService {
         throw new Error(trunkResult.message || 'Failed to create main trunk');
       }
 
-      // Backend already saved all credentials with SIP configuration
-      // Just return the result from the backend
+      // Backend logic for create-main-trunk saves the credentials.
+      // We try to fetch the newly created active credentials to return a full object.
+      const freshCreds = await this.getActiveCredentials();
+      if (freshCreds) return freshCreds;
+
+      // Fallback if fetch fails but save succeeded (unlikely)
+      const user = getCurrentUser();
       return {
-        user_id: user.id,
+        id: 'new',
+        user_id: user?.id || '',
         account_sid: credentials.accountSid,
         auth_token: credentials.authToken,
         trunk_sid: trunkResult.trunkSid,
         label: credentials.label,
         is_active: true,
-        domain_name: trunkResult.domainName,
-        domain_prefix: trunkResult.domainPrefix,
-        credential_list_sid: trunkResult.credentialListSid,
-        sip_username: trunkResult.sipUsername,
-        sip_password: trunkResult.sipPassword
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
+
     } catch (error) {
       console.error("Error saving Twilio credentials:", error);
       throw error;
@@ -149,29 +112,28 @@ export class TwilioCredentialsService {
    * Update existing Twilio credentials
    */
   static async updateCredentials(
-    credentialsId: string, 
+    credentialsId: string,
     credentials: Partial<TwilioCredentialsInput>
   ): Promise<UserTwilioCredentials> {
     try {
-      const user = await this.getCurrentUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      const updateData: any = {};
-      if (credentials.accountSid) updateData.account_sid = credentials.accountSid;
-      if (credentials.authToken) updateData.auth_token = credentials.authToken;
-      if (credentials.label) updateData.label = credentials.label;
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/credentials/${credentialsId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(credentials)
+      });
 
-      const { data, error } = await supabase
-        .from("user_twilio_credentials")
-        .update(updateData)
-        .eq("id", credentialsId)
-        .eq("user_id", user.id)
-        .select()
-        .single();
+      if (!response.ok) {
+        throw new Error('Failed to update credentials');
+      }
 
-      if (error) throw error;
-
-      return data;
+      const result = await response.json();
+      return result.credentials;
     } catch (error) {
       console.error("Error updating Twilio credentials:", error);
       throw error;
@@ -183,16 +145,19 @@ export class TwilioCredentialsService {
    */
   static async deleteCredentials(credentialsId: string): Promise<void> {
     try {
-      const user = await this.getCurrentUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      const { error } = await supabase
-        .from("user_twilio_credentials")
-        .delete()
-        .eq("id", credentialsId)
-        .eq("user_id", user.id);
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/credentials/${credentialsId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to delete credentials');
+      }
     } catch (error) {
       console.error("Error deleting Twilio credentials:", error);
       throw error;
@@ -204,18 +169,19 @@ export class TwilioCredentialsService {
    */
   static async getAllCredentials(): Promise<UserTwilioCredentials[]> {
     try {
-      const user = await this.getCurrentUser();
-      if (!user) return [];
+      const token = await getAccessToken();
+      if (!token) return [];
 
-      const { data, error } = await supabase
-        .from("user_twilio_credentials")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/credentials/all`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-      if (error) throw error;
+      if (!response.ok) return [];
 
-      return data || [];
+      const data = await response.json();
+      return data.credentials || [];
     } catch (error) {
       console.error("Error fetching all Twilio credentials:", error);
       return [];
@@ -227,27 +193,22 @@ export class TwilioCredentialsService {
    */
   static async setActiveCredentials(credentialsId: string): Promise<UserTwilioCredentials> {
     try {
-      const user = await this.getCurrentUser();
-      if (!user) throw new Error("User not authenticated");
+      const token = await getAccessToken();
+      if (!token) throw new Error("User not authenticated");
 
-      // First, deactivate all credentials for this user
-      await supabase
-        .from("user_twilio_credentials")
-        .update({ is_active: false })
-        .eq("user_id", user.id);
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/credentials/${credentialsId}/activate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
-      // Then activate the specified credentials
-      const { data, error } = await supabase
-        .from("user_twilio_credentials")
-        .update({ is_active: true })
-        .eq("id", credentialsId)
-        .eq("user_id", user.id)
-        .select()
-        .single();
+      if (!response.ok) {
+        throw new Error('Failed to activate credentials');
+      }
 
-      if (error) throw error;
-
-      return data;
+      const result = await response.json();
+      return result.credentials;
     } catch (error) {
       console.error("Error setting active Twilio credentials:", error);
       throw error;
@@ -259,8 +220,7 @@ export class TwilioCredentialsService {
    */
   static async testCredentials(credentials: TwilioCredentialsInput): Promise<boolean> {
     try {
-      // This would make a test API call to Twilio
-      // For now, we'll just validate the format
+      // Validate format
       const accountSidPattern = /^AC[a-f0-9]{32}$/;
       const authTokenPattern = /^[a-f0-9]{32}$/;
 
@@ -277,12 +237,12 @@ export class TwilioCredentialsService {
 
 // Export convenience functions
 export const getActiveTwilioCredentials = () => TwilioCredentialsService.getActiveCredentials();
-export const saveTwilioCredentials = (credentials: TwilioCredentialsInput) => 
+export const saveTwilioCredentials = (credentials: TwilioCredentialsInput) =>
   TwilioCredentialsService.saveCredentials(credentials);
-export const updateTwilioCredentials = (id: string, credentials: Partial<TwilioCredentialsInput>) => 
+export const updateTwilioCredentials = (id: string, credentials: Partial<TwilioCredentialsInput>) =>
   TwilioCredentialsService.updateCredentials(id, credentials);
 export const deleteTwilioCredentials = (id: string) => TwilioCredentialsService.deleteCredentials(id);
 export const getAllTwilioCredentials = () => TwilioCredentialsService.getAllCredentials();
 export const setActiveTwilioCredentials = (id: string) => TwilioCredentialsService.setActiveCredentials(id);
-export const testTwilioCredentials = (credentials: TwilioCredentialsInput) => 
+export const testTwilioCredentials = (credentials: TwilioCredentialsInput) =>
   TwilioCredentialsService.testCredentials(credentials);

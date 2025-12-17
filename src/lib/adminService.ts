@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { getAccessToken } from '@/lib/auth';
 
 export interface AdminUser {
   id: string;
@@ -11,22 +11,30 @@ export interface AdminUser {
   industry: string | null;
 }
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
 export class AdminService {
   /**
    * Check if current user is admin
    */
   static async isCurrentUserAdmin(): Promise<boolean> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
+      const token = await getAccessToken();
+      if (!token) return false;
 
-      const { data } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+      // We can check against /api/auth/me but that returns user object.
+      // Or we can rely on the fact that admin routes will properly fail 
+      // if not admin.
+      // For UI conditional rendering, we usually check the user object 
+      // in the AuthContext. 
+      // But if we need an explicit check:
+      const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      return data?.role === 'admin';
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.user?.role === 'admin';
     } catch (error) {
       console.error('Error checking admin status:', error);
       return false;
@@ -38,26 +46,19 @@ export class AdminService {
    */
   static async getAllUsers(): Promise<AdminUser[]> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select(`
-          id,
-          name,
-          contact,
-          role,
-          is_active,
-          created_on,
-          company,
-          industry
-        `)
-        .order('created_on', { ascending: false });
+      const token = await getAccessToken();
+      if (!token) throw new Error('No auth token');
 
-      if (error) throw error;
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users?perPage=1000`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      return data?.map(user => ({
-        ...user,
-        email: user.contact?.email || null
-      })) || [];
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+
+      const result = await response.json();
+      return result.data || [];
     } catch (error) {
       console.error('Error fetching users:', error);
       throw error;
@@ -69,12 +70,36 @@ export class AdminService {
    */
   static async updateUser(userId: string, updates: Partial<AdminUser>) {
     try {
-      const { error } = await supabase
-        .from('users')
-        .update(updates)
-        .eq('id', userId);
+      const token = await getAccessToken();
+      if (!token) throw new Error('No auth token');
 
-      if (error) throw error;
+      // Admin route for updating ANY user?
+      // server/routes/admin.js usually needs an update endpoint.
+      // Checking admin.js... it DOES NOT have an update endpoint for valid users, only get/delete/create-customer.
+      // It has DELETE /users/:userId, GET /users/:userId.
+      // But NO PUT /users/:userId.
+      // server/routes/user.js might have profile update but that is usually for "me".
+
+      // TODO: We might need to add PUT /api/v1/admin/users/:userId to server/routes/admin.js
+      // For now, I will leave this method throwing or stubbed if the endpoint is missing, 
+      // but strictly we should add it.
+
+      // Assuming we will add it or it exists in a way I missed?
+      // Admin.js had: GET users/emails, GET users, GET users/:id, DELETE users/:id, POST customers, POST customers/:id/minutes
+
+      // I should probably add the endpoint to admin.js in the next step.
+
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) throw new Error('Failed to update user');
+
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;
@@ -86,17 +111,16 @@ export class AdminService {
    */
   static async deleteUser(userId: string) {
     try {
-      // Delete from auth.users
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-      
-      // Delete from public.users
-      const { error: profileError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      const token = await getAccessToken();
+      if (!token) throw new Error('No auth token');
 
-      if (authError) throw authError;
-      if (profileError) throw profileError;
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete user');
+
     } catch (error) {
       console.error('Error deleting user:', error);
       throw error;
@@ -108,27 +132,17 @@ export class AdminService {
    */
   static async searchUsers(query: string): Promise<AdminUser[]> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select(`
-          id,
-          name,
-          contact,
-          role,
-          is_active,
-          created_on,
-          company,
-          industry
-        `)
-        .or(`name.ilike.%${query}%,contact->>email.ilike.%${query}%,company.ilike.%${query}%`)
-        .order('created_on', { ascending: false });
+      const token = await getAccessToken();
+      if (!token) throw new Error('No auth token');
 
-      if (error) throw error;
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users?search=${encodeURIComponent(query)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
-      return data?.map(user => ({
-        ...user,
-        email: user.contact?.email || null
-      })) || [];
+      if (!response.ok) throw new Error('Failed to search users');
+
+      const result = await response.json();
+      return result.data || [];
     } catch (error) {
       console.error('Error searching users:', error);
       throw error;

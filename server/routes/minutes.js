@@ -1,61 +1,24 @@
 import express from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { User } from '../models/index.js';
+import { authenticateToken } from '../utils/auth.js';
 
 const router = express.Router();
-
-// Initialize Supabase client
-const getSupabaseClient = () => {
-  return createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-};
-
-// Middleware to validate authentication
-const validateAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Missing or invalid authorization header' });
-    }
-
-    const token = authHeader.substring(7);
-    const supabase = getSupabaseClient();
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    req.user = user;
-    req.userId = user.id;
-    next();
-  } catch (error) {
-    console.error('Error validating auth:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 // Middleware to validate admin access
 const validateAdminAccess = async (req, res, next) => {
   try {
-    await validateAuth(req, res, async () => {
-      const supabase = getSupabaseClient();
-      
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', req.userId)
-        .single();
+    // Auth user is already attached by authenticateToken middleware
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
-      if (userError || !userData || userData.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
-      }
+    const userData = await User.findOne({ id: req.user.id }).select('role');
 
-      next();
-    });
+    if (!userData || userData.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    next();
   } catch (error) {
     console.error('Error validating admin access:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -66,36 +29,23 @@ const validateAdminAccess = async (req, res, next) => {
  * GET /api/v1/minutes
  * Get current user's minutes information
  */
-router.get('/', validateAuth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const supabase = getSupabaseClient();
-    
-    const { data: userData, error } = await supabase
-      .from('users')
-      .select('minutes_limit, minutes_used, plan')
-      .eq('id', req.userId)
-      .single();
-
-    if (error) {
-      console.error('Error fetching user minutes:', error);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch minutes data' 
-      });
-    }
+    const userData = await User.findOne({ id: req.user.id })
+      .select('minutes_limit minutes_used plan');
 
     if (!userData) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
       });
     }
 
     const minutesLimit = userData.minutes_limit || 0;
     const minutesUsed = userData.minutes_used || 0;
     const remainingMinutes = Math.max(0, minutesLimit - minutesUsed);
-    const percentageUsed = minutesLimit > 0 
-      ? Math.round((minutesUsed / minutesLimit) * 100) 
+    const percentageUsed = minutesLimit > 0
+      ? Math.round((minutesUsed / minutesLimit) * 100)
       : 0;
 
     res.json({
@@ -110,9 +60,9 @@ router.get('/', validateAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in GET /minutes:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error' 
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
     });
   }
 });
@@ -120,23 +70,18 @@ router.get('/', validateAuth, async (req, res) => {
 /**
  * Helper function to validate minutes distribution
  * Ensures the sum of all customer minutes doesn't exceed tenant admin's plan minutes
- * @param {Object} supabase - Supabase client
  * @param {string} tenantSlug - Tenant slug (white label admin's slug)
  * @param {string} adminUserId - Tenant admin's user ID
  * @param {number} newMinutes - New minutes to allocate
  * @param {string} customerId - Customer ID (null for new customers)
  * @returns {Promise<{valid: boolean, error?: string, adminMinutes?: number, currentTotal?: number, newTotal?: number}>}
  */
-const validateMinutesDistribution = async (supabase, tenantSlug, adminUserId, newMinutes, customerId = null) => {
+const validateMinutesDistribution = async (tenantSlug, adminUserId, newMinutes, customerId = null) => {
   try {
     // Get tenant admin's minutes_limit
-    const { data: adminData, error: adminError } = await supabase
-      .from('users')
-      .select('minutes_limit')
-      .eq('id', adminUserId)
-      .single();
+    const adminData = await User.findOne({ id: adminUserId }).select('minutes_limit');
 
-    if (adminError || !adminData) {
+    if (!adminData) {
       return { valid: false, error: 'Tenant admin not found' };
     }
 
@@ -156,15 +101,11 @@ const validateMinutesDistribution = async (supabase, tenantSlug, adminUserId, ne
     }
 
     // Get sum of all customer minutes (excluding the admin)
-    const { data: customers, error: customersError } = await supabase
-      .from('users')
-      .select('id, minutes_limit')
-      .eq('tenant', tenantSlug)
-      .neq('id', adminUserId); // Exclude admin
-
-    if (customersError) {
-      return { valid: false, error: 'Failed to fetch customer minutes' };
-    }
+    // Find customers belonging to tenant and not admin
+    const customers = await User.find({
+      tenant: tenantSlug,
+      id: { $ne: adminUserId }
+    }).select('id minutes_limit');
 
     // Calculate current total minutes allocated to customers
     // Note: customers with minutes_limit = 0 (unlimited) are excluded from the sum
@@ -210,37 +151,32 @@ const validateMinutesDistribution = async (supabase, tenantSlug, adminUserId, ne
  * Whitelabel admin endpoint to assign minutes to a customer
  * SECURITY: Only whitelabel admins can use this, and it validates against their minutes_limit
  */
-router.post('/assign', validateAdminAccess, async (req, res) => {
+router.post('/assign', authenticateToken, validateAdminAccess, async (req, res) => {
   try {
     const { userId, minutes } = req.body;
 
     if (!userId || minutes === undefined || minutes === null) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: userId, minutes' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: userId, minutes'
       });
     }
 
     if (typeof minutes !== 'number' || minutes <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Minutes must be a positive number' 
+      return res.status(400).json({
+        success: false,
+        error: 'Minutes must be a positive number'
       });
     }
 
-    const supabase = getSupabaseClient();
-
     // Get admin's profile to check if they're a whitelabel admin
-    const { data: adminProfile, error: adminProfileError } = await supabase
-      .from('users')
-      .select('id, slug_name, tenant, role, minutes_limit')
-      .eq('id', req.userId)
-      .single();
+    const adminProfile = await User.findOne({ id: req.user.id })
+      .select('id slug_name tenant role minutes_limit');
 
-    if (adminProfileError || !adminProfile) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Admin profile not found' 
+    if (!adminProfile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Admin profile not found'
       });
     }
 
@@ -261,16 +197,12 @@ router.post('/assign', validateAdminAccess, async (req, res) => {
     }
 
     // Check if target user exists and belongs to admin's tenant
-    const { data: targetUser, error: userError } = await supabase
-      .from('users')
-      .select('id, role, tenant, minutes_limit')
-      .eq('id', userId)
-      .single();
+    const targetUser = await User.findOne({ id: userId }).select('id role tenant minutes_limit minutes_used');
 
-    if (userError || !targetUser) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Target user not found' 
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'Target user not found'
       });
     }
 
@@ -284,35 +216,19 @@ router.post('/assign', validateAdminAccess, async (req, res) => {
 
     // Prevent assigning minutes to admins
     if (targetUser.role === 'admin') {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Cannot assign minutes to admin users' 
+      return res.status(403).json({
+        success: false,
+        error: 'Cannot assign minutes to admin users'
       });
     }
 
-    // Get current minutes
-    const { data: currentData, error: fetchError } = await supabase
-      .from('users')
-      .select('minutes_limit, minutes_used')
-      .eq('id', userId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching current minutes:', fetchError);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch current minutes' 
-      });
-    }
-
-    const currentLimit = currentData?.minutes_limit || 0;
+    const currentLimit = targetUser.minutes_limit || 0;
     const newLimit = currentLimit + minutes;
 
     // SECURITY: Validate minutes distribution using the same validation as secure endpoint
     const validation = await validateMinutesDistribution(
-      supabase,
       adminProfile.slug_name,
-      req.userId,
+      req.user.id,
       newLimit, // Total minutes after adding
       userId // Existing customer being updated
     );
@@ -331,20 +247,16 @@ router.post('/assign', validateAdminAccess, async (req, res) => {
     }
 
     // Update user's minutes limit
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        minutes_limit: newLimit 
-      })
-      .eq('id', userId)
-      .select('minutes_limit, minutes_used')
-      .single();
+    const updatedUser = await User.findOneAndUpdate(
+      { id: userId },
+      { minutes_limit: newLimit },
+      { new: true }
+    ).select('minutes_limit minutes_used');
 
-    if (updateError) {
-      console.error('Error updating minutes:', updateError);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to assign minutes' 
+    if (!updatedUser) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to assign minutes'
       });
     }
 
@@ -362,9 +274,9 @@ router.post('/assign', validateAdminAccess, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in POST /minutes/assign:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error' 
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
     });
   }
 });
@@ -378,52 +290,38 @@ router.post('/deduct', async (req, res) => {
   try {
     // Verify this is an internal request (service role or internal network)
     const serviceKey = req.headers['x-service-key'];
-    const expectedServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const expectedServiceKey = process.env.INTERNAL_SERVICE_KEY;
 
     if (serviceKey !== expectedServiceKey) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'Unauthorized - service key required' 
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized - service key required'
       });
     }
 
     const { userId, minutes } = req.body;
 
     if (!userId || minutes === undefined || minutes === null) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Missing required fields: userId, minutes' 
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: userId, minutes'
       });
     }
 
     if (typeof minutes !== 'number' || minutes < 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Minutes must be a non-negative number' 
+      return res.status(400).json({
+        success: false,
+        error: 'Minutes must be a non-negative number'
       });
     }
-
-    const supabase = getSupabaseClient();
 
     // Get current minutes
-    const { data: currentData, error: fetchError } = await supabase
-      .from('users')
-      .select('minutes_limit, minutes_used')
-      .eq('id', userId)
-      .single();
-
-    if (fetchError) {
-      console.error('Error fetching current minutes:', fetchError);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch current minutes' 
-      });
-    }
+    const currentData = await User.findOne({ id: userId }).select('minutes_limit minutes_used');
 
     if (!currentData) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'User not found' 
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
       });
     }
 
@@ -431,20 +329,16 @@ router.post('/deduct', async (req, res) => {
     const newUsed = currentUsed + minutes;
 
     // Update user's minutes used
-    const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        minutes_used: newUsed 
-      })
-      .eq('id', userId)
-      .select('minutes_limit, minutes_used')
-      .single();
+    const updatedUser = await User.findOneAndUpdate(
+      { id: userId },
+      { minutes_used: newUsed },
+      { new: true }
+    ).select('minutes_limit minutes_used');
 
-    if (updateError) {
-      console.error('Error updating minutes used:', updateError);
-      return res.status(500).json({ 
-        success: false, 
-        error: 'Failed to deduct minutes' 
+    if (!updatedUser) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to deduct minutes'
       });
     }
 
@@ -453,6 +347,11 @@ router.post('/deduct', async (req, res) => {
 
     // Check if user has exceeded limit and should be deactivated
     const exceededLimit = newUsed > minutesLimit;
+
+    // If exceeded limit, should we automatically deactivate? 
+    // The previous logic didn't deactivate, just flagged.
+    // If you want to deactivate, add:
+    // if (exceededLimit) { await User.findOneAndUpdate({id: userId}, {is_active: false}); }
 
     res.json({
       success: true,
@@ -468,14 +367,11 @@ router.post('/deduct', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in POST /minutes/deduct:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Internal server error' 
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
     });
   }
 });
 
 export default router;
-
-
-

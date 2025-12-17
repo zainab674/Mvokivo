@@ -27,7 +27,7 @@ interface MessageThreadProps {
 }
 
 export function MessageThread({ conversation, messageFilter, onMessageFilterChange }: MessageThreadProps) {
-  
+
   // Debug: Log when conversation prop changes
   useEffect(() => {
     console.log('📱 MessageThread received conversation update:', {
@@ -109,7 +109,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
           wasAtBottom: wasAtBottomRef.current,
           lastScrollPosition: lastScrollPositionRef.current
         });
-        
+
         if (wasAtBottomRef.current && scrollAreaRef.current) {
           const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
           if (scrollContainer) {
@@ -135,7 +135,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
       if (scrollContainer) {
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
         console.log('📱 Scrolled to bottom');
-        
+
         // Update scroll tracking state
         wasAtBottomRef.current = true;
         lastScrollPositionRef.current = scrollContainer.scrollHeight;
@@ -169,11 +169,11 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
         const currentScrollTop = scrollContainer.scrollTop;
         const { scrollHeight, clientHeight } = scrollContainer;
         const isAtBottom = scrollHeight - currentScrollTop - clientHeight < 100;
-        
+
         setScrollPosition(currentScrollTop);
         lastScrollPositionRef.current = currentScrollTop;
         wasAtBottomRef.current = isAtBottom;
-        
+
         console.log('📱 Scroll position updated:', {
           scrollTop: currentScrollTop,
           isAtBottom,
@@ -207,12 +207,12 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
 
     // Check if conversation has calls with structured data
     if (conversation.calls && conversation.calls.length > 0) {
-      const sortedCalls = [...conversation.calls].sort((a, b) => 
+      const sortedCalls = [...conversation.calls].sort((a, b) =>
         new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime()
       );
-      
+
       const latestCall = sortedCalls[0];
-      
+
       let structuredData = null;
       if (latestCall.analysis && typeof latestCall.analysis === 'object') {
         structuredData = latestCall.analysis;
@@ -239,7 +239,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
         }
       }
     }
-    
+
     // Fallback to formatted phone number if no name found
     return formatPhoneNumber(conversation.phoneNumber);
   };
@@ -404,7 +404,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
 
       {/* Thread Header */}
       <div
-        className="p-4 border-b border-white/5 bg-zinc-800/30 backdrop-blur-sm"
+        className="p-4 border-b border-border bg-card/30 backdrop-blur-sm"
         onClick={(e) => {
           console.log('Header clicked', e.target);
         }}
@@ -416,13 +416,13 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
           }}
         >
           <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10 bg-indigo-600/20 border border-indigo-500/30">
-              <AvatarFallback className="bg-indigo-500 text-white text-sm font-semibold">
+            <Avatar className="h-10 w-10 bg-primary/20 border border-primary/30">
+              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
                 {getInitials(getDisplayName())}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h2 className="text-base font-semibold text-white">
+              <h2 className="text-base font-semibold text-foreground">
                 {getDisplayName()}
               </h2>
             </div>
@@ -430,7 +430,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
               {messageFilter !== 'all' && (
                 <button
                   type="button"
-                  className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 cursor-pointer hover:scale-105 select-none active:scale-95 z-10 relative border-indigo-500/50 bg-indigo-600/20 text-indigo-200 hover:bg-indigo-600/30 hover:border-indigo-500/70"
+                  className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 cursor-pointer hover:scale-105 select-none active:scale-95 z-10 relative border-primary/50 bg-primary/20 text-primary hover:bg-primary/30 hover:border-primary/70"
                   onClick={() => {
                     console.log('Show All clicked');
                     onMessageFilterChange('all');
@@ -448,16 +448,16 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
               value={selectedAgentId}
               onValueChange={setSelectedAgentId}
             >
-              <SelectTrigger className="w-48 h-9 text-xs bg-zinc-800/50 border-zinc-700/50 text-white hover:bg-zinc-700/50 hover:border-zinc-600/50">
+              <SelectTrigger className="w-48 h-9 text-xs bg-secondary/50 border-input text-foreground hover:bg-secondary/70 hover:border-input/70">
                 <div className="flex items-center space-x-2">
-                  <Users className="w-3.5 h-3.5 text-zinc-400" />
+                  <Users className="w-3.5 h-3.5 text-muted-foreground" />
                   <SelectValue placeholder="Filter by Agent" />
                 </div>
               </SelectTrigger>
-              <SelectContent className="bg-zinc-800/95 border-zinc-700/50 backdrop-blur-sm">
-                <SelectItem value="all" className="text-white hover:bg-zinc-700/50">All Agents</SelectItem>
+              <SelectContent className="bg-popover border-border backdrop-blur-sm">
+                <SelectItem value="all" className="text-foreground hover:bg-accent">All Agents</SelectItem>
                 {assistants.map((assistant) => (
-                  <SelectItem key={assistant.id} value={assistant.id} className="text-white hover:bg-zinc-700/50">
+                  <SelectItem key={assistant.id} value={assistant.id} className="text-foreground hover:bg-accent">
                     {assistant.name}
                   </SelectItem>
                 ))}
@@ -466,8 +466,8 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
 
             {/* Filter status indicator */}
             {messageFilter !== 'all' && (
-              <div className="flex items-center space-x-1.5 text-xs text-zinc-400">
-                <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>
+              <div className="flex items-center space-x-1.5 text-xs text-muted-foreground">
+                <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
                 <span>
                   {messageFilter === 'calls' ? 'Calls only' : 'SMS only'}
                 </span>
@@ -476,7 +476,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
 
             {/* Agent filter indicator */}
             {selectedAgentId !== "all" && (
-              <div className="flex items-center space-x-1.5 text-xs text-zinc-400">
+              <div className="flex items-center space-x-1.5 text-xs text-muted-foreground">
                 <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
                 <span>
                   {assistants.find(a => a.id === selectedAgentId)?.name || 'Unknown Agent'}
@@ -502,7 +502,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
             {/* Message count indicator */}
             {messageFilter !== 'all' && (
               <div className="px-4 pt-3 pb-2">
-                <div className="text-xs text-zinc-400">
+                <div className="text-xs text-muted-foreground">
                   Showing {allMessages.length} {messageFilter === 'calls' ? 'call' : 'SMS'} message{allMessages.length !== 1 ? 's' : ''}
                 </div>
               </div>
@@ -514,7 +514,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
                   <div key={dateKey} className="space-y-2">
                     {/* Date Separator */}
                     <div className="flex items-center justify-center">
-                      <div className="px-3 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-full text-xs text-zinc-400">
+                      <div className="px-3 py-1 bg-secondary border border-border rounded-full text-xs text-muted-foreground">
                         {format(new Date(dateKey), 'MMM d, yyyy')}
                       </div>
                     </div>
@@ -532,21 +532,21 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
                 ))
               ) : (
                 <div className="flex items-center justify-center h-32">
-                  <div className="text-center text-zinc-400">
-                    <div className="w-12 h-12 mx-auto mb-3 bg-zinc-800/50 border border-zinc-700/50 rounded-full flex items-center justify-center">
-                      <MessageSquare className="w-6 h-6 text-zinc-500" />
+                  <div className="text-center text-muted-foreground">
+                    <div className="w-12 h-12 mx-auto mb-3 bg-secondary/50 border border-border rounded-full flex items-center justify-center">
+                      <MessageSquare className="w-6 h-6 text-muted-foreground" />
                     </div>
-                    <div className="text-sm font-medium mb-1 text-white">
+                    <div className="text-sm font-medium mb-1 text-foreground">
                       {selectedAgentId === "all" ? "No messages found" : "No messages for this agent"}
                     </div>
-                    <div className="text-xs text-zinc-500">
-                      {selectedAgentId === "all" 
+                    <div className="text-xs text-muted-foreground">
+                      {selectedAgentId === "all"
                         ? "This conversation doesn't have any messages yet."
                         : `No calls or SMS messages are associated with the selected agent.`
                       }
                     </div>
                     {selectedAgentId !== "all" && (
-                      <div className="text-xs mt-2 text-zinc-500/70">
+                      <div className="text-xs mt-2 text-muted-foreground/70">
                         Try selecting "All Agents" to see all messages, or check if the agent has been assigned to handle this conversation.
                       </div>
                     )}
@@ -558,7 +558,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
         </div>
 
         {/* input pinned to bottom */}
-        <div className="shrink-0 border-t border-white/5 bg-zinc-800/20">
+        <div className="shrink-0 border-t border-border bg-background/20">
           <ModernMessageInput
             conversation={conversation}
             selectedAgentPhoneNumber={getPhoneNumberForSelectedAgent()}

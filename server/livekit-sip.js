@@ -2,7 +2,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { SipClient } from 'livekit-server-sdk';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { PhoneNumber, Assistant } from './models/index.js';
 
 export const livekitSipRouter = express.Router();
 
@@ -27,8 +27,6 @@ const env = {
   LIVEKIT_API_SECRET: process.env.LIVEKIT_API_SECRET,
   LIVEKIT_INBOUND_TRUNK_ID: process.env.LIVEKIT_INBOUND_TRUNK_ID,
   LIVEKIT_INBOUND_TRUNK_NAME: process.env.LIVEKIT_INBOUND_TRUNK_NAME,
-  SUPABASE_URL: process.env.SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
 };
 
 console.log('[LK-SIP] boot', JSON.stringify({
@@ -39,15 +37,9 @@ console.log('[LK-SIP] boot', JSON.stringify({
   lkApiSecret: red(env.LIVEKIT_API_SECRET),
   trunkId: env.LIVEKIT_INBOUND_TRUNK_ID || null,
   trunkName: env.LIVEKIT_INBOUND_TRUNK_NAME || null,
-  supaUrl: env.SUPABASE_URL || null,
-  supaKey: red(env.SUPABASE_SERVICE_ROLE_KEY),
 }));
 
 const lk = new SipClient(env.LIVEKIT_HOST, env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET);
-
-const supa = (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY)
-  ? createSupabaseClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
-  : null;
 
 // ------------------- helpers ---------------------------
 const toE164 = (n) => {
@@ -180,19 +172,17 @@ async function findRuleCoveringTrunkAndNumber(ctx, trunkId, numE164) {
 
 async function resolveAssistantId(ctx, { phoneNumber, assistantId }) {
   if (assistantId) { log(ctx, 'assistantId: provided', { assistantId }); return assistantId; }
-  if (!supa || !phoneNumber) { log(ctx, 'assistantId: no supabase or phoneNumber'); return null; }
+  if (!phoneNumber) { log(ctx, 'assistantId: no phoneNumber'); return null; }
+
   try {
-    const { data: mapping, error } = await supa
-      .from('phone_number')
-      .select('inbound_assistant_id')
-      .eq('number', toE164(phoneNumber))
-      .single();
-    if (error) throw error;
+    const mapping = await PhoneNumber.findOne({ number: toE164(phoneNumber) }).select('inbound_assistant_id');
+
+    // Check error by catching or just result
     const id = mapping?.inbound_assistant_id || null;
-    log(ctx, 'assistantId: resolved from supabase', { phoneNumber: toE164(phoneNumber), assistantId: id });
+    log(ctx, 'assistantId: resolved from Mongoose (PhoneNumber)', { phoneNumber: toE164(phoneNumber), assistantId: id });
     return id;
   } catch (e) {
-    logErr(ctx, 'assistantId resolution failed (phone_number table may not exist yet)', e);
+    logErr(ctx, 'assistantId resolution failed', e);
     return null;
   }
 }
@@ -268,22 +258,22 @@ livekitSipRouter.get('/sip/dispatch-rules', async (req, res) => {
 livekitSipRouter.post('/sip/cleanup-rules', async (req, res) => {
   const ctx = { route: 'POST /sip/cleanup-rules', rid: rid() };
   log(ctx, 'starting cleanup of dispatch rules');
-  
+
   try {
     const rules = await lk.listSipDispatchRule();
     log(ctx, 'found rules to check', { count: rules.length });
-    
+
     let deletedCount = 0;
     let keptCount = 0;
     const deletedRules = [];
-    
+
     for (const rule of rules) {
       const ruleId = readId(rule, 'sip_dispatch_rule_id', 'sipDispatchRuleId', 'id');
       const ruleName = rule.name || 'unnamed';
       const inboundNums = getInboundNums(rule);
-      
+
       log(ctx, 'checking rule', { ruleId, ruleName, inboundNumsCount: inboundNums.length });
-      
+
       // Check if this rule has inboundNumbers field
       if (inboundNums.length === 0) {
         log(ctx, 'deleting catch-all rule', { ruleId, ruleName });
@@ -299,9 +289,9 @@ livekitSipRouter.post('/sip/cleanup-rules', async (req, res) => {
         keptCount++;
       }
     }
-    
+
     log(ctx, 'cleanup complete', { deletedCount, keptCount });
-    
+
     res.json({
       success: true,
       message: `Cleanup complete. Deleted ${deletedCount} rules, kept ${keptCount} rules.`,
@@ -309,7 +299,7 @@ livekitSipRouter.post('/sip/cleanup-rules', async (req, res) => {
       keptCount,
       deletedRules,
     });
-    
+
   } catch (e) {
     logErr(ctx, 'cleanup failed', e);
     res.status(500).json({ success: false, message: e?.message || 'Cleanup failed' });
@@ -436,10 +426,6 @@ livekitSipRouter.post('/auto-assign', async (req, res) => {
 
 livekitSipRouter.get('/assistant/:id', async (req, res) => {
   const ctx = { route: 'GET /assistant/:id', rid: rid() };
-  if (!supa) {
-    logErr(ctx, 'supabase not configured', new Error('no supabase env'));
-    return res.status(500).json({ success: false, message: 'Supabase not configured' });
-  }
   try {
     const id = String(req.params.id || '').trim();
     if (!id) {
@@ -451,29 +437,45 @@ livekitSipRouter.get('/assistant/:id', async (req, res) => {
     const tenant = req.tenant || 'main';
 
     // Build query with tenant filter
-    let query = supa
-      .from('assistant')
-      .select('id, name, prompt, first_message, calendar, cal_api_key, cal_event_type_id, cal_event_type_slug, cal_timezone, llm_provider_setting, llm_model_setting, temperature_setting, max_token_setting')
-      .eq('id', id);
+    const query = { _id: id }; // Assuming id is _id
+    // If we want to support querying by string 'id' field if it exists, logic would be different.
+    // Assuming _id.
 
-    // Add tenant filter
+    // Check if Assistant schema has a custom id field. I saw assistant schema earlier and it didn't have one.
+    // So id matches _id.
+
+    // Add tenant filter logic:
+    // Mongoose query for tenant: { $or: [{ tenant: 'main' }, { tenant: null }, { tenant: { $exists: false } }, { tenant: tenant }] }
+    // If tenant is 'main', we want main or null.
+    // If tenant is specified, we check matching.
+
+    // Wait, the original logic was:
+    // if (tenant === 'main') query.or('tenant.eq.main,tenant.is.null')
+    // else query.eq('tenant', tenant)
+
+    // Logic:
+    let assistant;
     if (tenant === 'main') {
-      query = query.or('tenant.eq.main,tenant.is.null');
+      assistant = await Assistant.findOne({
+        _id: id,
+        $or: [{ tenant: 'main' }, { tenant: null }, { tenant: { $exists: false } }]
+      });
     } else {
-      query = query.eq('tenant', tenant);
+      assistant = await Assistant.findOne({
+        _id: id,
+        tenant: tenant
+      });
     }
 
-    const { data: assistant, error } = await query.single();
-    if (error) throw error;
     if (!assistant) {
-      logErr(ctx, 'assistant not found', new Error(id));
+      logErr(ctx, 'assistant not found in Mongoose', new Error(id));
       return res.status(404).json({ success: false, message: 'assistant not found' });
     }
 
     const payload = {
       success: true,
       assistant: {
-        id: assistant.id,
+        id: assistant._id?.toString() || assistant.id,
         name: assistant.name || 'Assistant',
         prompt: assistant.prompt || '',
         firstMessage: assistant.first_message || '',
@@ -492,6 +494,10 @@ livekitSipRouter.get('/assistant/:id', async (req, res) => {
     return res.json(payload);
   } catch (e) {
     logErr(ctx, 'assistant resolve error', e);
+    // If invalid object id, it throws 'CastError'
+    if (e.name === 'CastError') {
+      return res.status(404).json({ success: false, message: 'assistant not found (invalid id)' });
+    }
     return res.status(500).json({ success: false, message: e?.message || 'resolve failed' });
   }
 });

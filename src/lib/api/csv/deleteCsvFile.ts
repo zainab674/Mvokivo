@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from '@/lib/auth';
 
 export interface DeleteCsvFileRequest {
   csvFileId: string;
@@ -16,9 +16,13 @@ export interface DeleteCsvFileResponse {
  */
 export const deleteCsvFile = async (data: DeleteCsvFileRequest): Promise<DeleteCsvFileResponse> => {
   try {
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
+
     const response = await fetch(`/api/v1/csv/${data.csvFileId}`, {
       method: 'DELETE',
       headers: {
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });

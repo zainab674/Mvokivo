@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from '@/lib/auth';
 
 export interface CsvContactData {
   first_name: string;
@@ -22,38 +22,34 @@ export interface SaveCsvContactsResponse {
 }
 
 /**
- * Save CSV contacts to database
+ * Save CSV contacts to database via backend API
  */
 export const saveCsvContacts = async (data: SaveCsvContactsRequest): Promise<SaveCsvContactsResponse> => {
   try {
-    // Prepare contacts for insertion
-    const contactsToInsert = data.contacts.map(contact => ({
-      csv_file_id: data.csvFileId,
-      first_name: contact.first_name,
-      last_name: contact.last_name || null,
-      phone: contact.phone || null,
-      email: contact.email || null,
-      status: contact.status || 'active',
-      do_not_call: contact.do_not_call || false,
-      user_id: data.userId
-    }));
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    const { data: savedContacts, error } = await supabase
-      .from('csv_contacts')
-      .insert(contactsToInsert)
-      .select();
+    const response = await fetch(`/api/v1/csv/${data.csvFileId}/contacts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contacts: data.contacts
+      })
+    });
 
-    if (error) {
-      console.error('Error saving CSV contacts:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { success: false, error: errorData.message || 'Failed to save CSV contacts' };
     }
+
+    const result = await response.json();
 
     return {
       success: true,
-      savedCount: savedContacts?.length || 0
+      savedCount: result.savedCount
     };
 
   } catch (error) {

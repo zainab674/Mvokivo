@@ -19,16 +19,16 @@ interface SMSTabProps {
 
 export const SMSTab: React.FC<SMSTabProps> = ({ data, onChange }) => {
   const [isComplianceOpen, setIsComplianceOpen] = React.useState(false);
-  
+
   // Knowledge Base state
   const [knowledgeBases, setKnowledgeBases] = useState<any[]>([]);
   const [loadingKnowledgeBases, setLoadingKnowledgeBases] = useState(false);
   const [knowledgeBaseError, setKnowledgeBaseError] = useState<string | null>(null);
-  
+
   // Calendar state
   const [calendarCredentials, setCalendarCredentials] = useState<UserCalendarCredentials[]>([]);
   const [loadingCalendarCredentials, setLoadingCalendarCredentials] = useState(false);
-  
+
   const { toast } = useToast();
 
   // Fetch knowledge bases and calendar credentials on component mount
@@ -119,21 +119,8 @@ export const SMSTab: React.FC<SMSTabProps> = ({ data, onChange }) => {
       <div className="lg:col-span-4">
         <div className="bg-background/50 rounded-lg p-5 h-full">
           <h3 className="text-lg font-medium tracking-tight mb-4">Messaging Settings</h3>
-          
+
           <div className="space-y-4">
-            {/* Provider */}
-            <div>
-              <Label className="block text-sm font-medium mb-2">Messaging Provider</Label>
-              <Select value={data.provider} onValueChange={(value) => onChange({ provider: value })}>
-                <SelectTrigger className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  <SelectItem value="Twilio">Twilio</SelectItem>
-                 
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Knowledge Base */}
             <div>
@@ -179,19 +166,19 @@ export const SMSTab: React.FC<SMSTabProps> = ({ data, onChange }) => {
               )}
             </div>
 
-           
+
 
             {/* Character Limit */}
-           
 
-           
 
-          
+
+
+
           </div>
         </div>
       </div>
 
-      
+
     </div>
   );
 };

@@ -9,7 +9,6 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { BusinessUseCaseProvider } from "./components/BusinessUseCaseProvider";
 import { AuthProvider, useAuth } from "./contexts/SupportAccessAuthContext";
 import { WebsiteSettingsProvider } from "./contexts/WebsiteSettingsContext";
-import { supabase } from "./integrations/supabase/client";
 import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
 import Assistants from "./pages/Assistants";
@@ -53,17 +52,17 @@ const queryClient = new QueryClient({
 
 function ProtectedAuthPage({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  
+
   // If user is authenticated, redirect to dashboard
   if (user && !loading) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   // If still loading, show loading state
   if (loading) {
     return <div>Loading...</div>;
   }
-  
+
   // If not authenticated, show the auth page
   return <>{children}</>;
 }
@@ -71,45 +70,8 @@ function ProtectedAuthPage({ children }: { children: React.ReactNode }) {
 function RequireOnboarding() {
   const location = useLocation();
   const { user, loading } = useAuth();
-  const [onboardingStatus, setOnboardingStatus] = useState<boolean | null>(null);
 
-  // Check onboarding status from database with timeout
-  useEffect(() => {
-    if (user?.id && !loading) {
-      const checkOnboardingStatus = async () => {
-        try {
-          // Set a timeout for the database query
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database timeout')), 3000)
-          );
-          
-          const queryPromise = supabase
-            .from("users")
-            .select("onboarding_completed")
-            .eq("id", user.id)
-            .single();
-          
-          const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
-          
-          if (error) {
-            console.error("Error checking onboarding status:", error);
-            // If we can't check the database, assume onboarding is completed for existing users
-            setOnboardingStatus(true);
-          } else {
-            setOnboardingStatus(data?.onboarding_completed || false);
-          }
-        } catch (error) {
-          console.error("Error checking onboarding status:", error);
-          // If there's any error (including timeout), assume onboarding is completed
-          setOnboardingStatus(true);
-        }
-      };
-
-      checkOnboardingStatus();
-    }
-  }, [user?.id, loading]);
-
-  if (loading || onboardingStatus === null) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -122,14 +84,18 @@ function RequireOnboarding() {
 
   const localCompleted = localStorage.getItem("onboarding-completed") === "true";
   const signupData = localStorage.getItem("signup-data");
-  
+
+  // Check onboarding status from user profile
+  const dbCompleted = user?.onboardingCompleted === true;
+  const isCompleted = localCompleted || dbCompleted;
+
   // If user has signup data but hasn't completed onboarding, redirect to onboarding
   if (signupData && !localCompleted && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;
   }
 
   // For authenticated users, check onboarding status
-  const shouldRedirectToOnboarding = user && !localCompleted && !onboardingStatus;
+  const shouldRedirectToOnboarding = user && !isCompleted;
 
   if (shouldRedirectToOnboarding && location.pathname !== "/onboarding") {
     return <Navigate to="/onboarding" replace />;

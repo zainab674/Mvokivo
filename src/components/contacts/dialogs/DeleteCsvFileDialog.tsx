@@ -50,10 +50,10 @@ export function DeleteCsvFileDialog({
             </div>
           </div>
         </DialogHeader>
-        
+
         <div className="py-4">
           <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
-            <FileText className="w-5 h-5 text-theme-secondary mt-0.5 flex-shrink-0" />
+            <FileText className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
                 {csvFileName}
@@ -68,34 +68,34 @@ export function DeleteCsvFileDialog({
           </div>
 
           {hasAnyCampaigns && (
-            <div className="mt-4 p-4 bg-warning/10 border border-warning/20 rounded-lg">
+            <div className="mt-4 p-4 bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-warning mt-0.5 flex-shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-warning mb-2">
-                    {hasActiveCampaigns 
+                  <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
+                    {hasActiveCampaigns
                       ? 'Cannot delete CSV file - Active campaigns detected'
                       : 'Cannot delete CSV file - Used by campaigns'
                     }
                   </p>
-                  <p className="text-xs text-warning/80 mb-2">
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mb-2">
                     This CSV file is currently being used by the following campaign(s):
                   </p>
-                  <ul className="text-xs text-warning/80 space-y-1">
+                  <ul className="text-xs text-orange-700 dark:text-orange-300 space-y-1">
                     {campaigns.map(campaign => (
                       <li key={campaign.id} className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 bg-warning rounded-full flex-shrink-0" />
+                        <span className="w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0" />
                         <span className="truncate">{campaign.name}</span>
                         {campaign.execution_status === 'running' && (
-                          <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded">
+                          <span className="text-xs bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 px-1.5 py-0.5 rounded">
                             Running
                           </span>
                         )}
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-warning/80 mt-2">
-                    {hasActiveCampaigns 
+                  <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
+                    {hasActiveCampaigns
                       ? 'Please stop the running campaigns first, then delete or change the campaigns before deleting this CSV file.'
                       : 'Please delete or change the campaigns before deleting this CSV file.'
                     }
@@ -110,7 +110,7 @@ export function DeleteCsvFileDialog({
               <p className="text-sm text-foreground mt-4">
                 Are you sure you want to delete this CSV file?
               </p>
-              
+
               <div className="mt-4 p-3 bg-muted/50 rounded-md">
                 <p className="text-xs text-muted-foreground">
                   This will permanently delete:

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { format, eachDayOfInterval, startOfDay, endOfDay, isSameDay, differenceInDays } from "date-fns";
+import { format, eachDayOfInterval, startOfDay, endOfDay, isSameDay, differenceInDays, isValid } from "date-fns";
 
 interface CallVolumeDataProps {
   dateRange?: {
@@ -16,7 +16,7 @@ export function useCallVolumeData({ dateRange, callLogs = [] }: CallVolumeDataPr
 
   useEffect(() => {
     if (!dateRange || !callLogs.length) return;
-    
+
     // Generate an array of all days in the date range
     const days = eachDayOfInterval({
       start: startOfDay(dateRange.from),
@@ -25,10 +25,14 @@ export function useCallVolumeData({ dateRange, callLogs = [] }: CallVolumeDataPr
 
     // Calculate the number of days in the range
     const daysInRange = differenceInDays(dateRange.to, dateRange.from) + 1;
-    
+
     // Create a map of call counts by date
     const callsByDate = callLogs.reduce((acc: { [key: string]: number }, call) => {
       const callDate = new Date(call.date);
+      if (!isValid(callDate)) {
+        console.warn('Invalid date string encountered in call logs:', call.date);
+        return acc;
+      }
       const formattedDate = format(callDate, 'MMM d');
       acc[formattedDate] = (acc[formattedDate] || 0) + 1;
       return acc;
@@ -38,7 +42,7 @@ export function useCallVolumeData({ dateRange, callLogs = [] }: CallVolumeDataPr
     const data = days.map((day) => {
       const dateKey = format(day, 'MMM d');
       const value = callsByDate[dateKey] || 0;
-      
+
       return {
         name: dateKey,
         fullDate: day,

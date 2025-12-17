@@ -105,9 +105,9 @@
   h4,
   h5,
   h6 {
-    @apply font-bold tracking-tight text-white;
-    text-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
-    /* Slight glow on headers */
+    @apply font-bold tracking-tight text-foreground;
+    /* text-shadow: 0 0 10px rgba(0, 243, 255, 0.2); */
+    /* Slight glow on headers - disabled for better light mode compat */
   }
 
   ::-webkit-scrollbar {

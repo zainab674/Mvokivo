@@ -17,8 +17,8 @@ export default function CallAnalytics({ dateRange, callLogs = [] }: CallAnalytic
   const chartData = useCallVolumeData({ dateRange, callLogs });
 
   return (
-    <Card className="bg-zinc-950/50 border-white/10 backdrop-blur-xl relative overflow-hidden h-full">
-      <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-purple-500/5 rounded-full blur-3xl -z-10" />
+    <Card className="bg-card/50 border-border backdrop-blur-xl relative overflow-hidden h-full">
+      <div className="absolute bottom-0 left-0 w-[400px] h-[300px] bg-indigo-500/5 rounded-full blur-3xl -z-10" />
 
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2">
@@ -26,7 +26,7 @@ export default function CallAnalytics({ dateRange, callLogs = [] }: CallAnalytic
             <BarChart3 className="h-4 w-4" />
           </div>
           <div>
-            <CardTitle className="text-white">Call Trends</CardTitle>
+            <CardTitle className="text-foreground">Call Trends</CardTitle>
             <CardDescription className="text-xs text-muted-foreground">Volume over time</CardDescription>
           </div>
         </div>

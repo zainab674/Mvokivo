@@ -1,5 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
 import { getCurrentUserIdAsync } from '@/lib/user-context';
+import { getAccessToken } from '@/lib/auth';
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
@@ -185,19 +185,19 @@ export interface FilteredContextSnippetsResponse extends EnhancedContextSnippets
 
 // Helper function to get auth headers
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
+  const token = getAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   // Use the current user ID (impersonated or authenticated)
   const userId = await getCurrentUserIdAsync();
   headers['user-id'] = userId;
-  
+
   return headers;
 }
 
@@ -282,8 +282,8 @@ export class KnowledgeBaseAPI {
 
   // Document upload
   async uploadDocument(
-    file: File, 
-    companyId?: string, 
+    file: File,
+    companyId?: string,
     knowledgeBaseId?: string,
     contentMetadata?: {
       name?: string;
@@ -295,7 +295,7 @@ export class KnowledgeBaseAPI {
   ): Promise<DocumentUploadResponse> {
     const formData = new FormData();
     formData.append('document', file);
-    
+
     if (companyId) {
       formData.append('companyId', companyId);
     } else {
@@ -504,7 +504,7 @@ export class KnowledgeBaseAPI {
     }
 
     const data = await response.json();
-    
+
     // The response has { knowledgeBase: { ...knowledgeBase, documents: [...] } }
     return data;
   }
@@ -653,8 +653,8 @@ export class KnowledgeBaseAPI {
    * Get context snippets from a knowledge base
    */
   async getContextSnippets(
-    kbId: string, 
-    query: string, 
+    kbId: string,
+    query: string,
     options: { top_k?: number; snippet_size?: number } = {},
     companyId?: string
   ): Promise<ContextSnippetsResponse> {
@@ -683,8 +683,8 @@ export class KnowledgeBaseAPI {
    * Get enhanced context snippets with metadata
    */
   async getEnhancedContextSnippets(
-    kbId: string, 
-    query: string, 
+    kbId: string,
+    query: string,
     options: { top_k?: number; snippet_size?: number } = {},
     companyId?: string
   ): Promise<EnhancedContextSnippetsResponse> {
@@ -713,8 +713,8 @@ export class KnowledgeBaseAPI {
    * Search multiple queries for context snippets
    */
   async searchMultipleQueries(
-    kbId: string, 
-    queries: string[], 
+    kbId: string,
+    queries: string[],
     options: { top_k?: number; snippet_size?: number } = {},
     companyId?: string
   ): Promise<MultiSearchContextSnippetsResponse> {
@@ -743,8 +743,8 @@ export class KnowledgeBaseAPI {
    * Get filtered context snippets
    */
   async getFilteredContextSnippets(
-    kbId: string, 
-    query: string, 
+    kbId: string,
+    query: string,
     filters: ContextSnippetsFilters = {},
     options: { top_k?: number; snippet_size?: number } = {},
     companyId?: string
@@ -778,8 +778,8 @@ export const knowledgeBaseAPI = new KnowledgeBaseAPI();
 
 // Export convenience functions
 export const uploadDocument = (
-  file: File, 
-  companyId?: string, 
+  file: File,
+  companyId?: string,
   knowledgeBaseId?: string,
   contentMetadata?: {
     name?: string;
@@ -790,16 +790,16 @@ export const uploadDocument = (
   }
 ) => knowledgeBaseAPI.uploadDocument(file, companyId, knowledgeBaseId, contentMetadata);
 
-export const getDocuments = (companyId?: string) => 
+export const getDocuments = (companyId?: string) =>
   knowledgeBaseAPI.getDocuments(companyId);
 
-export const getDocumentStatus = (docId: string) => 
+export const getDocumentStatus = (docId: string) =>
   knowledgeBaseAPI.getDocumentStatus(docId);
 
-export const getDocumentDetails = (docId: string) => 
+export const getDocumentDetails = (docId: string) =>
   knowledgeBaseAPI.getDocumentDetails(docId);
 
-export const deleteDocument = (docId: string) => 
+export const deleteDocument = (docId: string) =>
   knowledgeBaseAPI.deleteDocument(docId);
 
 // SubKnowledgeBase convenience functions
@@ -832,52 +832,52 @@ export const deleteSubKnowledgeBase = (
 ) => knowledgeBaseAPI.deleteSubKnowledgeBase(knowledgeBaseId, subKBId);
 
 
-export const getStats = (companyId?: string) => 
+export const getStats = (companyId?: string) =>
   knowledgeBaseAPI.getStats(companyId);
 
-export const createKnowledgeBase = (name: string, description: string, companyId?: string) => 
+export const createKnowledgeBase = (name: string, description: string, companyId?: string) =>
   knowledgeBaseAPI.createKnowledgeBase(name, description, companyId);
 
-export const getKnowledgeBases = (companyId?: string) => 
+export const getKnowledgeBases = (companyId?: string) =>
   knowledgeBaseAPI.getKnowledgeBases(companyId);
 
-export const getKnowledgeBase = (kbId: string) => 
+export const getKnowledgeBase = (kbId: string) =>
   knowledgeBaseAPI.getKnowledgeBase(kbId);
 
-export const updateKnowledgeBase = (kbId: string, updateData: Partial<KnowledgeBase>) => 
+export const updateKnowledgeBase = (kbId: string, updateData: Partial<KnowledgeBase>) =>
   knowledgeBaseAPI.updateKnowledgeBase(kbId, updateData);
 
-export const deleteKnowledgeBase = (kbId: string) => 
+export const deleteKnowledgeBase = (kbId: string) =>
   knowledgeBaseAPI.deleteKnowledgeBase(kbId);
 
-export const associateDocumentWithKnowledgeBase = (docId: string, kbId: string) => 
+export const associateDocumentWithKnowledgeBase = (docId: string, kbId: string) =>
   knowledgeBaseAPI.associateDocumentWithKnowledgeBase(docId, kbId);
 
 // Context Snippets convenience functions
 export const getContextSnippets = (
-  kbId: string, 
-  query: string, 
+  kbId: string,
+  query: string,
   options?: { top_k?: number; snippet_size?: number },
   companyId?: string
 ) => knowledgeBaseAPI.getContextSnippets(kbId, query, options, companyId);
 
 export const getEnhancedContextSnippets = (
-  kbId: string, 
-  query: string, 
+  kbId: string,
+  query: string,
   options?: { top_k?: number; snippet_size?: number },
   companyId?: string
 ) => knowledgeBaseAPI.getEnhancedContextSnippets(kbId, query, options, companyId);
 
 export const searchMultipleQueries = (
-  kbId: string, 
-  queries: string[], 
+  kbId: string,
+  queries: string[],
   options?: { top_k?: number; snippet_size?: number },
   companyId?: string
 ) => knowledgeBaseAPI.searchMultipleQueries(kbId, queries, options, companyId);
 
 export const getFilteredContextSnippets = (
-  kbId: string, 
-  query: string, 
+  kbId: string,
+  query: string,
   filters?: ContextSnippetsFilters,
   options?: { top_k?: number; snippet_size?: number },
   companyId?: string

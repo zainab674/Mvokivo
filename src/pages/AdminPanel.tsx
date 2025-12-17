@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { PLAN_CONFIGS, getPlanConfig, getPlanConfigs, invalidatePlanConfigsCache, type PlanConfig } from "@/lib/plan-config";
+import { getAccessToken } from '@/lib/auth';
+import { AdminService } from '@/lib/adminService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -169,15 +170,7 @@ const AdminPanel = () => {
     if (!planDialogUser) return;
     setPlanDialogLoading(true);
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({
-          plan: planDialogPlan,
-        })
-        .eq("id", planDialogUser.id);
-
-      if (error) throw error;
-
+      await AdminService.updateUser(planDialogUser.id, { plan: planDialogPlan });
       toast.success(`Updated plan for ${planDialogUser.name || planDialogUser.contact?.email || 'user'}`);
       setPlanDialogOpen(false);
       setPlanDialogUser(null);
@@ -222,12 +215,7 @@ const AdminPanel = () => {
       // Get current user's tenant to fetch appropriate plans
       let tenant: string | null = null;
       if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('slug_name')
-          .eq('id', user.id)
-          .single();
-        tenant = userData?.slug_name || null;
+        tenant = (user as any).slug_name || null;
       }
       const configs = await getPlanConfigs(tenant);
       setPlanConfigs(configs);
@@ -243,26 +231,24 @@ const AdminPanel = () => {
   const fetchMinutePricing = async () => {
     try {
       setLoadingMinutePricing(true);
-      let tenant: string | null = null;
-      if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('slug_name')
-          .eq('id', user.id)
-          .single();
-        tenant = userData?.slug_name || 'main';
+      const token = getAccessToken();
+      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
+      const response = await fetch(`${apiUrl}/api/v1/admin/minutes-pricing`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch minute pricing');
       }
 
-      const { data, error } = await supabase
-        .from('minutes_pricing_config')
-        .select('*')
-        .eq('tenant', tenant || 'main')
-        .maybeSingle();
+      const result = await response.json();
 
-      if (error) throw error;
-
-      if (data) {
-        setMinutePricing(data);
+      if (result.success && result.data) {
+        setMinutePricing(result.data as any);
       } else {
         // Set default if not found
         setMinutePricing({
@@ -271,7 +257,7 @@ const AdminPanel = () => {
           minimum_purchase: 0,
           currency: 'USD',
           is_active: true,
-          tenant: tenant || 'main'
+          tenant: 'main'
         } as any);
       }
     } catch (error) {
@@ -286,34 +272,33 @@ const AdminPanel = () => {
 
     try {
       setSavingMinutePricing(true);
-
-      let tenant: string | null = null;
-      if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('slug_name')
-          .eq('id', user.id)
-          .single();
-        tenant = userData?.slug_name || 'main';
-      }
+      const token = getAccessToken();
+      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
       const payload = {
-        tenant: tenant || 'main',
         price_per_minute: parseFloat(minutePricing.price_per_minute.toString()),
         minimum_purchase: parseInt(minutePricing.minimum_purchase.toString()),
-        currency: minutePricing.currency,
-        is_active: true
+        currency: minutePricing.currency
       };
 
-      const { data, error } = await supabase
-        .from('minutes_pricing_config')
-        .upsert(payload, { onConflict: 'tenant' })
-        .select()
-        .single();
+      const response = await fetch(`${apiUrl}/api/v1/admin/minutes-pricing`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to save minute pricing');
+      }
 
-      setMinutePricing(data);
+      const result = await response.json();
+      if (result.success && result.data) {
+        setMinutePricing(result.data as any);
+      }
+
       toast.success('Minute pricing updated successfully');
     } catch (error: any) {
       console.error('Error saving minute pricing:', error);
@@ -377,80 +362,42 @@ const AdminPanel = () => {
 
     try {
       setLoadingPlanConfigs(true);
+      const token = getAccessToken();
+      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-      // Get current user's tenant (slug_name for whitelabel admins, null for main tenant admin)
-      let tenant: string | null = null;
-      if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('slug_name, tenant')
-          .eq('id', user.id)
-          .single();
-
-        // If user has slug_name, they're a whitelabel admin - use their slug as tenant
-        // Otherwise, they're main tenant admin - use null
-        tenant = userData?.slug_name || null;
-      }
-
-      // Check if plan exists for this tenant
-      let existingPlanQuery = (supabase as any)
-        .from('plan_configs')
-        .select('id, tenant')
-        .eq('plan_key', planKey);
-
-      if (tenant) {
-        // For whitelabel admin, check for their tenant-specific plan
-        existingPlanQuery = existingPlanQuery.eq('tenant', tenant);
-      } else {
-        // For main tenant admin, check for main tenant plan (tenant IS NULL)
-        existingPlanQuery = existingPlanQuery.is('tenant', null);
-      }
-
-      const { data: existingPlan } = await existingPlanQuery.maybeSingle();
-
-      const updateData: any = {
+      const payload = {
+        plan_key: planKey,
         name: editPlanData.name,
         price: editPlanData.price,
         features: editPlanData.features || [],
-        whitelabel_enabled: editPlanData.whitelabelEnabled,
-        tenant: tenant
+        whitelabel_enabled: editPlanData.whitelabelEnabled
       };
 
+      const isUpdate = !!editingPlanKey;
+      const url = isUpdate
+        ? `${apiUrl}/api/v1/plans/${planKey}`
+        : `${apiUrl}/api/v1/plans`;
 
-      if (existingPlan) {
-        // Update existing plan
-        let updateQuery = (supabase as any)
-          .from('plan_configs')
-          .update(updateData)
-          .eq('plan_key', planKey);
+      const response = await fetch(url, {
+        method: isUpdate ? 'PUT' : 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
 
-        if (tenant) {
-          // For whitelabel admin, update their tenant-specific plan
-          updateQuery = updateQuery.eq('tenant', tenant);
-        } else {
-          // For main tenant admin, update main tenant plan (tenant IS NULL)
-          updateQuery = updateQuery.is('tenant', null);
-        }
-
-        const { error } = await updateQuery;
-        if (error) throw error;
-      } else {
-        // Create new plan
-        const { error } = await (supabase as any)
-          .from('plan_configs')
-          .insert({
-            plan_key: planKey,
-            ...updateData
-          });
-
-        if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save plan');
       }
 
       // Invalidate cache and refetch
       invalidatePlanConfigsCache();
       await fetchPlanConfigs();
 
-      toast.success(existingPlan
+      const tenant = (user as any)?.slug_name;
+      toast.success(isUpdate
         ? (tenant ? 'Your tenant plan updated successfully!' : 'Plan updated successfully!')
         : (tenant ? 'Your tenant plan created successfully!' : 'Plan created successfully!'));
       setIsEditPlanOpen(false);
@@ -468,69 +415,27 @@ const AdminPanel = () => {
 
     try {
       setLoadingPlanConfigs(true);
+      const token = getAccessToken();
+      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-      // Get current user's tenant
-      let tenant: string | null = null;
-      if (user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('slug_name, tenant')
-          .eq('id', user.id)
-          .single();
+      const response = await fetch(`${apiUrl}/api/v1/plans/${deletingPlanKey}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-        tenant = userData?.slug_name || null;
-      }
-
-      // Check if plan exists for this tenant
-      let existingPlanQuery = supabase
-        .from('plan_configs')
-        .select('id')
-        .eq('plan_key', deletingPlanKey);
-
-      if (tenant) {
-        existingPlanQuery = existingPlanQuery.eq('tenant', tenant);
-      } else {
-        existingPlanQuery = existingPlanQuery.is('tenant', null);
-      }
-
-      const { data: existingPlan, error: fetchError } = await existingPlanQuery.maybeSingle();
-      if (fetchError) throw fetchError;
-
-      if (existingPlan) {
-        // Update existing plan to be inactive
-        const { error } = await supabase
-          .from('plan_configs')
-          .update({ is_active: false })
-          .eq('id', existingPlan.id);
-
-        if (error) throw error;
-      } else {
-        // Create new inactive plan (to hide default)
-        // We need to get default values to populate required fields, but is_active=false is key
-        const defaultPlan = PLAN_CONFIGS[deletingPlanKey] || {
-          name: deletingPlanKey,
-          price: 0,
-          features: []
-        };
-
-        const { error } = await supabase
-          .from('plan_configs')
-          .insert({
-            plan_key: deletingPlanKey,
-            tenant: tenant,
-            name: defaultPlan.name,
-            price: defaultPlan.price,
-            features: defaultPlan.features,
-            is_active: false
-          });
-
-        if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete plan');
       }
 
       // Invalidate cache and refetch
       invalidatePlanConfigsCache();
       await fetchPlanConfigs();
 
+      const tenant = (user as any)?.slug_name;
       toast.success(tenant
         ? 'Your tenant plan deleted successfully!'
         : 'Plan deleted successfully!');
@@ -587,40 +492,14 @@ const AdminPanel = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-
-      // Get current user's tenant/slug_name to filter if whitelabel admin
-      let currentUserTenant: string | null = null;
-      let isMainAdmin = false;
-      if (user?.id) {
-        const { data: currentUserData } = await supabase
-          .from('users')
-          .select('slug_name, tenant, role')
-          .eq('id', user.id)
-          .single();
-        
-        // Check if current user is a whitelabel admin (admin with slug_name)
-        if (currentUserData?.role === 'admin' && currentUserData?.slug_name) {
-          currentUserTenant = currentUserData.slug_name;
-        } else if (currentUserData?.role === 'admin' && !currentUserData?.slug_name) {
-          // Main admin (admin without slug_name)
-          isMainAdmin = true;
-        }
-      }
-
-      // Alternative implementation: Single API call to backend
-      // Backend fetches from auth.users first, then enriches with users table data
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('No session found. Please log in again.');
-      }
-
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      const token = getAccessToken();
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
       const response = await fetch(`${backendUrl}/api/v1/admin/users`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -632,35 +511,9 @@ const AdminPanel = () => {
       const result = await response.json();
 
       if (result.success && result.data) {
-        // Data is already complete with emails merged from auth.users
-        // Backend has already:
-        // 1. Fetched from auth.users (has emails)
-        // 2. Fetched from users table (has profile data)
-        // 3. Merged them together
-        
-        let filteredUsers = result.data;
-        
-        // If current user is a whitelabel admin, filter to only show users from their tenant
-        if (currentUserTenant) {
-          filteredUsers = result.data.filter((u: User) => {
-            // Include users that belong to the same tenant
-            return u.tenant === currentUserTenant || u.slug_name === currentUserTenant;
-          });
-        } else if (isMainAdmin) {
-          // Main admin: show main tenant users + whitelabel admins (but not whitelabel customers)
-          filteredUsers = result.data.filter((u: User) => {
-            // Include users from main tenant (tenant is 'main' or null, and no slug_name)
-            const isMainTenantUser = (u.tenant === 'main' || !u.tenant) && !u.slug_name;
-            // Include whitelabel admins (admin role with slug_name)
-            const isWhitelabelAdmin = u.role === 'admin' && u.slug_name;
-            return isMainTenantUser || isWhitelabelAdmin;
-          });
-        }
-        
-        setUsers(filteredUsers);
-
-        // Fetch stats for all filtered users
-        await fetchAllUserStats(filteredUsers);
+        setUsers(result.data);
+        // Fetch stats for all users
+        await fetchAllUserStats(result.data);
       } else {
         throw new Error(result.error || 'Failed to fetch users');
       }
@@ -674,84 +527,42 @@ const AdminPanel = () => {
 
   const fetchAllUserStats = async (users: User[]) => {
     try {
-      const statsPromises = users.map(async (user) => {
-        try {
-          // Fetch assistants count
-          const { data: assistantsData, error: assistantsError } = await supabase
-            .from('assistant')
-            .select('id')
-            .eq('user_id', user.id);
+      const token = getAccessToken();
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-          if (assistantsError) {
-            console.error(`Error fetching assistants for user ${user.id}:`, assistantsError);
-            return {
-              userId: user.id,
-              stats: {
-                totalAssistants: 0,
-                totalCalls: 0,
-                totalHours: 0,
-                totalMessages: 0,
-                plan: user.plan || 'Free'
-              }
-            };
-          }
+      // Get user IDs
+      const userIds = users.map(u => u.id).join(',');
 
-          // Fetch calls count
-          const { data: callsData, error: callsError } = await supabase
-            .from('call_history')
-            .select('id')
-            .in('assistant_id', assistantsData?.map(a => a.id) || []);
-
-          if (callsError) {
-            console.error(`Error fetching calls for user ${user.id}:`, callsError);
-            // Continue with 0 calls
-          }
-
-          // Fetch SMS messages count
-          const { data: messagesData, error: messagesError } = await supabase
-            .from('sms_messages')
-            .select('id')
-            .eq('user_id', user.id);
-
-          if (messagesError) {
-            console.error(`Error fetching messages for user ${user.id}:`, messagesError);
-            // Continue with 0 messages
-          }
-
-          return {
-            userId: user.id,
-            stats: {
-              totalAssistants: assistantsData?.length || 0,
-              totalCalls: callsData?.length || 0,
-              totalHours: 0, // We'll calculate this separately if needed
-              totalMessages: messagesData?.length || 0,
-              plan: user.plan || 'Free'
-            }
-          };
-        } catch (error) {
-          console.error(`Error fetching stats for user ${user.id}:`, error);
-          return {
-            userId: user.id,
-            stats: {
-              totalAssistants: 0,
-              totalCalls: 0,
-              totalHours: 0,
-              totalMessages: 0,
-              plan: user.plan || 'Free'
-            }
-          };
+      const response = await fetch(`${backendUrl}/api/v1/admin/users/stats?userIds=${userIds}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      const results = await Promise.all(statsPromises);
-      const statsMap: Record<string, UserStats> = {};
-      results.forEach(({ userId, stats }) => {
-        statsMap[userId] = stats;
-      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch user stats');
+      }
 
-      setAllUserStats(statsMap);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        setAllUserStats(result.data);
+      }
     } catch (error) {
       console.error('Error fetching all user stats:', error);
+      // Set empty stats on error
+      const emptyStats: Record<string, UserStats> = {};
+      users.forEach(user => {
+        emptyStats[user.id] = {
+          totalAssistants: 0,
+          totalCalls: 0,
+          totalHours: 0,
+          totalMessages: 0,
+          plan: user.plan || null
+        };
+      });
+      setAllUserStats(emptyStats);
     }
   };
 
@@ -760,95 +571,43 @@ const AdminPanel = () => {
       setLoadingStats(true);
       console.log('🔍 Fetching stats for user:', userId);
 
-      // Fetch assistants count
-      const { data: assistantsData, error: assistantsError } = await supabase
-        .from('assistant')
-        .select('id')
-        .eq('user_id', userId);
+      const token = getAccessToken();
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-      console.log('📊 Assistants data:', assistantsData, 'Error:', assistantsError);
+      const response = await fetch(`${backendUrl}/api/v1/admin/users/${userId}/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
-      if (assistantsError) {
-        console.error('Error fetching assistants:', assistantsError);
-        // Continue with empty assistants array
+      if (!response.ok) {
+        throw new Error('Failed to fetch user stats');
       }
 
-      const assistantIds = assistantsData?.map(a => a.id) || [];
-      console.log('🆔 Assistant IDs:', assistantIds);
+      const result = await response.json();
 
-      // Fetch calls count and total duration
-      let callsData = [];
-      let callsError = null;
-      if (assistantIds.length > 0) {
-        const callsResult = await supabase
-          .from('call_history')
-          .select('call_duration')
-          .in('assistant_id', assistantIds);
-
-        callsData = callsResult.data || [];
-        callsError = callsResult.error;
-
-        console.log('📞 Calls data:', callsData, 'Error:', callsError);
-
-        if (callsError) {
-          console.error('Error fetching calls:', callsError);
-        }
+      if (result.success && result.data) {
+        setUserStats(result.data);
       } else {
-        console.log('📞 No assistants found, skipping calls query');
+        // Set default stats
+        setUserStats({
+          totalAssistants: 0,
+          totalCalls: 0,
+          totalHours: 0,
+          totalMessages: 0,
+          plan: null
+        });
       }
-
-      // Fetch SMS messages count
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('sms_messages')
-        .select('id')
-        .eq('user_id', userId);
-
-      console.log('💬 Messages data:', messagesData, 'Error:', messagesError);
-
-      if (messagesError) {
-        console.error('Error fetching messages:', messagesError);
-        // Continue with empty messages array
-      }
-
-      // Calculate total hours from call duration (duration is in seconds)
-      const totalSeconds = callsData?.reduce((sum, call) => sum + (call.call_duration || 0), 0) || 0;
-      const totalHours = Math.round((totalSeconds / 3600) * 100) / 100; // Round to 2 decimal places
-
-      // Get user plan (skip if column doesn't exist)
-      let userPlan = 'Free';
-      try {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('plan')
-          .eq('id', userId)
-          .single();
-
-        console.log('👤 User plan data:', userData, 'Error:', userError);
-
-        if (!userError && userData?.plan) {
-          userPlan = userData.plan;
-        }
-      } catch (planError) {
-        console.log('📋 Plan column not available, using default:', planError.message);
-        // Plan column doesn't exist, use default
-      }
-
-      const stats = {
-        totalAssistants: assistantsData?.length || 0,
-        totalCalls: callsData?.length || 0,
-        totalHours: totalHours,
-        totalMessages: messagesData?.length || 0,
-        plan: userPlan
-      };
-
-      console.log('✅ Final stats:', stats);
-      console.log('🔄 Setting userStats state...');
-      setUserStats(stats);
-      console.log('✅ userStats state set successfully');
-    } catch (error) {
-      console.error('❌ Error fetching user stats:', error);
-      toast.error(`Failed to fetch user statistics: ${error.message}`);
-      setUserStats(null);
+    } catch (error: any) {
+      console.error('Error fetching user stats:', error);
+      setUserStats({
+        totalAssistants: 0,
+        totalCalls: 0,
+        totalHours: 0,
+        totalMessages: 0,
+        plan: null
+      });
     } finally {
       setLoadingStats(false);
     }
@@ -859,13 +618,7 @@ const AdminPanel = () => {
     if (!selectedUser) return;
 
     try {
-      const { error } = await supabase
-        .from('users')
-        .update(editUserData)
-        .eq('id', selectedUser.id);
-
-      if (error) throw error;
-
+      await AdminService.updateUser(selectedUser.id, editUserData);
       toast.success('User updated successfully');
       setIsEditUserOpen(false);
       setSelectedUser(null);
@@ -881,289 +634,14 @@ const AdminPanel = () => {
     if (!selectedUser) return;
 
     try {
-      const userId = selectedUser.id;
-      let deletedCounts = {
-        assistants: 0,
-        campaigns: 0,
-        contacts: 0,
-        contactLists: 0,
-        csvFiles: 0,
-        csvContacts: 0,
-        smsMessages: 0,
-        knowledgeBases: 0,
-        calendarCredentials: 0,
-        whatsappCredentials: 0,
-        twilioCredentials: 0,
-        workspaceSettings: 0
-      };
-
-      // Delete assistants first
-      const { data: assistants, error: assistantsError } = await supabase
-        .from('assistant')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (assistantsError) throw assistantsError;
-
-      if (assistants && assistants.length > 0) {
-        const { error: deleteAssistantsError } = await supabase
-          .from('assistant')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteAssistantsError) throw deleteAssistantsError;
-        deletedCounts.assistants = assistants.length;
-      }
-
-      // Delete campaigns
-      const { data: campaigns, error: campaignsError } = await supabase
-        .from('campaigns')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (campaignsError) throw campaignsError;
-
-      if (campaigns && campaigns.length > 0) {
-        const { error: deleteCampaignsError } = await supabase
-          .from('campaigns')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteCampaignsError) throw deleteCampaignsError;
-        deletedCounts.campaigns = campaigns.length;
-      }
-
-      // Delete contacts
-      const { data: contacts, error: contactsError } = await supabase
-        .from('contacts')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (contactsError) throw contactsError;
-
-      if (contacts && contacts.length > 0) {
-        const { error: deleteContactsError } = await supabase
-          .from('contacts')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteContactsError) throw deleteContactsError;
-        deletedCounts.contacts = contacts.length;
-      }
-
-      // Delete contact lists
-      const { data: contactLists, error: contactListsError } = await supabase
-        .from('contact_lists')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (contactListsError) throw contactListsError;
-
-      if (contactLists && contactLists.length > 0) {
-        const { error: deleteContactListsError } = await supabase
-          .from('contact_lists')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteContactListsError) throw deleteContactListsError;
-        deletedCounts.contactLists = contactLists.length;
-      }
-
-      // Delete CSV files
-      const { data: csvFiles, error: csvFilesError } = await supabase
-        .from('csv_files')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (csvFilesError) throw csvFilesError;
-
-      if (csvFiles && csvFiles.length > 0) {
-        const { error: deleteCsvFilesError } = await supabase
-          .from('csv_files')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteCsvFilesError) throw deleteCsvFilesError;
-        deletedCounts.csvFiles = csvFiles.length;
-      }
-
-      // Delete CSV contacts
-      const { data: csvContacts, error: csvContactsError } = await supabase
-        .from('csv_contacts')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (csvContactsError) throw csvContactsError;
-
-      if (csvContacts && csvContacts.length > 0) {
-        const { error: deleteCsvContactsError } = await supabase
-          .from('csv_contacts')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteCsvContactsError) throw deleteCsvContactsError;
-        deletedCounts.csvContacts = csvContacts.length;
-      }
-
-      // Delete SMS messages
-      const { data: smsMessages, error: smsMessagesError } = await supabase
-        .from('sms_messages')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (smsMessagesError) throw smsMessagesError;
-
-      if (smsMessages && smsMessages.length > 0) {
-        const { error: deleteSmsMessagesError } = await supabase
-          .from('sms_messages')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteSmsMessagesError) throw deleteSmsMessagesError;
-        deletedCounts.smsMessages = smsMessages.length;
-      }
-
-      // Delete knowledge bases
-      const { data: knowledgeBases, error: knowledgeBasesError } = await supabase
-        .from('knowledge_bases')
-        .select('id')
-        .eq('company_id', userId);
-
-      if (knowledgeBasesError) throw knowledgeBasesError;
-
-      if (knowledgeBases && knowledgeBases.length > 0) {
-        const { error: deleteKnowledgeBasesError } = await supabase
-          .from('knowledge_bases')
-          .delete()
-          .eq('company_id', userId);
-
-        if (deleteKnowledgeBasesError) throw deleteKnowledgeBasesError;
-        deletedCounts.knowledgeBases = knowledgeBases.length;
-      }
-
-      // Delete calendar credentials
-      const { data: calendarCredentials, error: calendarCredentialsError } = await supabase
-        .from('user_calendar_credentials')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (calendarCredentialsError) throw calendarCredentialsError;
-
-      if (calendarCredentials && calendarCredentials.length > 0) {
-        const { error: deleteCalendarCredentialsError } = await supabase
-          .from('user_calendar_credentials')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteCalendarCredentialsError) throw deleteCalendarCredentialsError;
-        deletedCounts.calendarCredentials = calendarCredentials.length;
-      }
-
-      // Delete WhatsApp credentials
-      const { data: whatsappCredentials, error: whatsappCredentialsError } = await supabase
-        .from('user_whatsapp_credentials')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (whatsappCredentialsError) throw whatsappCredentialsError;
-
-      if (whatsappCredentials && whatsappCredentials.length > 0) {
-        const { error: deleteWhatsappCredentialsError } = await supabase
-          .from('user_whatsapp_credentials')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteWhatsappCredentialsError) throw deleteWhatsappCredentialsError;
-        deletedCounts.whatsappCredentials = whatsappCredentials.length;
-      }
-
-      // Delete Twilio credentials
-      const { data: twilioCredentials, error: twilioCredentialsError } = await supabase
-        .from('user_twilio_credentials')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (twilioCredentialsError) throw twilioCredentialsError;
-
-      if (twilioCredentials && twilioCredentials.length > 0) {
-        const { error: deleteTwilioCredentialsError } = await supabase
-          .from('user_twilio_credentials')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteTwilioCredentialsError) throw deleteTwilioCredentialsError;
-        deletedCounts.twilioCredentials = twilioCredentials.length;
-      }
-
-      // Delete workspace settings
-      const { data: workspaceSettings, error: workspaceSettingsError } = await supabase
-        .from('workspace_settings')
-        .select('id')
-        .eq('user_id', userId);
-
-      if (workspaceSettingsError) throw workspaceSettingsError;
-
-      if (workspaceSettings && workspaceSettings.length > 0) {
-        const { error: deleteWorkspaceSettingsError } = await supabase
-          .from('workspace_settings')
-          .delete()
-          .eq('user_id', userId);
-
-        if (deleteWorkspaceSettingsError) throw deleteWorkspaceSettingsError;
-        deletedCounts.workspaceSettings = workspaceSettings.length;
-      }
-
-      // Finally, delete the user from both auth.users and public.users via backend API
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('No session found. Please log in again.');
-      }
-
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
-
-      const deleteResponse = await fetch(`${backendUrl}/api/v1/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-
-      if (!deleteResponse.ok) {
-        const errorData = await deleteResponse.json().catch(() => ({ error: 'Failed to delete user' }));
-        throw new Error(errorData.error || 'Failed to delete user');
-      }
-
-      const deleteResult = await deleteResponse.json();
-      if (!deleteResult.success) {
-        throw new Error(deleteResult.error || 'Failed to delete user');
-      }
-
-      // Create success message with details
-      const deletedItems = Object.entries(deletedCounts)
-        .filter(([_, count]) => count > 0)
-        .map(([item, count]) => `${count} ${item}`)
-        .join(', ');
-
-      const successMessage = deletedItems
-        ? `User deleted successfully along with: ${deletedItems}`
-        : 'User deleted successfully';
-
-      toast.success(successMessage);
+      await AdminService.deleteUser(selectedUser.id);
+      toast.success('User and all associated data deleted successfully');
       setIsDeleteUserOpen(false);
       setSelectedUser(null);
       fetchUsers();
     } catch (error: any) {
       console.error('Error deleting user:', error);
-
-      // Provide more specific error messages
-      if (error.code === '23503') {
-        toast.error('Cannot delete user: User still has associated data. Please contact support.');
-      } else if (error.message?.includes('not_admin')) {
-        toast.error('Access denied: Admin privileges required to delete users.');
-      } else {
-        toast.error(error.message || 'Failed to delete user');
-      }
+      toast.error(error.message || 'Failed to delete user');
     }
   };
 
@@ -1189,9 +667,8 @@ const AdminPanel = () => {
     if (!contextActiveSupportSession) return;
 
     try {
-      // Get the current session token from Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      const token = getAccessToken();
+      if (!token) {
         toast.error('No valid session found. Please log in again.');
         return;
       }
@@ -1200,7 +677,7 @@ const AdminPanel = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ reason: 'completed' }),
       });
@@ -1264,7 +741,7 @@ const AdminPanel = () => {
       return sum + user.minutes_limit;
     }, 0);
     const totalPlans = Object.keys(planConfigs).length;
-    
+
     return {
       totalUsers,
       activeUsers,
@@ -1387,7 +864,7 @@ const AdminPanel = () => {
                         {dashboardStats.totalMinutesUsed.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {dashboardStats.totalMinutesLimit > 0 
+                        {dashboardStats.totalMinutesLimit > 0
                           ? `${Math.round((dashboardStats.totalMinutesUsed / dashboardStats.totalMinutesLimit) * 100)}% of allocated`
                           : 'Unlimited plans included'
                         }
@@ -1512,7 +989,7 @@ const AdminPanel = () => {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <Badge 
+                                  <Badge
                                     variant={user.is_active ? 'default' : 'destructive'}
                                     className="font-medium"
                                   >
@@ -1815,9 +1292,9 @@ const AdminPanel = () => {
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
                                       onClick={() => openPlanDialog(user)}
                                       className="h-8"
                                     >

@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from livekit.agents import JobContext
 
 from config.settings import get_settings
-from integrations.supabase_client import SupabaseClient
+from config.database import get_database_client
 from integrations.n8n_integration import N8NIntegration
 from .inbound_handler import InboundCallHandler
 from .outbound_handler import OutboundCallHandler
@@ -18,13 +18,13 @@ class CallProcessor:
     
     def __init__(self):
         self.settings = get_settings()
-        self.supabase = SupabaseClient()
+        self.db = get_database_client()
         self.n8n = N8NIntegration()
         self.logger = logging.getLogger(__name__)
         
         # Initialize handlers
-        self.inbound_handler = InboundCallHandler(self.settings, self.supabase, self.n8n)
-        self.outbound_handler = OutboundCallHandler(self.settings, self.supabase, self.n8n)
+        self.inbound_handler = InboundCallHandler(self.settings, self.db, self.n8n)
+        self.outbound_handler = OutboundCallHandler(self.settings, self.db, self.n8n)
     
     async def process_call(self, ctx: JobContext) -> None:
         """

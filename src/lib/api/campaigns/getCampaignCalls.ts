@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+
 
 export interface CampaignCall {
   id: string;
@@ -49,7 +49,7 @@ export interface GetCampaignCallsParams {
 export const getCampaignCalls = async (params: GetCampaignCallsParams): Promise<GetCampaignCallsResponse> => {
   try {
     const queryParams = new URLSearchParams();
-    
+
     if (params.status) queryParams.append('status', params.status);
     if (params.outcome) queryParams.append('outcome', params.outcome);
     if (params.limit) queryParams.append('limit', params.limit.toString());

@@ -16,7 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { ThemeContainer, ThemeSection, ThemeCard } from "@/components/theme";
+import { ThemeContainer } from "@/components/theme";
 import DashboardLayout from "@/layout/DashboardLayout";
 import { ModelTab } from "@/components/assistants/wizard/ModelTab";
 import { VoiceTab } from "@/components/assistants/wizard/VoiceTab";
@@ -26,8 +26,6 @@ import { AdvancedTab } from "@/components/assistants/wizard/AdvancedTab";
 import { N8nTab } from "@/components/assistants/wizard/N8nTab";
 import { AssistantFormData } from "@/components/assistants/wizard/types";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { ensureUserExists } from '@/lib/supabase-retry';
 
 const tabVariants = {
   initial: { opacity: 0, y: 10 },
@@ -44,11 +42,11 @@ const CreateAssistant = () => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
 
   // Debug logging
   console.log('CreateAssistant rendered', { isEditing, id, isLoading, activeTab });
-  
+
   // Debug tab switching
   const handleTabClick = (tabId: string) => {
     console.log('Tab clicked:', tabId);
@@ -62,13 +60,13 @@ const CreateAssistant = () => {
     { id: "analysis", label: "Analysis", icon: BarChart3 },
     { id: "advanced", label: "Advanced", icon: Sliders },
   ];
-  
+
   const searchParams = new URLSearchParams(location.search);
   const providedName = searchParams.get('name');
 
   const [formData, setFormData] = useState<AssistantFormData>({
-    name: isEditing ? "john" : (providedName && providedName.trim() ? providedName : "Untitled Assistant"),
-    id: isEditing ? "asst_abcd1234efgh5678" : "asst_" + Math.random().toString(36).substr(2, 16),
+    name: providedName && providedName.trim() ? providedName : "Untitled Assistant",
+    id: isEditing && id ? id : "asst_" + Math.random().toString(36).substr(2, 16),
     model: {
       provider: "OpenAI",
       model: "GPT-4.1",
@@ -212,35 +210,40 @@ const CreateAssistant = () => {
   // Load existing assistant data when editing
   useEffect(() => {
     const loadExistingAssistant = async () => {
-      if (!isEditing || !id) return;
-      
+      console.log('=== loadExistingAssistant called ===', { isEditing, id });
+      if (!isEditing || !id) {
+        console.log('Skipping load: not editing or no ID');
+        return;
+      }
+
       setIsLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setIsLoading(false);
-          return;
+        const token = await getAccessToken();
+        console.log('Got access token:', !!token);
+        if (!token) {
+          throw new Error("Authentication required");
         }
 
-        const { data, error } = await supabase
-          .from('assistant')
-          .select('*')
-          .eq('id', id)
-          .eq('user_id', user.id)
-          .single();
+        console.log('Fetching assistant from:', `/api/v1/assistants/${id}`);
+        const response = await fetch(`/api/v1/assistants/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
 
-        if (error) {
-          console.error('Failed to load assistant:', error);
-          toast({
-            title: 'Error',
-            description: 'Failed to load assistant data. Please try again.',
-            variant: 'destructive',
-          });
-          setIsLoading(false);
-          return;
+        console.log('Response status:', response.status, response.statusText);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Failed to load assistant:', errorText);
+          throw new Error(`Failed to load assistant: ${response.status} ${response.statusText}`);
         }
+
+        const responseData = await response.json();
+        console.log('Response data:', responseData);
+        const { data } = responseData;
 
         if (data) {
+          console.log('Setting form data with assistant:', data.name, data.id);
           // Map database data to form data
           setFormData({
             name: data.name || "Untitled Assistant",
@@ -264,7 +267,7 @@ const CreateAssistant = () => {
               // Call Management Settings
               endCallMessage: data.end_call_message || "",
               maxCallDuration: data.max_call_duration || 30,
-              idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter(item => typeof item === 'string') : [],
+              idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter((item: any) => typeof item === 'string') : [],
               idleMessageMaxSpokenCount: data.max_idle_messages || 3,
               silenceTimeoutSeconds: data.silence_timeout || 10,
               // Calendar credentials (populated from integration)
@@ -352,9 +355,9 @@ const CreateAssistant = () => {
               audioRecordingFormat: "wav",
               videoRecordingEnabled: data.video_recording || false,
               endCallMessage: data.end_call_message || "",
-              endCallPhrases: Array.isArray(data.end_call_phrases) ? data.end_call_phrases.filter(item => typeof item === 'string') : [],
+              endCallPhrases: Array.isArray(data.end_call_phrases) ? data.end_call_phrases.filter((item: any) => typeof item === 'string') : [],
               maxCallDuration: data.max_call_duration || 30,
-              idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter(item => typeof item === 'string') : [],
+              idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter((item: any) => typeof item === 'string') : [],
               idleMessageMaxSpokenCount: data.max_idle_messages || 3,
               silenceTimeoutSeconds: data.silence_timeout || 10,
               responseDelaySeconds: data.response_delay_seconds || 1,
@@ -377,8 +380,11 @@ const CreateAssistant = () => {
               webhookFields: Array.isArray((data as any).n8n_webhook_fields) ? (data as any).n8n_webhook_fields : []
             }
           });
+          console.log('Form data updated successfully');
 
           // Calendar credentials are now loaded directly in the model tab above
+        } else {
+          console.warn('No data in response');
         }
       } catch (error) {
         console.error('Error loading assistant:', error);
@@ -389,32 +395,23 @@ const CreateAssistant = () => {
         });
       } finally {
         setIsLoading(false);
+        console.log('Loading complete, isLoading set to false');
       }
     };
 
     void loadExistingAssistant();
-  }, [isEditing, id, toast]);
+  }, [isEditing, id, toast, getAccessToken]);
 
   const mapFormToAssistantPayload = async (userId: string) => {
     const kbId = formData.model.knowledgeBase && formData.model.knowledgeBase !== "None"
       ? formData.model.knowledgeBase
       : null;
 
-    // Debug: Log formData to see what calendar data is available
-    console.log("FormData model calendar fields:", {
-      calendar: formData.model.calendar,
-      calApiKey: formData.model.calApiKey,
-      calEventTypeId: formData.model.calEventTypeId,
-      calEventTypeSlug: formData.model.calEventTypeSlug,
-      calTimezone: formData.model.calTimezone
-    });
-
     // Use existing event type data (no auto-creation)
     const calEventTypeId = formData.model.calEventTypeId || null;
     const calEventTypeSlug = formData.model.calEventTypeSlug || null;
 
     return {
-      user_id: userId,
       name: formData.name,
       llm_provider_setting: formData.model.provider,
       llm_model_setting: formData.model.model,
@@ -438,7 +435,6 @@ const CreateAssistant = () => {
       voice_optimize_streaming_latency: formData.voice.optimizeStreaming,
       voice_seconds: formData.voice.voiceSeconds,
       voice_backoff_seconds: formData.voice.backOffSeconds,
-      silence_timeout: formData.voice.silenceTimeout,
       maximum_duration: formData.voice.maxDuration,
       smart_endpointing: String(formData.voice.smartEndpointing).toLowerCase() === "enabled",
 
@@ -474,17 +470,17 @@ const CreateAssistant = () => {
       max_call_duration: formData.model.maxCallDuration || 30,
       idle_messages: formData.model.idleMessages?.length ? formData.model.idleMessages : null,
       max_idle_messages: formData.model.idleMessageMaxSpokenCount || 3,
-      silence_timeout: formData.model.silenceTimeoutSeconds || 10,
+
 
       // SMS fields
-      first_sms: formData.sms.firstMessage || null,
-      sms_prompt: formData.sms.systemPrompt || null,
+      first_sms: formData.advanced.firstSms || null,
+      sms_prompt: formData.advanced.smsPrompt || null,
       sms_calendar_booking_enabled: formData.sms.calendarBookingEnabled || false,
 
       // WhatsApp Integration
       whatsapp_credentials_id: formData.model.whatsappCredentialsId || null,
-      whatsapp_number: formData.model.whatsappNumber || null,
-      whatsapp_key: formData.model.whatsappKey || null,
+      whatsapp_number: formData.advanced.whatsappNumber || null,
+      whatsapp_key: formData.advanced.whatsappKey || null,
 
       // Calendar Integration
       calendar: formData.model.calendar !== "None" ? formData.model.calendar : null,
@@ -505,63 +501,46 @@ const CreateAssistant = () => {
       setIsSaving(true);
       if (!user?.id) throw new Error('You must be signed in to save an assistant.');
 
-      await ensureUserExists(user.id, user.fullName || null);
+      const token = await getAccessToken();
+      if (!token) throw new Error("Authentication required");
 
       const payload = await mapFormToAssistantPayload(user.id);
 
-      // Debug: Log the payload to see what's being saved
+      // Debug: Log the payload
       console.log("Assistant payload being saved:", payload);
-      console.log("Calendar data:", {
-        calendar: payload.calendar,
-        cal_api_key: payload.cal_api_key,
-        cal_event_type_id: payload.cal_event_type_id,
-        cal_event_type_slug: payload.cal_event_type_slug,
-        cal_timezone: payload.cal_timezone
-      });
-
-
 
       if (isEditing && id) {
-        const { error } = await supabase
-          .from('assistant')
-          .update(payload)
-          .eq('id', id);
-        if (error) {
-          // Retry once if FK missing
-          if ((error as any)?.code === '23503') {
-            await ensureUserExists(user.id, user.fullName || null);
-            const retry = await supabase.from('assistant').update(payload).eq('id', id);
-            if (retry.error) throw retry.error;
-          } else {
-            throw error;
-          }
+        const response = await fetch(`/api/v1/assistants/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update assistant: ${response.statusText}`);
         }
+
         toast({ title: 'Assistant updated', description: 'Your changes have been saved.' });
         navigate('/assistants');
       } else {
-        let { data, error } = await supabase
-          .from('assistant')
-          .insert(payload)
-          .select('id')
-          .single();
-        if (error) {
-          if ((error as any)?.code === '23503') {
-            await ensureUserExists(user.id, user.fullName || null);
-            const retry = await supabase
-              .from('assistant')
-              .insert(payload)
-              .select('id')
-              .single();
-            data = retry.data as any;
-            if (retry.error) throw retry.error;
-          } else {
-            throw error;
-          }
+        const response = await fetch('/api/v1/assistants', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to create assistant: ${response.statusText}`);
         }
-        if (data?.id) {
-          toast({ title: 'Assistant created', description: 'Your assistant has been saved.' });
-          navigate(`/assistants`);
-        }
+
+        toast({ title: 'Assistant created', description: 'Your assistant has been saved.' });
+        navigate(`/assistants`);
       }
     } catch (e: any) {
       toast({ title: 'Save failed', description: e?.message || 'Please try again.', variant: 'destructive' });
@@ -570,16 +549,40 @@ const CreateAssistant = () => {
     }
   };
 
-  
 
-  const handleDelete = () => {
-    console.log("Deleting assistant:", formData.id);
-    // Implement actual deletion logic here
-    toast({
-      title: "Assistant deleted",
-      description: "The assistant has been permanently deleted.",
-    });
-    navigate("/assistants");
+  const handleDelete = async () => {
+    try {
+      if (!isEditing || !id) return;
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const response = await fetch(`/api/v1/assistants/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Assistant deleted",
+          description: "The assistant has been permanently deleted.",
+        });
+        navigate("/assistants");
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete assistant.",
+          variant: "destructive"
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: "An error occurred.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -617,7 +620,7 @@ const CreateAssistant = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Button 
+                  <Button
                     onClick={handleSave}
                     disabled={isSaving || isLoading}
                     className="gap-2"
@@ -652,8 +655,8 @@ const CreateAssistant = () => {
                       onClick={() => handleTabClick(tab.id)}
                       className={`
                         w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
-                        ${activeTab === tab.id 
-                          ? 'bg-primary/10 text-primary border border-primary/20' 
+                        ${activeTab === tab.id
+                          ? 'bg-primary/10 text-primary border border-primary/20'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                         }
                       `}
@@ -664,7 +667,7 @@ const CreateAssistant = () => {
                   );
                 })}
               </div>
-              
+
               {/* Assistant Info */}
               <div className="p-4 border-t border-border/40 mt-4">
                 <p className="text-xs text-muted-foreground font-mono mb-2">Assistant ID</p>
@@ -694,7 +697,7 @@ const CreateAssistant = () => {
                           Delete Assistant
                         </AlertDialogTitle>
                         <AlertDialogDescription className="text-muted-foreground">
-                          Are you sure you want to delete this assistant? This action cannot be undone 
+                          Are you sure you want to delete this assistant? This action cannot be undone
                           and all associated data will be permanently removed from both local storage and database.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
@@ -735,39 +738,39 @@ const CreateAssistant = () => {
                       className="pointer-events-auto"
                     >
                       {activeTab === "model" && (
-                        <ModelTab 
-                          data={formData.model} 
-                          onChange={(data) => handleFormDataChange('model', data)} 
+                        <ModelTab
+                          data={formData.model}
+                          onChange={(data) => handleFormDataChange('model', data)}
                         />
                       )}
                       {activeTab === "voice" && (
-                        <VoiceTab 
-                          data={formData.voice} 
-                          onChange={(data) => handleFormDataChange('voice', data)} 
+                        <VoiceTab
+                          data={formData.voice}
+                          onChange={(data) => handleFormDataChange('voice', data)}
                         />
                       )}
                       {activeTab === "sms" && (
-                        <SMSTab 
-                          data={formData.sms} 
-                          onChange={(data) => handleFormDataChange('sms', data)} 
+                        <SMSTab
+                          data={formData.sms}
+                          onChange={(data) => handleFormDataChange('sms', data)}
                         />
                       )}
                       {activeTab === "analysis" && (
-                        <AnalysisTab 
-                          data={formData.analysis} 
-                          onChange={(data) => handleFormDataChange('analysis', data)} 
+                        <AnalysisTab
+                          data={formData.analysis}
+                          onChange={(data) => handleFormDataChange('analysis', data)}
                         />
                       )}
                       {activeTab === "advanced" && (
-                        <AdvancedTab 
-                          data={formData.advanced} 
-                          onChange={(data) => handleFormDataChange('advanced', data)} 
+                        <AdvancedTab
+                          data={formData.advanced}
+                          onChange={(data) => handleFormDataChange('advanced', data)}
                         />
                       )}
                       {activeTab === "n8n" && (
-                        <N8nTab 
-                          data={formData.n8n} 
-                          onChange={(data) => handleFormDataChange('n8n', data)} 
+                        <N8nTab
+                          data={formData.n8n}
+                          onChange={(data) => handleFormDataChange('n8n', data)}
                         />
                       )}
                     </motion.div>

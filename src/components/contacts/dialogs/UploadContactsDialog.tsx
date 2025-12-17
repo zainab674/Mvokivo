@@ -115,27 +115,27 @@ export function UploadContactsDialog({
 
             <div className="space-y-4 text-sm">
               <div>
-                <h4 className="font-semibold text-theme-primary mb-2">Data Processing Agreement</h4>
-                <p className="text-theme-secondary leading-relaxed">
-                  By uploading contact information, you confirm that you have the necessary permissions 
-                  to share this data and that all contacts have provided appropriate consent for their 
+                <h4 className="font-semibold text-foreground mb-2">Data Processing Agreement</h4>
+                <p className="text-muted-foreground leading-relaxed">
+                  By uploading contact information, you confirm that you have the necessary permissions
+                  to share this data and that all contacts have provided appropriate consent for their
                   information to be used for business communications.
                 </p>
               </div>
 
               <div>
-                <h4 className="font-semibold text-theme-primary mb-2">Privacy & Security</h4>
-                <p className="text-theme-secondary leading-relaxed">
-                  We implement industry-standard security measures to protect your contact data. 
-                  All information is encrypted in transit and at rest, and access is restricted to 
+                <h4 className="font-semibold text-foreground mb-2">Privacy & Security</h4>
+                <p className="text-muted-foreground leading-relaxed">
+                  We implement industry-standard security measures to protect your contact data.
+                  All information is encrypted in transit and at rest, and access is restricted to
                   authorized personnel only.
                 </p>
               </div>
 
               <div>
-                <h4 className="font-semibold text-theme-primary mb-2">Data Usage</h4>
-                <p className="text-theme-secondary leading-relaxed">
-                  Contact information will be used exclusively for the purposes you specify and in 
+                <h4 className="font-semibold text-foreground mb-2">Data Usage</h4>
+                <p className="text-muted-foreground leading-relaxed">
+                  Contact information will be used exclusively for the purposes you specify and in
                   accordance with applicable privacy laws including GDPR, CCPA, and CAN-SPAM regulations.
                 </p>
               </div>
@@ -154,8 +154,8 @@ export function UploadContactsDialog({
                     htmlFor="consent-checkbox"
                     className="text-sm font-medium cursor-pointer leading-relaxed"
                   >
-                    I acknowledge that I have read and agree to the data processing terms above. 
-                    I confirm that I have the necessary permissions to upload and use this contact data 
+                    I acknowledge that I have read and agree to the data processing terms above.
+                    I confirm that I have the necessary permissions to upload and use this contact data
                     for business communications.
                   </Label>
                 </div>
@@ -170,7 +170,7 @@ export function UploadContactsDialog({
             <div className="text-center">
               <Upload className="h-12 w-12 text-primary mx-auto mb-4" />
               <h3 className="font-semibold text-lg mb-2">Upload Contact File</h3>
-              <p className="text-theme-secondary text-sm">
+              <p className="text-muted-foreground text-sm">
                 Upload a CSV or Excel file containing your contact information.
               </p>
             </div>
@@ -183,7 +183,7 @@ export function UploadContactsDialog({
             />
 
 
-            <div className="text-xs text-theme-secondary space-y-1">
+            <div className="text-xs text-muted-foreground space-y-1">
               <p><strong>Supported formats:</strong> CSV, XLSX, XLS</p>
               <p><strong>Required columns:</strong> First Name, Phone or Email</p>
               <p><strong>Optional columns:</strong> Last Name, Company, Notes</p>
@@ -198,13 +198,13 @@ export function UploadContactsDialog({
             <div className="text-center mb-6">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
               <h3 className="font-semibold text-lg mb-2">Column Mapping</h3>
-              <p className="text-theme-secondary text-sm">
+              <p className="text-muted-foreground text-sm">
                 Map your file columns to contact fields. Required fields are marked with *.
               </p>
             </div>
 
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 p-3 bg-surface-elevated rounded-lg">
+              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
                 <div className="text-sm font-medium">Required Fields *</div>
                 <div className="text-sm font-medium">Your File Columns</div>
               </div>
@@ -216,7 +216,7 @@ export function UploadContactsDialog({
                 { field: 'Company', type: 'text', required: false },
                 { field: 'Notes', type: 'text', required: false },
               ].map((mapping, index) => (
-                <div key={index} className="grid grid-cols-2 gap-4 p-3 border border-theme-light rounded-lg">
+                <div key={index} className="grid grid-cols-2 gap-4 p-3 border border-border rounded-lg">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">{mapping.field}</span>
                     {mapping.required && (
@@ -301,11 +301,11 @@ export function UploadContactsDialog({
             {getStepDescription()}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="py-4">
           {renderStepContent()}
         </div>
-        
+
         <DialogFooter className="flex gap-2">
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
@@ -315,7 +315,7 @@ export function UploadContactsDialog({
               Back
             </Button>
           )}
-          <Button 
+          <Button
             onClick={handleNext}
             disabled={!canProceed()}
             className={currentStep === 'mapping' ? 'bg-green-600 hover:bg-green-700' : ''}

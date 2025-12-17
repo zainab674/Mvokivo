@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any
 from livekit.agents import JobContext, Agent
 
 from config.settings import Settings
-from integrations.supabase_client import SupabaseClient
+from config.database import DatabaseClient
 from integrations.n8n_integration import N8NIntegration
 from services.unified_agent import UnifiedAgent
 
@@ -15,9 +15,9 @@ from services.unified_agent import UnifiedAgent
 class InboundCallHandler:
     """Handles inbound call processing."""
     
-    def __init__(self, settings: Settings, supabase: SupabaseClient, n8n: N8NIntegration):
+    def __init__(self, settings: Settings, db: DatabaseClient, n8n: N8NIntegration):
         self.settings = settings
-        self.supabase = supabase
+        self.db = db
         self.n8n = n8n
         self.logger = logging.getLogger(__name__)
     
@@ -74,11 +74,15 @@ class InboundCallHandler:
     async def _resolve_assistant_for_did(self, called_did: str) -> Optional[Dict[str, Any]]:
         """Resolve assistant configuration for a given DID."""
         try:
-            # Query database for assistant associated with this DID
-            result = await self.supabase.client.table("assistants").select("*").eq("phone_number", called_did).execute()
+            # Use MongoDB client to fetch assistant by phone number
+            if not self.db.is_available():
+                self.logger.warning("Database client not available")
+                return None
             
-            if result.data and len(result.data) > 0:
-                assistant_data = result.data[0]
+            # Fetch assistant using the phone number
+            assistant_data = await self.db.client.fetch_assistant_by_phone(called_did)
+            
+            if assistant_data:
                 self.logger.info(f"ASSISTANT_RESOLVED | did={called_did} | assistant_id={assistant_data.get('id')}")
                 return assistant_data
             
@@ -102,7 +106,7 @@ class InboundCallHandler:
                 instructions=instructions,
                 knowledge_base_id=knowledge_base_id,
                 company_id=company_id,
-                supabase=self.supabase
+                mongodb=self.db.client
             )
             
             # Reset state for new conversation

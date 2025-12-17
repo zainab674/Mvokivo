@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
-import { supabase } from "@/integrations/supabase/client";
+
 
 interface AccountMinutes {
   remainingMinutes: number;
@@ -15,7 +15,7 @@ const getBackendUrl = () => {
 };
 
 export function useAccountMinutes(): AccountMinutes {
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const [remainingMinutes, setRemainingMinutes] = useState(0);
   const [planName, setPlanName] = useState("Free Plan");
   const [percentageUsed, setPercentageUsed] = useState(0);
@@ -32,13 +32,13 @@ export function useAccountMinutes(): AccountMinutes {
     }
 
     setIsLoading(true);
-    
+
     const fetchAccountMinutes = async () => {
       try {
-        // Get auth token from Supabase
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          throw new Error('No authentication token available');
+        const token = await getAccessToken();
+        if (!token) {
+          console.error('No authentication token available for fetching minutes');
+          return;
         }
 
         // Fetch real minutes data from API
@@ -46,7 +46,7 @@ export function useAccountMinutes(): AccountMinutes {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
+            'Authorization': `Bearer ${token}`
           }
         });
 
@@ -55,7 +55,7 @@ export function useAccountMinutes(): AccountMinutes {
         }
 
         const result = await response.json();
-        
+
         if (result.success && result.data) {
           setRemainingMinutes(result.data.remainingMinutes || 0);
           setPlanName(result.data.planName || user.plan || "Free Plan");
@@ -75,7 +75,7 @@ export function useAccountMinutes(): AccountMinutes {
     };
 
     fetchAccountMinutes();
-  }, [user]);
+  }, [user, getAccessToken]);
 
   return {
     remainingMinutes,

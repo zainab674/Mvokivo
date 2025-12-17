@@ -1,33 +1,37 @@
 /**
- * Utility to apply tenant filter to any Supabase query
- * This is a helper that can be used throughout the codebase
+ * Utility to apply tenant filter to query (Mongoose compatible)
  */
 
 /**
- * Apply tenant filter to a query based on tenant value
- * @param {object} query - Supabase query builder
+ * Apply tenant filter to a Mongoose query builder
+ * @param {object} query - Mongoose query builder (e.g. Campaign.find())
  * @param {string} tenant - Tenant identifier (from req.tenant)
- * @returns {object} - Query with tenant filter applied
+ * @returns {object} - Mongoose query builder with tenant filter applied
  */
 export function applyTenantFilter(query, tenant) {
   if (!query) return query;
-  
+
   const effectiveTenant = tenant || 'main';
-  
+
   if (effectiveTenant === 'main') {
-    // For main tenant, include both 'main' and NULL (legacy data)
-    return query.or('tenant.eq.main,tenant.is.null');
+    // For main tenant, include both 'main' and NULL/undefined (legacy data)
+    // Mongoose: .or([{ tenant: 'main' }, { tenant: null }, { tenant: { $exists: false } }])
+    return query.or([
+      { tenant: 'main' },
+      { tenant: null },
+      { tenant: { $exists: false } }
+    ]);
   }
-  
+
   // For whitelabel tenants, exact match
-  return query.eq('tenant', effectiveTenant);
+  return query.where('tenant').equals(effectiveTenant);
 }
 
 /**
- * Apply tenant filter from request object
+ * Apply tenant filter from request object to Mongoose query
  * @param {object} req - Express request object
- * @param {object} query - Supabase query builder
- * @returns {object} - Query with tenant filter applied
+ * @param {object} query - Mongoose query builder
+ * @returns {object} - Mongoose query builder with tenant filter applied
  */
 export function applyTenantFilterFromRequest(req, query) {
   const tenant = req.tenant || 'main';
@@ -38,6 +42,3 @@ export default {
   applyTenantFilter,
   applyTenantFilterFromRequest
 };
-
-
-

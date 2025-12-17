@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +23,7 @@ export function WhitelabelSettings() {
   const [slugStatusMessage, setSlugStatusMessage] = useState('');
   const [slugError, setSlugError] = useState('');
   const [isSlugUnique, setIsSlugUnique] = useState(false);
-  
+
   // Stripe credentials
   const [stripePublishableKey, setStripePublishableKey] = useState('');
   const [stripeSecretKey, setStripeSecretKey] = useState('');
@@ -33,14 +33,16 @@ export function WhitelabelSettings() {
   // In development, force relative URL to use Vite proxy and preserve Host header
   const apiUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || '');
 
+  const { user } = useAuth();
+
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
+        const token = localStorage.getItem('token');
         const headers: HeadersInit = { 'Content-Type': 'application/json' };
-        if (session?.access_token) {
-          headers.Authorization = `Bearer ${session.access_token}`;
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
         }
 
         const response = await fetch(`${apiUrl}/api/v1/whitelabel/website-settings`, {
@@ -128,32 +130,24 @@ export function WhitelabelSettings() {
 
     try {
       setIsUploadingLogo(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Not authenticated');
-      }
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Not authenticated');
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('No session token');
-      }
+      const formData = new FormData();
+      formData.append('file', file);
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/whitelabel-logo.${fileExt}`;
+      const response = await fetch(`${apiUrl}/api/v1/workspace/logo`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
 
-      const { error: uploadError } = await supabase.storage
-        .from('workspace-logos')
-        .upload(fileName, file, { upsert: true });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to upload logo');
 
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('workspace-logos')
-        .getPublicUrl(fileName);
-
-      setLogoUrl(publicUrlData.publicUrl);
+      setLogoUrl(data.url);
       toast.success('Logo uploaded successfully');
     } catch (error) {
       console.error('Error uploading logo:', error);
@@ -164,12 +158,11 @@ export function WhitelabelSettings() {
   };
 
   const ensureAuthenticated = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    const token = localStorage.getItem('token');
+    if (!token) {
       throw new Error('Not authenticated');
     }
-
-    return session.access_token;
+    return token;
   };
 
   const handleActivateWhitelabel = async () => {
@@ -213,7 +206,11 @@ export function WhitelabelSettings() {
       }
 
       toast.success('Whitelabel activated! Redirecting you to your branded workspace.');
-      await supabase.auth.signOut();
+
+      // Sign out
+      localStorage.removeItem('token');
+      // window.location.reload(); // Or proceed to redirect
+
       const isLocal = MAIN_DOMAIN.includes('localhost');
 
       const redirectUrl = data.redirectUrl ||

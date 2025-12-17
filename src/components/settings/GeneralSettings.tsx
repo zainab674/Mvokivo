@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,8 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
 
 const workspaceSettingsSchema = z.object({
   workspace_name: z.string().min(1, "Workspace name is required"),
@@ -61,6 +61,7 @@ const industries = [
 
 export function GeneralSettings() {
   const [isSaving, setIsSaving] = useState(false);
+  const { user } = useAuth();
 
   const form = useForm<WorkspaceSettingsForm>({
     resolver: zodResolver(workspaceSettingsSchema),
@@ -76,20 +77,56 @@ export function GeneralSettings() {
     },
   });
 
+  // Fetch settings on load
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        // Fallback token from localStorage
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch('/api/v1/workspace/settings', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Reset form with fetched data
+          form.reset({
+            workspace_name: data.workspace_name || "My Workspace",
+            timezone: data.timezone || "UTC",
+            company_address: data.company_address || "",
+            company_phone: data.company_phone || "",
+            company_website: data.company_website || "",
+            company_industry: data.company_industry || "",
+            company_size: data.company_size || "",
+            company_description: data.company_description || "",
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching workspace settings:", error);
+      }
+    };
+
+    fetchSettings();
+  }, [form]);
+
   const onSubmit = async (data: WorkspaceSettingsForm) => {
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error("Not authenticated");
 
-      const { error } = await supabase
-        .from('workspace_settings')
-        .upsert({
-          user_id: user.id,
-          ...data,
-        });
+      const response = await fetch('/api/v1/workspace/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to save settings');
 
       toast.success("Workspace settings saved successfully");
     } catch (error) {
@@ -117,7 +154,7 @@ export function GeneralSettings() {
               <Globe className="w-5 h-5 text-primary" />
               <h3 className="settings-card-title">Workspace Information</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
@@ -168,7 +205,7 @@ export function GeneralSettings() {
           {/* Business Information */}
           <div className="settings-card">
             <h3 className="settings-card-title mb-6">Business Information</h3>
-            
+
             <div className="space-y-6">
               <FormField
                 control={form.control}
@@ -177,8 +214,8 @@ export function GeneralSettings() {
                   <FormItem>
                     <FormLabel>Company Address</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        {...field} 
+                      <Textarea
+                        {...field}
                         className="settings-input"
                         placeholder="123 Business St, City, State, Country"
                         rows={3}
@@ -197,8 +234,8 @@ export function GeneralSettings() {
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
-                        <Input 
-                          {...field} 
+                        <Input
+                          {...field}
                           className="settings-input"
                           placeholder="+1 (555) 123-4567"
                         />
@@ -215,8 +252,8 @@ export function GeneralSettings() {
                     <FormItem>
                       <FormLabel>Website</FormLabel>
                       <FormControl>
-                        <Input 
-                          {...field} 
+                        <Input
+                          {...field}
                           className="settings-input"
                           placeholder="https://www.example.com"
                         />
@@ -284,8 +321,8 @@ export function GeneralSettings() {
                   <FormItem>
                     <FormLabel>Company Description</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        {...field} 
+                      <Textarea
+                        {...field}
                         className="settings-input"
                         placeholder="Brief description of your company and what you do..."
                         rows={4}

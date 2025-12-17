@@ -7,16 +7,16 @@ from typing import Optional, Dict, Any
 from livekit.agents import JobContext, Agent
 
 from config.settings import Settings
-from integrations.supabase_client import SupabaseClient
+from config.database import DatabaseClient
 from integrations.n8n_integration import N8NIntegration
 
 
 class OutboundCallHandler:
     """Handles outbound call processing."""
     
-    def __init__(self, settings: Settings, supabase: SupabaseClient, n8n: N8NIntegration):
+    def __init__(self, settings: Settings, db: DatabaseClient, n8n: N8NIntegration):
         self.settings = settings
-        self.supabase = supabase
+        self.db = db
         self.n8n = n8n
         self.logger = logging.getLogger(__name__)
     

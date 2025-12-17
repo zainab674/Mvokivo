@@ -5,16 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface WorkspaceMember {
@@ -53,34 +52,23 @@ export function MembersSettings() {
 
   const fetchMembersAndInvitations = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // In a real app we might wait for auth, but here we assume token is available or we check/redirect
+      const token = localStorage.getItem('token');
+      if (!token) return;
 
-      // Get workspace settings to find workspace ID
-      const { data: workspace } = await supabase
-        .from('workspace_settings')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+      // 1. Fetch members
+      const membersRes = await fetch('/api/v1/workspace/members', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const membersData = await membersRes.json();
+      if (!membersRes.ok) throw new Error(membersData.error || 'Failed to fetch members');
 
-      if (!workspace) return;
-
-      // Fetch members
-      const { data: membersData, error: membersError } = await supabase
-        .from('workspace_members')
-        .select('*')
-        .eq('workspace_id', workspace.id);
-
-      if (membersError) throw membersError;
-
-      // Fetch invitations
-      const { data: invitationsData, error: invitationsError } = await supabase
-        .from('workspace_invitations')
-        .select('*')
-        .eq('workspace_id', workspace.id)
-        .eq('status', 'pending');
-
-      if (invitationsError) throw invitationsError;
+      // 2. Fetch invitations
+      const invitationsRes = await fetch('/api/v1/workspace/invitations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const invitationsData = await invitationsRes.json();
+      if (!invitationsRes.ok) throw new Error(invitationsData.error || 'Failed to fetch invitations');
 
       setMembers(membersData || []);
       setInvitations(invitationsData || []);
@@ -94,37 +82,26 @@ export function MembersSettings() {
 
   const handleInviteMember = async () => {
     if (!inviteEmail || !inviteRole) return;
-    
+
     setIsInviting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error("Not authenticated");
 
-      // Get workspace settings
-      const { data: workspace } = await supabase
-        .from('workspace_settings')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!workspace) throw new Error("Workspace not found");
-
-      // Generate invitation token
-      const { data: tokenResult } = await supabase.rpc('generate_invitation_token');
-      const token = tokenResult;
-
-      // Create invitation
-      const { error } = await supabase
-        .from('workspace_invitations')
-        .insert({
-          workspace_id: workspace.id,
+      const response = await fetch('/api/v1/workspace/invitations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
           email: inviteEmail,
-          role: inviteRole,
-          invited_by: user.id,
-          token: token,
-        });
+          role: inviteRole
+        })
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to send invitation');
 
       toast.success(`Invitation sent to ${inviteEmail}`);
       setShowInviteDialog(false);
@@ -133,11 +110,7 @@ export function MembersSettings() {
       fetchMembersAndInvitations();
     } catch (error: any) {
       console.error('Error inviting member:', error);
-      if (error.message?.includes('duplicate key')) {
-        toast.error('This user has already been invited to the workspace');
-      } else {
-        toast.error('Failed to send invitation');
-      }
+      toast.error(error.message || 'Failed to send invitation');
     } finally {
       setIsInviting(false);
     }
@@ -145,12 +118,17 @@ export function MembersSettings() {
 
   const handleRemoveMember = async (memberId: string) => {
     try {
-      const { error } = await supabase
-        .from('workspace_members')
-        .delete()
-        .eq('id', memberId);
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error("Not authenticated");
 
-      if (error) throw error;
+      const response = await fetch(`/api/v1/workspace/members/${memberId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to remove member');
 
       toast.success('Member removed from workspace');
       fetchMembersAndInvitations();
@@ -162,12 +140,17 @@ export function MembersSettings() {
 
   const handleCancelInvitation = async (invitationId: string) => {
     try {
-      const { error } = await supabase
-        .from('workspace_invitations')
-        .delete()
-        .eq('id', invitationId);
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error("Not authenticated");
 
-      if (error) throw error;
+      const response = await fetch(`/api/v1/workspace/invitations/${invitationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to cancel invitation');
 
       toast.success('Invitation cancelled');
       fetchMembersAndInvitations();
@@ -262,7 +245,7 @@ export function MembersSettings() {
             </SelectContent>
           </Select>
         </div>
-        
+
         <Button onClick={() => setShowInviteDialog(true)} className="shrink-0">
           Invite your team
         </Button>
@@ -285,7 +268,7 @@ export function MembersSettings() {
                   {getInitials(member.email)}
                 </AvatarFallback>
               </Avatar>
-              
+
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-foreground">{member.user_name || member.email.split('@')[0]}</p>
@@ -327,7 +310,7 @@ export function MembersSettings() {
                   <Mail className="w-4 h-4" />
                 </AvatarFallback>
               </Avatar>
-              
+
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-foreground">{invitation.email.split('@')[0]}</p>
@@ -367,8 +350,8 @@ export function MembersSettings() {
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">No members found</h3>
             <p className="text-muted-foreground mb-4">
-              {searchQuery || roleFilter !== 'all' 
-                ? "Try adjusting your search or filter criteria." 
+              {searchQuery || roleFilter !== 'all'
+                ? "Try adjusting your search or filter criteria."
                 : "Start building your team by inviting members to your workspace."
               }
             </p>
@@ -390,7 +373,7 @@ export function MembersSettings() {
               Send an invitation to join your workspace. They'll receive an email with instructions.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div>
               <Label htmlFor="invite-email">Email address</Label>
@@ -402,7 +385,7 @@ export function MembersSettings() {
                 onChange={(e) => setInviteEmail(e.target.value)}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="invite-role">Role</Label>
               <Select value={inviteRole} onValueChange={setInviteRole}>
@@ -426,16 +409,16 @@ export function MembersSettings() {
               </Select>
             </div>
           </div>
-          
+
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowInviteDialog(false)}
               disabled={isInviting}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleInviteMember}
               disabled={!inviteEmail || isInviting}
             >

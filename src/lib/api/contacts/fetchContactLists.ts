@@ -1,5 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-import { getCurrentUserIdAsync } from "@/lib/user-context";
+import { getAccessToken } from '@/lib/auth';
 
 export interface ContactList {
   id: string;
@@ -16,47 +15,38 @@ export interface ContactListsResponse {
 }
 
 /**
- * Fetch contact lists from Supabase
+ * Fetch contact lists from backend API
  */
 export const fetchContactLists = async (): Promise<ContactListsResponse> => {
   try {
-    const userId = await getCurrentUserIdAsync();
-    console.log('Fetching contact lists for user ID:', userId);
-    
-    const { data: contactLists, error } = await supabase
-      .from('contact_lists')
-      .select(`
-        *,
-        contacts:contacts(count)
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    if (error) {
-      console.error('Error fetching contact lists:', error);
-      throw error;
+    const response = await fetch('/api/v1/contacts/lists', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch contact lists');
     }
 
-    if (!contactLists || contactLists.length === 0) {
-      return {
-        contactLists: [],
-        total: 0
-      };
-    }
+    const data = await response.json();
 
-    // Transform the data to include contact count
-    const transformedLists = contactLists.map(list => ({
-      id: list.id,
-      name: list.name,
-      count: list.contacts?.[0]?.count || 0,
-      created_at: list.created_at,
-      updated_at: list.updated_at,
-      user_id: list.user_id
-    }));
+    // Map _id to id if necessary
+    const lists = data.lists ? data.lists.map((list: any) => ({
+      ...list,
+      id: list._id || list.id,
+      count: list.count || 0 // Backend currently doesn't count contacts per list in list view, I might need to update backend to agg or just return 0 for now.
+    })) : [];
 
     return {
-      contactLists: transformedLists,
-      total: transformedLists.length
+      contactLists: lists,
+      total: lists.length
     };
 
   } catch (error) {

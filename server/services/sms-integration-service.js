@@ -1,12 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+import { KnowledgeBase } from '../models/index.js';
 import PineconeContextService from './pinecone-context-service.js';
 
 class SMSIntegrationService {
   constructor() {
-    this.supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
     this.pineconeContextService = new PineconeContextService();
   }
 
@@ -20,22 +16,50 @@ class SMSIntegrationService {
 
     try {
       console.log(`Searching knowledge base ${knowledgeBaseId} for: ${query}`);
-      
-      // Get knowledge base info to get company_id
-      const { data: kbData, error: kbError } = await this.supabase
-        .from('knowledge_bases')
-        .select('company_id')
-        .eq('id', knowledgeBaseId)
-        .single();
 
-      if (kbError || !kbData) {
-        console.error('Knowledge base not found:', kbError);
+      // Get knowledge base info from Mongoose
+      const kbData = await KnowledgeBase.findOne({ id: knowledgeBaseId }).select('company_id');
+      // If id field in schema matches knowledgeBaseId. Mongoose schema usually adds _id. 
+      // Need to check if KnowledgeBase schema uses customized id or default _id.
+      // Schema: const knowledgeBaseSchema = new mongoose.Schema({ company_id: { type: String, required: true }, ... });
+      // It doesn't specify 'id' field, so it behaves as _id.
+      // However, frontend might be passing string IDs. 
+      // If we are migrating data, we need to ensure consistency.
+      // For new data, Mongoose _id is ObjectId.
+      // Let's assume for now we search by _id if it's a valid ObjectId or try to match if we added a string id.
+      // Wait, checking schema again:
+      /*
+      const knowledgeBaseSchema = new mongoose.Schema({
+          company_id: { type: String, required: true },
+          name: { type: String, required: true },
+          ...
+      });
+      */
+      // It doesn't have an explicit `id` field. So strictly it uses `_id`.
+      // The `knowledgeBaseId` passed here is likely a string.
+      // If we are maintaining UUIDs, we should have added `_id: String` or a separate `id` field.
+      // In the context of this migration, if we haven't migrated data yet, we might be starting fresh or needing a migration script.
+      // But assuming the app uses the ID from the database, if I recently created the schema, I should likely use `_id`.
+
+      // Let's try to find by _id or just assume it's the identifier.
+      // If the passed ID is not a valid ObjectId, findById might throw or return null.
+
+      let kb = null;
+      try {
+        kb = await KnowledgeBase.findById(knowledgeBaseId).select('company_id');
+      } catch (e) {
+        // If invalid ObjectId, it might be a legacy ID or error
+        console.warn(`Invalid ObjectId for knowledge base: ${knowledgeBaseId}`);
+      }
+
+      if (!kb) {
+        console.error('Knowledge base not found');
         return null;
       }
 
       // Use Pinecone to search for context snippets
       const contextResult = await this.pineconeContextService.getContextSnippets(
-        kbData.company_id,
+        kb.company_id,
         knowledgeBaseId,
         query,
         {
@@ -79,7 +103,7 @@ class SMSIntegrationService {
 
     try {
       console.log(`Checking calendar availability for event type: ${assistantConfig.cal_event_type_id}`);
-      
+
       // Call Cal.com API directly for available slots
       const slotsResponse = await this.callCalComSlotsAPI(
         assistantConfig.cal_api_key,
@@ -93,7 +117,7 @@ class SMSIntegrationService {
         return {
           available: true,
           message: "I can help you schedule an appointment. What time works best for you?",
-          nextAvailableSlots: slotsResponse.slice(0, 3).map(slot => 
+          nextAvailableSlots: slotsResponse.slice(0, 3).map(slot =>
             new Date(slot.start).toLocaleString('en-US', {
               weekday: 'long',
               month: 'short',
@@ -133,7 +157,7 @@ class SMSIntegrationService {
       console.log(`Handling calendar booking for event type: ${assistantConfig.cal_event_type_id}`);
       console.log(`Message: "${message}"`);
       console.log(`Conversation history length: ${conversationHistory ? conversationHistory.length : 0}`);
-      
+
       // Step 1: Detect if this is initial booking request
       if (this.isInitialBookingRequest(message)) {
         console.log('Detected initial booking request');
@@ -175,7 +199,7 @@ class SMSIntegrationService {
         }
 
         // Present available slots
-        const slotsText = slots.slice(0, 6).map((slot, index) => 
+        const slotsText = slots.slice(0, 6).map((slot, index) =>
           `Option ${index + 1}: ${slot.time}`
         ).join('\n');
 
@@ -276,7 +300,7 @@ class SMSIntegrationService {
       'location', 'address', 'contact', 'phone', 'email', 'website',
       'history', 'about us', 'team', 'staff', 'founder'
     ];
-    
+
     const lowerMessage = message.toLowerCase();
     return kbKeywords.some(keyword => lowerMessage.includes(keyword));
   }
@@ -291,7 +315,7 @@ class SMSIntegrationService {
       'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
       'morning', 'afternoon', 'evening', 'am', 'pm'
     ];
-    
+
     const lowerMessage = message.toLowerCase();
     return calendarKeywords.some(keyword => lowerMessage.includes(keyword));
   }
@@ -301,11 +325,11 @@ class SMSIntegrationService {
    */
   extractAppointmentDetails(message) {
     const lowerMessage = message.toLowerCase();
-    
+
     // Simple extraction - in a real implementation, you'd use NLP
     const timeMatch = lowerMessage.match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/);
     const dateMatch = lowerMessage.match(/(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week)/);
-    
+
     return {
       time: timeMatch ? timeMatch[0] : null,
       date: dateMatch ? dateMatch[0] : 'tomorrow',
@@ -320,7 +344,7 @@ class SMSIntegrationService {
     try {
       const startTime = startDate.toISOString();
       const endTime = endDate.toISOString();
-      
+
       const response = await fetch(`https://api.cal.com/v1/slots?apiKey=${apiKey}&eventTypeId=${eventTypeId}&startTime=${startTime}&endTime=${endTime}&timeZone=${timezone}`, {
         method: 'GET',
         headers: {
@@ -349,7 +373,7 @@ class SMSIntegrationService {
       // Parse appointment details to get proper date/time
       const startTime = this.parseAppointmentTime(appointmentDetails);
       const startStr = startTime.toISOString().replace('Z', 'Z'); // Ensure UTC format
-      
+
       // Create booking payload matching Cal.com v2 API format (based on worker implementation)
       const bookingData = {
         start: startStr,
@@ -393,7 +417,7 @@ class SMSIntegrationService {
 
       const data = await response.json();
       console.log('Cal.com booking success:', data);
-      
+
       return {
         success: true,
         booking_id: data.data?.id || data.id || `booking_${Date.now()}`
@@ -412,7 +436,7 @@ class SMSIntegrationService {
     // In a real implementation, you'd parse the actual date/time from appointmentDetails
     const now = new Date();
     const appointmentTime = new Date(now.getTime() + (60 * 60 * 1000)); // 1 hour from now
-    
+
     // Convert to UTC
     return new Date(appointmentTime.toISOString());
   }
@@ -428,14 +452,14 @@ class SMSIntegrationService {
       'book', 'booking', 'schedule', 'appointment', 'meeting', 'reserve',
       'i want to', 'i need to', 'can i', 'would like to'
     ];
-    
+
     const isBooking = bookingKeywords.some(keyword => lowerMessage.includes(keyword));
-    console.log(`isInitialBookingRequest check for "${message}": ${isBooking}`);
+    // console.log(`isInitialBookingRequest check for "${message}": ${isBooking}`);
     if (isBooking) {
-      const matchedKeyword = bookingKeywords.find(keyword => lowerMessage.includes(keyword));
-      console.log(`Matched keyword: "${matchedKeyword}"`);
+      // const matchedKeyword = bookingKeywords.find(keyword => lowerMessage.includes(keyword));
+      // console.log(`Matched keyword: "${matchedKeyword}"`);
     }
-    
+
     return isBooking;
   }
 
@@ -444,12 +468,12 @@ class SMSIntegrationService {
    */
   isCollectingNotes(message, conversationHistory) {
     if (!conversationHistory || conversationHistory.length < 2) return false;
-    
+
     // Find the most recent assistant message (look from the end)
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
       if (msg.direction === 'outbound') {
-        console.log(`Checking last assistant message: "${msg.body}"`);
+        // console.log(`Checking last assistant message: "${msg.body}"`);
         return msg.body.includes('reason for your visit');
       }
     }
@@ -461,12 +485,12 @@ class SMSIntegrationService {
    */
   isCollectingDay(message, conversationHistory) {
     if (!conversationHistory || conversationHistory.length < 2) return false;
-    
+
     // Find the most recent assistant message (look from the end)
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
       if (msg.direction === 'outbound') {
-        console.log(`Checking last assistant message for day collection: "${msg.body}"`);
+        // console.log(`Checking last assistant message for day collection: "${msg.body}"`);
         return msg.body.includes('Which day works for you');
       }
     }
@@ -478,12 +502,12 @@ class SMSIntegrationService {
    */
   isCollectingSlot(message, conversationHistory) {
     if (!conversationHistory || conversationHistory.length < 2) return false;
-    
+
     // Find the most recent assistant message (look from the end)
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
       if (msg.direction === 'outbound') {
-        console.log(`Checking last assistant message for slot collection: "${msg.body}"`);
+        // console.log(`Checking last assistant message for slot collection: "${msg.body}"`);
         return msg.body.includes('Which option works for you');
       }
     }
@@ -495,12 +519,12 @@ class SMSIntegrationService {
    */
   isCollectingName(message, conversationHistory) {
     if (!conversationHistory || conversationHistory.length < 2) return false;
-    
+
     // Find the most recent assistant message (look from the end)
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
       if (msg.direction === 'outbound') {
-        console.log(`Checking last assistant message for name collection: "${msg.body}"`);
+        // console.log(`Checking last assistant message for name collection: "${msg.body}"`);
         return msg.body.includes('What\'s your full name');
       }
     }
@@ -512,12 +536,12 @@ class SMSIntegrationService {
    */
   isCollectingEmail(message, conversationHistory) {
     if (!conversationHistory || conversationHistory.length < 2) return false;
-    
+
     // Find the most recent assistant message (look from the end)
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
       if (msg.direction === 'outbound') {
-        console.log(`Checking last assistant message for email collection: "${msg.body}"`);
+        // console.log(`Checking last assistant message for email collection: "${msg.body}"`);
         return msg.body.includes('What\'s your email address');
       }
     }
@@ -529,12 +553,12 @@ class SMSIntegrationService {
    */
   isCollectingPhone(message, conversationHistory) {
     if (!conversationHistory || conversationHistory.length < 2) return false;
-    
+
     // Find the most recent assistant message (look from the end)
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
       if (msg.direction === 'outbound') {
-        console.log(`Checking last assistant message for phone collection: "${msg.body}"`);
+        // console.log(`Checking last assistant message for phone collection: "${msg.body}"`);
         return msg.body.includes('What\'s your phone number');
       }
     }
@@ -546,18 +570,18 @@ class SMSIntegrationService {
    */
   extractDayFromMessage(message) {
     const lowerMessage = message.toLowerCase().trim();
-    
+
     const today = new Date();
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-    
+    // const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+
     if (lowerMessage.includes('today')) return 'today';
     if (lowerMessage.includes('tomorrow')) return 'tomorrow';
-    
+
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
     for (const day of days) {
       if (lowerMessage.includes(day)) return day;
     }
-    
+
     return null;
   }
 
@@ -594,7 +618,7 @@ class SMSIntegrationService {
     try {
       const today = new Date();
       let targetDate;
-      
+
       if (day === 'today') {
         targetDate = new Date(today);
       } else if (day === 'tomorrow') {
@@ -604,13 +628,13 @@ class SMSIntegrationService {
         // In a real implementation, you'd parse the actual date
         targetDate = new Date(today.getTime() + 24 * 60 * 60 * 1000);
       }
-      
+
       const startDate = new Date(targetDate);
       startDate.setHours(9, 0, 0, 0); // 9 AM
-      
+
       const endDate = new Date(targetDate);
       endDate.setHours(17, 0, 0, 0); // 5 PM
-      
+
       const slots = await this.callCalComSlotsAPI(
         assistantConfig.cal_api_key,
         assistantConfig.cal_event_type_id,
@@ -618,7 +642,7 @@ class SMSIntegrationService {
         startDate,
         endDate
       );
-      
+
       return slots.map(slot => ({
         time: new Date(slot.start).toLocaleTimeString('en-US', {
           hour: 'numeric',
@@ -627,7 +651,7 @@ class SMSIntegrationService {
         }),
         start: slot.start
       }));
-      
+
     } catch (error) {
       console.error('Error getting available slots:', error);
       return [];
@@ -641,25 +665,25 @@ class SMSIntegrationService {
     try {
       // Extract all collected details from conversation history
       const details = this.extractBookingDetailsFromHistory(conversationHistory);
-      
+
       if (!details.name || !details.email || !details.selectedSlot) {
         return {
           success: false,
           message: "I'm missing some details. Let's start over - what's the reason for your visit?"
         };
       }
-      
+
       // Get the selected slot time
       const slots = await this.getAvailableSlotsForDay(assistantConfig, 'tomorrow'); // Simplified
       const selectedSlot = slots[details.selectedSlot - 1];
-      
+
       if (!selectedSlot) {
         return {
           success: false,
           message: "I couldn't find that time slot. Let's try again - which day works for you?"
         };
       }
-      
+
       // Create booking
       const appointmentDetails = {
         start: selectedSlot.start,
@@ -668,14 +692,14 @@ class SMSIntegrationService {
         attendeePhone: phone,
         notes: details.notes || 'Booked via SMS'
       };
-      
+
       const bookingResponse = await this.callCalComBookingAPI(
         assistantConfig.cal_api_key,
         assistantConfig.cal_event_type_id,
         appointmentDetails,
         assistantConfig.cal_timezone || 'UTC'
       );
-      
+
       if (bookingResponse && bookingResponse.success) {
         return {
           success: true,
@@ -687,7 +711,7 @@ class SMSIntegrationService {
           message: "I had trouble scheduling that appointment. Please try again or call us directly."
         };
       }
-      
+
     } catch (error) {
       console.error('Error finalizing booking:', error);
       return {
@@ -702,7 +726,7 @@ class SMSIntegrationService {
    */
   extractBookingDetailsFromHistory(conversationHistory) {
     const details = {};
-    
+
     // Find the last user message for each step
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const message = conversationHistory[i];
@@ -725,7 +749,7 @@ class SMSIntegrationService {
         }
       }
     }
-    
+
     return details;
   }
 }

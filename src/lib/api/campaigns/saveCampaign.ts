@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getAccessToken } from "@/lib/auth";
 
 export interface SaveCampaignRequest {
   name: string;
@@ -25,47 +25,27 @@ export interface SaveCampaignResponse {
  */
 export const saveCampaign = async (data: SaveCampaignRequest): Promise<SaveCampaignResponse> => {
   try {
-    // Get user's tenant to ensure proper data isolation
-    const { data: userData } = await supabase
-      .from('users')
-      .select('tenant')
-      .eq('id', data.userId)
-      .single();
+    const token = await getAccessToken();
+    if (!token) throw new Error('No authentication token found');
 
-    const tenant = userData?.tenant || 'main';
+    const response = await fetch('/api/v1/campaigns', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
 
-    const { data: campaign, error } = await supabase
-      .from('campaigns')
-      .insert([{
-        name: data.name,
-        user_id: data.userId,
-        assistant_id: data.assistantId,
-        contact_list_id: data.contactListId || null,
-        csv_file_id: data.csvFileId || null,
-        contact_source: data.contactSource,
-        daily_cap: data.dailyCap,
-        calling_days: data.callingDays,
-        start_hour: data.startHour,
-        end_hour: data.endHour,
-        campaign_prompt: data.campaignPrompt,
-        status: 'draft',
-        execution_status: 'idle',
-        tenant: tenant  // CRITICAL: Set tenant for data isolation
-      }])
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error saving campaign:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || errorData.error || 'Failed to save campaign');
     }
 
+    const result = await response.json();
     return {
       success: true,
-      campaignId: campaign.id
+      campaignId: result.campaignId
     };
 
   } catch (error) {

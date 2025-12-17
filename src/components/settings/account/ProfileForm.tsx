@@ -32,13 +32,13 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 const defaultValues: Partial<ProfileFormValues> = {
   name: "John Doe",
   email: "john.doe@example.com",
-  company: "AI Call Center",
+  company: "Vokivo",
   bio: "AI enthusiast and call center specialist",
 };
 
 export function ProfileForm() {
   const { toast } = useToast();
-  
+
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues,
@@ -78,7 +78,7 @@ export function ProfileForm() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="email"
@@ -115,10 +115,10 @@ export function ProfileForm() {
                 <FormItem>
                   <FormLabel>Bio</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Tell us a little bit about yourself" 
-                      className="resize-none" 
-                      {...field} 
+                    <Textarea
+                      placeholder="Tell us a little bit about yourself"
+                      className="resize-none"
+                      {...field}
                     />
                   </FormControl>
                   <FormDescription>
@@ -128,7 +128,7 @@ export function ProfileForm() {
                 </FormItem>
               )}
             />
-            
+
             <div className="flex justify-end">
               <Button type="submit">Save Changes</Button>
             </div>

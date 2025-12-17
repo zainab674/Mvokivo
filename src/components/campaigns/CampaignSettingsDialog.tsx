@@ -50,7 +50,7 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
   const [contactLists, setContactLists] = useState<ContactList[]>([]);
   const [csvFiles, setCsvFiles] = useState<CsvFile[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState<CampaignSettingsData>({
     name: '',
     assistantId: '',
@@ -75,7 +75,7 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
             fetchContactLists(),
             fetchCsvFiles()
           ]);
-          
+
           setAssistants(assistantsRes.assistants);
           setContactLists(contactListsRes.contactLists);
           setCsvFiles(csvFilesRes.csvFiles);
@@ -85,20 +85,20 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
           setLoading(false);
         }
       };
-      
+
       fetchData();
     }
   }, [open, user?.id]);
 
   const handleSave = () => {
-    if (!formData.name || !formData.assistantId || 
-        (formData.contactSource === 'contact_list' && !formData.contactListId) ||
-        (formData.contactSource === 'csv_file' && !formData.csvFileId)) {
+    if (!formData.name || !formData.assistantId ||
+      (formData.contactSource === 'contact_list' && !formData.contactListId) ||
+      (formData.contactSource === 'csv_file' && !formData.csvFileId)) {
       return; // Basic validation
     }
-    
+
     onSave(formData);
-    
+
     // Reset form
     setFormData({
       name: '',
@@ -143,19 +143,19 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-xl max-h-[90vh] flex flex-col">
         <DialogHeader className="space-y-3 flex-shrink-0">
-          <DialogTitle className="text-[var(--text-xl)] font-[var(--font-semibold)] text-theme-primary">
+          <DialogTitle className="text-xl font-semibold text-foreground">
             Campaign Settings
           </DialogTitle>
-          <p className="text-[var(--text-sm)] text-theme-secondary">
+          <p className="text-sm text-muted-foreground">
             Configure your campaign parameters and preferences
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-[var(--space-2xl)] py-[var(--space-lg)]">
+        <div className="flex-1 overflow-y-auto space-y-6 py-4">
           {/* Basic Information */}
-          <div className="space-y-[var(--space-xl)]">
-            <div className="space-y-[var(--space-md)]">
-              <Label htmlFor="campaign-name" className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="campaign-name" className="text-sm font-medium text-foreground">
                 Campaign Name
               </Label>
               <Input
@@ -163,19 +163,19 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
                 placeholder="Enter campaign name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className="settings-input"
+                className="bg-background border-input"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-[var(--space-lg)]">
-              <div className="space-y-[var(--space-md)]">
-                <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">Assistant</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">Assistant</Label>
                 <Select
                   value={formData.assistantId}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, assistantId: value }))}
                   disabled={loading}
                 >
-                  <SelectTrigger className="settings-input">
+                  <SelectTrigger className="bg-background border-input">
                     <SelectValue placeholder={loading ? "Loading assistants..." : "Select an assistant"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -188,8 +188,8 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
                 </Select>
               </div>
 
-              <div className="space-y-[var(--space-md)]">
-                <Label htmlFor="daily-cap" className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">
+              <div className="space-y-2">
+                <Label htmlFor="daily-cap" className="text-sm font-medium text-foreground">
                   Daily Usage Cap
                 </Label>
                 <Input
@@ -199,23 +199,23 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
                   max="1000"
                   value={formData.dailyCap}
                   onChange={(e) => setFormData(prev => ({ ...prev, dailyCap: parseInt(e.target.value) || 0 }))}
-                  className="settings-input"
+                  className="bg-background border-input"
                 />
               </div>
             </div>
 
-            <div className="space-y-[var(--space-md)]">
-              <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">Contact Source</Label>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground">Contact Source</Label>
               <Select
                 value={formData.contactSource}
-                onValueChange={(value) => setFormData(prev => ({ 
-                  ...prev, 
+                onValueChange={(value) => setFormData(prev => ({
+                  ...prev,
                   contactSource: value as 'contact_list' | 'csv_file',
                   contactListId: '',
                   csvFileId: ''
                 }))}
               >
-                <SelectTrigger className="settings-input">
+                <SelectTrigger className="bg-background border-input">
                   <SelectValue placeholder="Select contact source" />
                 </SelectTrigger>
                 <SelectContent>
@@ -226,14 +226,14 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
             </div>
 
             {formData.contactSource === 'contact_list' && (
-              <div className="space-y-[var(--space-md)]">
-                <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">Contact List</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">Contact List</Label>
                 <Select
                   value={formData.contactListId}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, contactListId: value }))}
                   disabled={loading}
                 >
-                  <SelectTrigger className="settings-input">
+                  <SelectTrigger className="bg-background border-input">
                     <SelectValue placeholder={loading ? "Loading contact lists..." : "Select a contact list"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -248,14 +248,14 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
             )}
 
             {formData.contactSource === 'csv_file' && (
-              <div className="space-y-[var(--space-md)]">
-                <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">CSV File</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">CSV File</Label>
                 <Select
                   value={formData.csvFileId}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, csvFileId: value }))}
                   disabled={loading}
                 >
-                  <SelectTrigger className="settings-input">
+                  <SelectTrigger className="bg-background border-input">
                     <SelectValue placeholder={loading ? "Loading CSV files..." : "Select a CSV file"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -271,37 +271,37 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
           </div>
 
           {/* Campaign Prompt */}
-          <div className="space-y-[var(--space-xl)] pt-[var(--space-lg)] border-t border-theme-light">
-            <div className="space-y-[var(--space-lg)]">
-              <div className="space-y-[var(--space-md)]">
-                <Label htmlFor="campaign-prompt" className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">
+          <div className="space-y-6 pt-4 border-t border-border">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="campaign-prompt" className="text-sm font-medium text-foreground">
                   Campaign Prompt
                 </Label>
                 <Textarea
                   id="campaign-prompt"
-                  placeholder="Enter the script for your AI agent to follow during calls. Use placeholders like {name}, {email}, {phone} for personalization."
+                  placeholder="Enter the script for your AI agent to follow during calls."
                   value={formData.campaignPrompt}
                   onChange={(e) => setFormData(prev => ({ ...prev, campaignPrompt: e.target.value }))}
-                  className="settings-input min-h-[120px]"
+                  className="bg-background border-input min-h-[120px]"
                 />
-                <div className="text-[var(--text-xs)] text-theme-secondary">
+                <div className="text-xs text-muted-foreground">
                   <p className="mb-1">Available placeholders:</p>
                   <div className="flex flex-wrap gap-2">
-                    <code className="px-2 py-1 bg-theme-light rounded text-[var(--text-xs)]">{'{name}'}</code>
-                    <code className="px-2 py-1 bg-theme-light rounded text-[var(--text-xs)]">{'{email}'}</code>
-                    <code className="px-2 py-1 bg-theme-light rounded text-[var(--text-xs)]">{'{phone}'}</code>
+                    <code className="px-2 py-1 bg-muted rounded text-xs">{'{name}'}</code>
+                    <code className="px-2 py-1 bg-muted rounded text-xs">{'{email}'}</code>
+                    <code className="px-2 py-1 bg-muted rounded text-xs">{'{phone}'}</code>
                   </div>
                 </div>
               </div>
 
               {/* Prompt Preview */}
               {formData.campaignPrompt && (
-                <div className="space-y-[var(--space-md)]">
-                  <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
                     Preview (with sample data)
                   </Label>
-                  <div className="p-[var(--space-lg)] bg-theme-light rounded-lg border border-theme-border">
-                    <div className="text-[var(--text-sm)] text-theme-secondary whitespace-pre-wrap">
+                  <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                    <div className="text-sm text-foreground whitespace-pre-wrap">
                       {formData.campaignPrompt
                         .replace(/{name}/g, 'John Smith')
                         .replace(/{email}/g, 'john@example.com')
@@ -315,20 +315,20 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
           </div>
 
           {/* Schedule Settings */}
-          <div className="space-y-[var(--space-xl)] pt-[var(--space-lg)] border-t border-theme-light">
-            <div className="space-y-[var(--space-lg)]">
-              <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">
+          <div className="space-y-6 pt-4 border-t border-border">
+            <div className="space-y-4">
+              <Label className="text-sm font-medium text-foreground">
                 Calling Days
               </Label>
-              <div className="grid grid-cols-2 gap-[var(--space-lg)]">
+              <div className="grid grid-cols-2 gap-4">
                 {daysOfWeek.map((day) => (
-                  <div key={day.id} className="flex items-center space-x-[var(--space-md)]">
+                  <div key={day.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={day.id}
                       checked={formData.callingDays.includes(day.id)}
                       onCheckedChange={(checked) => handleDayToggle(day.id, checked as boolean)}
                     />
-                    <Label htmlFor={day.id} className="text-[var(--text-sm)] font-[var(--font-normal)] text-theme-primary cursor-pointer">
+                    <Label htmlFor={day.id} className="text-sm font-normal text-foreground cursor-pointer">
                       {day.label}
                     </Label>
                   </div>
@@ -336,19 +336,19 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
               </div>
             </div>
 
-            <div className="space-y-[var(--space-lg)]">
-              <Label className="text-[var(--text-sm)] font-[var(--font-medium)] text-theme-primary">
+            <div className="space-y-4">
+              <Label className="text-sm font-medium text-foreground">
                 Local Calling Hours
               </Label>
-              <div className="space-y-[var(--space-lg)]">
-                <div className="px-[var(--space-lg)]">
+              <div className="space-y-4">
+                <div className="px-2">
                   <Slider
                     value={[formData.startHour, formData.endHour === 0 ? 24 : formData.endHour]}
-                    onValueChange={([start, end]) => 
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        startHour: start, 
-                        endHour: end === 24 ? 0 : end 
+                    onValueChange={([start, end]) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        startHour: start,
+                        endHour: end === 24 ? 0 : end
                       }))
                     }
                     min={0}
@@ -357,7 +357,7 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
                     className="w-full"
                   />
                 </div>
-                <div className="flex justify-between text-[var(--text-sm)] text-theme-secondary">
+                <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Start: {formatHour(formData.startHour)}</span>
                   <span>End: {(formData.startHour === 0 && formData.endHour === 0) ? '24/7' : formatHour(formData.endHour)}</span>
                 </div>
@@ -366,16 +366,16 @@ export function CampaignSettingsDialog({ open, onOpenChange, onSave }: CampaignS
           </div>
         </div>
 
-        <DialogFooter className="flex-shrink-0 pt-[var(--space-lg)] border-t border-theme-light">
-          <div className="flex justify-end gap-[var(--space-md)]">
+        <DialogFooter className="flex-shrink-0 pt-6 border-t border-border">
+          <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSave}
-              disabled={!formData.name || !formData.assistantId || 
-                       (formData.contactSource === 'contact_list' && !formData.contactListId) ||
-                       (formData.contactSource === 'csv_file' && !formData.csvFileId)}
+              disabled={!formData.name || !formData.assistantId ||
+                (formData.contactSource === 'contact_list' && !formData.contactListId) ||
+                (formData.contactSource === 'csv_file' && !formData.csvFileId)}
               className="px-[var(--space-xl)]"
             >
               Finish
