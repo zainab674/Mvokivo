@@ -22,8 +22,8 @@ import { ModelTab } from "@/components/assistants/wizard/ModelTab";
 import { VoiceTab } from "@/components/assistants/wizard/VoiceTab";
 import { SMSTab } from "@/components/assistants/wizard/SMSTab";
 import { AnalysisTab } from "@/components/assistants/wizard/AnalysisTab";
-import { AdvancedTab } from "@/components/assistants/wizard/AdvancedTab";
 import { N8nTab } from "@/components/assistants/wizard/N8nTab";
+import { EmailTab } from "@/components/assistants/wizard/EmailTab";
 import { AssistantFormData } from "@/components/assistants/wizard/types";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 
@@ -57,6 +57,7 @@ const CreateAssistant = () => {
     { id: "model", label: "Model", icon: Settings },
     { id: "voice", label: "Voice", icon: Mic },
     { id: "sms", label: "Messages", icon: MessageSquare },
+    { id: "email", label: "Email", icon: Mail },
     { id: "analysis", label: "Analysis", icon: BarChart3 },
     { id: "advanced", label: "Advanced", icon: Sliders },
   ];
@@ -154,13 +155,16 @@ const CreateAssistant = () => {
       callSummary: "",
       successEvaluation: true,
       customSuccessPrompt: "",
-      // Analysis timeout settings (in seconds)
       summaryTimeout: 30,
       evaluationTimeout: 15,
       structuredDataTimeout: 20,
-      // Structured data configuration
       structuredDataPrompt: "",
       structuredDataProperties: {}
+    },
+    email: {
+      subject: "",
+      body: "",
+      fromEmail: ""
     },
     advanced: {
       hipaaCompliant: false,
@@ -375,6 +379,11 @@ const CreateAssistant = () => {
               whatsappNumber: (data as any).whatsapp_number || "",
               whatsappKey: (data as any).whatsapp_key || ""
             },
+            email: {
+              subject: data.post_call_email_subject || "",
+              body: data.post_call_email_body || "",
+              fromEmail: data.post_call_email_from || ""
+            },
             n8n: {
               webhookUrl: (data as any).n8n_webhook_url || "",
               webhookFields: Array.isArray((data as any).n8n_webhook_fields) ? (data as any).n8n_webhook_fields : []
@@ -488,6 +497,11 @@ const CreateAssistant = () => {
       cal_event_type_id: calEventTypeId,
       cal_event_type_slug: calEventTypeSlug,
       cal_timezone: formData.model.calTimezone || null,
+
+      // Email Integration
+      post_call_email_subject: formData.email.subject || null,
+      post_call_email_body: formData.email.body || null,
+      post_call_email_from: formData.email.fromEmail || null,
 
       // n8n Integration
       n8n_webhook_url: formData.n8n.webhookUrl || null,
@@ -765,6 +779,13 @@ const CreateAssistant = () => {
                         <AdvancedTab
                           data={formData.advanced}
                           onChange={(data) => handleFormDataChange('advanced', data)}
+                        />
+                      )}
+                      {activeTab === "email" && (
+                        <EmailTab
+                          data={formData.email}
+                          assistantName={formData.name}
+                          onChange={(data) => handleFormDataChange('email', data)}
                         />
                       )}
                       {activeTab === "n8n" && (

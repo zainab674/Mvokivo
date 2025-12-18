@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from '@/lib/api-config';
 
 export interface DeleteCsvFileRequest {
   csvFileId: string;
@@ -19,7 +20,7 @@ export const deleteCsvFile = async (data: DeleteCsvFileRequest): Promise<DeleteC
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/csv/${data.csvFileId}`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/csv/${data.csvFileId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from '@/lib/api-config';
 
 export interface CsvContactData {
   first_name: string;
@@ -29,7 +30,7 @@ export const saveCsvContacts = async (data: SaveCsvContactsRequest): Promise<Sav
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/csv/${data.csvFileId}/contacts`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/csv/${data.csvFileId}/contacts`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

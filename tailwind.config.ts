@@ -19,13 +19,13 @@ export default {
       },
       colors: {
         background: {
-          DEFAULT: 'hsl(var(--background))', 
+          DEFAULT: 'hsl(var(--background))',
           foreground: 'hsl(var(--foreground))'
         },
-        foreground: 'hsl(var(--foreground))', 
-        border: 'hsl(var(--border))', 
-        input: 'hsl(var(--input))', 
-        ring: 'hsl(var(--ring))', 
+        foreground: 'hsl(var(--foreground))',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))'
@@ -63,17 +63,23 @@ export default {
           foreground: 'hsl(var(--info-foreground))'
         }
       },
+
       typography: {
         DEFAULT: {
           css: {
-            color: 'hsl(var(--foreground))', 
-            '--tw-prose-headings': 'hsl(var(--foreground))', 
-            '--tw-prose-links': 'hsl(var(--primary))', 
+            color: 'hsl(var(--foreground))',
+            '--tw-prose-headings': 'hsl(var(--foreground))',
+            '--tw-prose-links': 'hsl(var(--primary))',
           }
         }
+      },
+      animation: {
+        "bounce-slow": "bounce 3s infinite",
+        "spin-slow": "spin 8s linear infinite",
       }
     }
   },
+
   plugins: [require("tailwindcss-animate")],
   safelist: [
     { pattern: /border-(.*)\/20/, variants: ['hover', 'dark:hover'] }

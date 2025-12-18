@@ -20,6 +20,12 @@ import whatsappRoutes from './routes/whatsapp.js';
 import whitelabelRoutes from './routes/whitelabel.js';
 import workspaceRoutes from './routes/workspace.js';
 import assistantRoutes from './routes/assistant.js';
+import emailRouter from './routes/emails.js';
+import emailCampaignsRouter from './routes/email-campaigns.js';
+import integrationRouter from './routes/integration.js';
+import callEmailRouter from './routes/call-email.js';
+import aiRoutes from './routes/ai.js';
+import { emailWorker } from './workers/email-worker.js';
 
 // Import Campaign Router (named export)
 import { campaignManagementRouter } from './campaign-management.js';
@@ -88,6 +94,11 @@ app.use('/api/v1/twilio/sms', twilioSmsRouter);
 app.use('/api/v1/twilio', twilioAdminRouter);
 app.use('/api/v1/csv', csvManagementRouter);
 app.use('/api/v1/livekit', livekitRoomRouter);
+app.use('/api/v1/emails', emailRouter);
+app.use('/api/v1/email-campaigns', emailCampaignsRouter);
+app.use('/api/v1/integrations', integrationRouter);
+app.use('/api/v1/calls', callEmailRouter);
+app.use('/api/v1/ai', aiRoutes);
 
 app.get('/api/v1/test', (req, res) => {
     res.json({ success: true, message: 'API is working' });
@@ -99,4 +110,7 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+
+    // Start Email Worker
+    emailWorker.start();
 });

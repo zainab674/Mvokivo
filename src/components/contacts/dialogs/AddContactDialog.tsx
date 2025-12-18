@@ -28,7 +28,8 @@ interface AddContactDialogProps {
     phone: string;
     email: string;
     listId: string;
-    status: 'active' | 'inactive';
+    status: 'active' | 'inactive' | 'do-not-call';
+    doNotCall: boolean;
   }) => void;
   contactLists: ContactList[];
 }
@@ -44,10 +45,11 @@ export function AddContactDialog({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [listId, setListId] = useState("");
+  const [doNotCall, setDoNotCall] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim() || !phone.trim() || !email.trim() || !listId) return;
+    if (!firstName.trim() || !phone.trim() || !listId) return; // Email and last name can be optional technically but schema says email might be needed. Let's stick to what's required in the form.
 
     onCreateContact({
       firstName: firstName.trim(),
@@ -56,6 +58,7 @@ export function AddContactDialog({
       email: email.trim(),
       listId,
       status: 'active',
+      doNotCall,
     });
 
     // Reset form
@@ -64,6 +67,7 @@ export function AddContactDialog({
     setPhone("");
     setEmail("");
     setListId("");
+    setDoNotCall(false);
     onOpenChange(false);
   };
 
@@ -73,6 +77,7 @@ export function AddContactDialog({
     setPhone("");
     setEmail("");
     setListId("");
+    setDoNotCall(false);
     onOpenChange(false);
   };
 
@@ -88,7 +93,7 @@ export function AddContactDialog({
               Add a new contact to your contact lists. All fields are required.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -104,7 +109,7 @@ export function AddContactDialog({
                   autoFocus
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="last-name" className="text-sm font-medium">
                   Last Name *
@@ -118,7 +123,7 @@ export function AddContactDialog({
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="phone" className="text-sm font-medium">
                 Phone Number *
@@ -132,7 +137,7 @@ export function AddContactDialog({
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">
                 Email Address *
@@ -146,7 +151,7 @@ export function AddContactDialog({
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="contact-list" className="text-sm font-medium">
                 Contact List *
@@ -164,8 +169,21 @@ export function AddContactDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                id="do-not-call"
+                type="checkbox"
+                checked={doNotCall}
+                onChange={(e) => setDoNotCall(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="do-not-call" className="text-sm font-medium">
+                Do Not Call (DND)
+              </Label>
+            </div>
           </div>
-          
+
           <DialogFooter className="flex gap-2">
             <Button type="button" variant="outline" onClick={handleCancel}>
               Cancel

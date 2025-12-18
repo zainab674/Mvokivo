@@ -14,7 +14,9 @@ import {
     ChevronLeft,
     ChevronRight,
     LogOut,
-    Sparkles
+    Sparkles,
+    Mail,
+    Rocket
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
@@ -35,8 +37,9 @@ export default function Sidebar() {
         { icon: <Bot size={20} />, label: "Assistants", to: "/assistants" },
         { icon: <MessageSquare size={20} />, label: "Conversations", to: "/conversations" },
         { icon: <Users size={20} />, label: "Contacts", to: "/contacts" },
-        { icon: <Megaphone size={20} />, label: "Campaigns", to: "/campaigns" },
-
+        { icon: <Rocket size={20} />, label: "Call Campaigns", to: "/campaigns" },
+        { icon: <Mail size={20} />, label: "Emails", to: "/emails" },
+        { icon: <Megaphone size={20} />, label: "Email Campaign", to: "/email-campaigns" },
     ];
 
     if (isAdmin) {

@@ -13,7 +13,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ContactFileUpload } from "@/components/contacts/ContactFileUpload";
-import { AlertTriangle, Upload, FileText, CheckCircle } from "lucide-react";
+import { AlertTriangle, Upload, FileText, CheckCircle, Loader2 } from "lucide-react";
+import { bulkCreateContacts } from "@/lib/api/contacts/bulkCreateContacts";
+import { parseContactCSV } from "@/utils/csvParser";
+import { useToast } from "@/hooks/use-toast";
 
 interface ContactList {
   id: string;
@@ -26,6 +29,7 @@ interface UploadContactsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactLists: ContactList[];
+  onSuccess?: () => void;
 }
 
 type UploadStep = 'select-list' | 'consent' | 'upload' | 'mapping';
@@ -34,11 +38,14 @@ export function UploadContactsDialog({
   open,
   onOpenChange,
   contactLists,
+  onSuccess
 }: UploadContactsDialogProps) {
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<UploadStep>('select-list');
   const [selectedListId, setSelectedListId] = useState("");
   const [consentGiven, setConsentGiven] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const handleClose = () => {
     setCurrentStep('select-list');
@@ -48,6 +55,72 @@ export function UploadContactsDialog({
     onOpenChange(false);
   };
 
+  const handleImport = async () => {
+    if (!uploadedFile || !selectedListId) return;
+
+    setIsImporting(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const csvText = e.target?.result as string;
+          const contacts = parseContactCSV(csvText).map(c => ({
+            ...c,
+            list_id: selectedListId
+          }));
+
+          if (contacts.length === 0) {
+            toast({
+              title: "Error",
+              description: "No valid contacts found in CSV. Ensure you have at least 'First Name' and either 'Phone' or 'Email' columns.",
+              variant: "destructive"
+            });
+            setIsImporting(false);
+            return;
+          }
+
+          const result = await bulkCreateContacts({
+            contacts,
+            listId: selectedListId
+          });
+
+          if (result.success) {
+            toast({
+              title: "Success",
+              description: `Successfully imported ${result.count} contacts.`,
+            });
+            onSuccess?.();
+            handleClose();
+          } else {
+            toast({
+              title: "Import Failed",
+              description: result.error || "An unknown error occurred during import.",
+              variant: "destructive"
+            });
+          }
+        } catch (error) {
+          console.error('Error processing CSV:', error);
+          toast({
+            title: "Error",
+            description: "Error processing CSV file.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsImporting(false);
+        }
+      };
+      reader.readAsText(uploadedFile);
+    } catch (error) {
+      console.error('Error reading file:', error);
+      toast({
+        title: "Error",
+        description: "Error reading file.",
+        variant: "destructive"
+      });
+      setIsImporting(false);
+    }
+  };
+
   const handleNext = () => {
     if (currentStep === 'select-list' && selectedListId) {
       setCurrentStep('consent');
@@ -55,6 +128,8 @@ export function UploadContactsDialog({
       setCurrentStep('upload');
     } else if (currentStep === 'upload' && uploadedFile) {
       setCurrentStep('mapping');
+    } else if (currentStep === 'mapping') {
+      handleImport();
     }
   };
 
@@ -184,9 +259,9 @@ export function UploadContactsDialog({
 
 
             <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>Supported formats:</strong> CSV, XLSX, XLS</p>
-              <p><strong>Required columns:</strong> First Name, Phone or Email</p>
-              <p><strong>Optional columns:</strong> Last Name, Company, Notes</p>
+              <p><strong>Supported formats:</strong> CSV, XLSX (XLSX not yet fully supported via web parser)</p>
+              <p><strong>Required columns:</strong> First Name (or Name), Phone or Email</p>
+              <p><strong>Optional columns:</strong> Last Name</p>
               <p><strong>Maximum file size:</strong> 10 MB</p>
             </div>
           </div>
@@ -197,51 +272,26 @@ export function UploadContactsDialog({
           <div className="space-y-4">
             <div className="text-center mb-6">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h3 className="font-semibold text-lg mb-2">Column Mapping</h3>
+              <h3 className="font-semibold text-lg mb-2">Ready to Import</h3>
               <p className="text-muted-foreground text-sm">
-                Map your file columns to contact fields. Required fields are marked with *.
+                File "{uploadedFile?.name}" is ready for processing. We will automatically map common headers like Name, Phone, and Email.
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
-                <div className="text-sm font-medium">Required Fields *</div>
-                <div className="text-sm font-medium">Your File Columns</div>
+            <div className="bg-muted/30 p-4 rounded-lg border border-border">
+              <div className="flex items-center gap-3 mb-2">
+                <FileText className="h-5 w-5 text-primary" />
+                <span className="font-medium">{uploadedFile?.name}</span>
               </div>
-
-              {[
-                { field: 'First Name *', type: 'text', required: true },
-                { field: 'Phone/Email *', type: 'contact', required: true },
-                { field: 'Last Name', type: 'text', required: false },
-                { field: 'Company', type: 'text', required: false },
-                { field: 'Notes', type: 'text', required: false },
-              ].map((mapping, index) => (
-                <div key={index} className="grid grid-cols-2 gap-4 p-3 border border-border rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">{mapping.field}</span>
-                    {mapping.required && (
-                      <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Required</span>
-                    )}
-                  </div>
-                  <Select defaultValue={index === 0 ? "column_a" : index === 1 ? "column_b" : ""}>
-                    <SelectTrigger className="text-sm">
-                      <SelectValue placeholder="Select column" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="column_a">Column A</SelectItem>
-                      <SelectItem value="column_b">Column B</SelectItem>
-                      <SelectItem value="column_c">Column C</SelectItem>
-                      <SelectItem value="column_d">Column D</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+              <div className="text-sm text-muted-foreground">
+                Target List: <span className="font-medium text-foreground">{selectedList?.name}</span>
+              </div>
             </div>
 
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Please ensure required fields are mapped correctly. Contacts without required information will be skipped.
+                Contacts without a name or without both email and phone will be skipped.
               </AlertDescription>
             </Alert>
           </div>
@@ -257,7 +307,7 @@ export function UploadContactsDialog({
       case 'select-list': return 'Upload Contacts - Select List';
       case 'consent': return 'Upload Contacts - Data Processing Agreement';
       case 'upload': return 'Upload Contacts - File Upload';
-      case 'mapping': return 'Upload Contacts - Column Mapping';
+      case 'mapping': return 'Upload Contacts - Confirm Import';
       default: return 'Upload Contacts';
     }
   };
@@ -266,13 +316,14 @@ export function UploadContactsDialog({
     switch (currentStep) {
       case 'select-list': return 'Choose which contact list to upload your contacts to.';
       case 'consent': return 'Please review and accept our data processing terms.';
-      case 'upload': return 'Upload your contact file (CSV or Excel format).';
-      case 'mapping': return 'Map your file columns to contact fields.';
+      case 'upload': return 'Upload your contact file (CSV format).';
+      case 'mapping': return 'Check your selection before starting the import.';
       default: return '';
     }
   };
 
   const canProceed = () => {
+    if (isImporting) return false;
     switch (currentStep) {
       case 'select-list': return selectedListId !== "";
       case 'consent': return consentGiven;
@@ -287,13 +338,13 @@ export function UploadContactsDialog({
       case 'select-list': return 'Continue';
       case 'consent': return 'I Agree - Continue';
       case 'upload': return 'Continue';
-      case 'mapping': return 'Import Contacts';
+      case 'mapping': return isImporting ? 'Importing...' : 'Import Contacts';
       default: return 'Next';
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(val) => !isImporting && onOpenChange(val)}>
       <DialogContent className="sm:max-w-2xl backdrop-blur-xl bg-background/95 border-border/50">
         <DialogHeader className="text-left">
           <DialogTitle className="text-xl font-semibold">{getStepTitle()}</DialogTitle>
@@ -307,10 +358,12 @@ export function UploadContactsDialog({
         </div>
 
         <DialogFooter className="flex gap-2">
-          <Button type="button" variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
-          {currentStep !== 'select-list' && (
+          {!isImporting && (
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+          )}
+          {currentStep !== 'select-list' && !isImporting && (
             <Button type="button" variant="outline" onClick={handleBack}>
               Back
             </Button>
@@ -318,8 +371,9 @@ export function UploadContactsDialog({
           <Button
             onClick={handleNext}
             disabled={!canProceed()}
-            className={currentStep === 'mapping' ? 'bg-green-600 hover:bg-green-700' : ''}
+            className={currentStep === 'mapping' ? 'bg-green-600 hover:bg-green-700 min-w-[120px]' : 'min-w-[100px]'}
           >
+            {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {getNextButtonText()}
           </Button>
         </DialogFooter>

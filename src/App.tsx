@@ -34,6 +34,8 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RefundPolicy from "./pages/RefundPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import Pricing from "./pages/Pricing";
+import Emails from "./pages/Emails";
+import EmailCampaigns from "./pages/EmailCampaigns";
 import ScrollToTop from "./components/ScrollToTop";
 
 // Create a client with better error handling and retry limits
@@ -134,6 +136,8 @@ function AnimatedRoutes() {
         <Route path="/conversations" element={<Conversations />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/campaigns" element={<Campaigns />} />
+        <Route path="/emails" element={<Emails />} />
+        <Route path="/email-campaigns" element={<EmailCampaigns />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/integrations" element={<Integrations />} />

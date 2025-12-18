@@ -160,6 +160,12 @@ export interface N8nData {
   webhookFields: N8nWebhookField[];
 }
 
+export interface EmailData {
+  subject: string;
+  body: string;
+  fromEmail: string;
+}
+
 export interface AssistantFormData {
   name: string;
   id: string;
@@ -168,5 +174,6 @@ export interface AssistantFormData {
   sms: SMSData;
   analysis: AnalysisData;
   advanced: AdvancedData;
+  email: EmailData;
   n8n: N8nData;
 }

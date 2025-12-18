@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Database, Users, Zap, Phone, MessageSquare, Calendar, CheckCircle2, Plus } from "lucide-react";
+import { Building2, Database, Users, Zap, Phone, MessageSquare, Calendar, CheckCircle2, Plus, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TwilioIntegrationCard } from "./integrations/TwilioIntegrationCard";
 import { SecurityCard } from "./integrations/SecurityCard";
@@ -15,6 +15,9 @@ import { TwilioCredentialsService, type UserTwilioCredentials } from "@/lib/twil
 import { CalendarCredentialsService, type UserCalendarCredentials, type CalendarCredentialsInput } from "@/lib/calendar-credentials";
 import { WhatsAppIntegrationCard } from "./WhatsAppIntegrationCard";
 import { WhatsAppCredentialsService, type UserWhatsAppCredentials } from "@/lib/whatsapp-credentials";
+import { EmailIntegrationCard } from "./EmailIntegrationCard";
+import { EmailAuthDialog } from "./EmailAuthDialog";
+import { EmailManagementDialog } from "./EmailManagementDialog";
 
 const integrations = [
 
@@ -24,7 +27,7 @@ const integrations = [
     description: "Cloud communications platform for voice, SMS, and video",
     icon: Phone,
     status: "connected",
-    category: "Communication", 
+    category: "Communication",
     brandColor: "#f22f46"
   },
 
@@ -36,6 +39,15 @@ const integrations = [
     status: "available",
     category: "Calendar",
     brandColor: "#292929"
+  },
+  {
+    id: "email",
+    name: "Email (SMTP/IMAP)",
+    description: "Connect your email for AI assistant replies and campaigns",
+    icon: Mail,
+    status: "available",
+    category: "Communication",
+    brandColor: "#ea4335"
   }
 ];
 
@@ -45,16 +57,20 @@ export function ApiIntegrations() {
   const [twilioIntegrations, setTwilioIntegrations] = useState<TwilioIntegration[]>([]);
   const [calendarIntegrations, setCalendarIntegrations] = useState<UserCalendarCredentials[]>([]);
   const [whatsappIntegrations, setWhatsappIntegrations] = useState<any[]>([]);
+  const [emailIntegrations, setEmailIntegrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showTwilioDetails, setShowTwilioDetails] = useState(false);
   const [showCalendarDetails, setShowCalendarDetails] = useState(false);
   const [showWhatsappDetails, setShowWhatsappDetails] = useState(false);
+  const [showEmailDetails, setShowEmailDetails] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   // Load credentials on component mount
   useEffect(() => {
     loadTwilioCredentials();
     loadCalendarCredentials();
     loadWhatsAppCredentials();
+    loadEmailCredentials();
   }, []);
 
   const loadTwilioCredentials = async () => {
@@ -62,7 +78,7 @@ export function ApiIntegrations() {
       setIsLoading(true);
       const credentials = await TwilioCredentialsService.getAllCredentials();
       console.log("Loaded Twilio credentials:", credentials);
-      
+
       const twilioIntegrations: TwilioIntegration[] = credentials.map(cred => ({
         id: cred.id,
         name: "Twilio",
@@ -109,7 +125,7 @@ export function ApiIntegrations() {
     try {
       const credentials = await WhatsAppCredentialsService.getAllCredentials();
       console.log("Loaded WhatsApp credentials:", credentials);
-      
+
       const whatsappIntegrations = credentials.map(cred => ({
         id: cred.id,
         name: "WhatsApp Business",
@@ -133,6 +149,20 @@ export function ApiIntegrations() {
     }
   };
 
+  const loadEmailCredentials = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/v1/integrations`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      const data = await res.json();
+      if (data.email) {
+        setEmailIntegrations(data.email);
+      }
+    } catch (e) {
+      console.error("Error loading email credentials:", e);
+    }
+  };
+
   // Helper functions
   const maskAccountSid = (accountSid: string): string => {
     if (accountSid.length <= 8) return accountSid;
@@ -143,10 +173,10 @@ export function ApiIntegrations() {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return "Just now";
     if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
   };
@@ -174,16 +204,22 @@ export function ApiIntegrations() {
         status: whatsappIntegrations.length > 0 ? "connected" : "available"
       };
     }
+    if (integration.id === "email") {
+      return {
+        ...integration,
+        status: emailIntegrations.length > 0 ? "connected" : "available"
+      };
+    }
     return integration;
   });
 
-  const filteredIntegrations = activeCategory === "all" 
-    ? updatedIntegrations 
+  const filteredIntegrations = activeCategory === "all"
+    ? updatedIntegrations
     : updatedIntegrations.filter(integration => integration.category.toLowerCase() === activeCategory);
 
   const getCategoryCount = (category: string) => {
-    return category === "all" 
-      ? updatedIntegrations.length 
+    return category === "all"
+      ? updatedIntegrations.length
       : updatedIntegrations.filter(integration => integration.category.toLowerCase() === category).length;
   };
 
@@ -206,11 +242,11 @@ export function ApiIntegrations() {
       console.log("Saving credentials...");
       await TwilioCredentialsService.saveCredentials(data);
       console.log("Credentials saved successfully");
-      
+
       console.log("Loading Twilio credentials...");
       await loadTwilioCredentials();
       console.log("Twilio credentials loaded");
-      
+
       toast({
         title: "Twilio connected",
         description: "Your Twilio account has been connected successfully. A main trunk will be created automatically.",
@@ -230,7 +266,7 @@ export function ApiIntegrations() {
     try {
       await TwilioCredentialsService.deleteCredentials(id);
       await loadTwilioCredentials();
-      
+
       toast({
         title: "Integration removed",
         description: "The Twilio integration has been removed successfully.",
@@ -248,13 +284,13 @@ export function ApiIntegrations() {
   useEffect(() => {
     console.log("twilioIntegrations updated:", twilioIntegrations);
   }, [twilioIntegrations]);
-  
+
 
   const handleRefreshIntegration = async (id: string) => {
     try {
       await TwilioCredentialsService.setActiveCredentials(id);
       await loadTwilioCredentials();
-      
+
       toast({
         title: "Integration refreshed",
         description: "The Twilio integration has been set as active.",
@@ -274,7 +310,7 @@ export function ApiIntegrations() {
     try {
       await CalendarCredentialsService.saveCredentials(data);
       await loadCalendarCredentials();
-      
+
       toast({
         title: "Calendar connected",
         description: "Your calendar integration has been connected successfully.",
@@ -294,7 +330,7 @@ export function ApiIntegrations() {
     try {
       await CalendarCredentialsService.deleteCredentials(id);
       await loadCalendarCredentials();
-      
+
       toast({
         title: "Integration removed",
         description: "The calendar integration has been removed successfully.",
@@ -313,7 +349,7 @@ export function ApiIntegrations() {
     try {
       await CalendarCredentialsService.setActiveCredentials(id);
       await loadCalendarCredentials();
-      
+
       toast({
         title: "Integration refreshed",
         description: "The calendar integration has been set as active.",
@@ -334,19 +370,24 @@ export function ApiIntegrations() {
       setShowTwilioDetails(!showTwilioDetails);
       return;
     }
-    
+
     if (integration.id === "calcom") {
       // Toggle calendar details visibility
       setShowCalendarDetails(!showCalendarDetails);
       return;
     }
-    
+
     if (integration.id === "whatsapp") {
       // Toggle WhatsApp details visibility
       setShowWhatsappDetails(!showWhatsappDetails);
       return;
     }
-    
+
+    if (integration.id === "email") {
+      setEmailDialogOpen(true);
+      return;
+    }
+
     // For other integrations, show coming soon or redirect
     console.log(`Connecting to ${integration.name}`);
     toast({
@@ -357,11 +398,11 @@ export function ApiIntegrations() {
 
   const IntegrationCard = ({ integration }: { integration: typeof integrations[0] }) => {
     const IconComponent = integration.icon;
-    
+
     // Check if integration is actually connected
     const isConnected = integration.status === "connected";
 
-    
+
     // Debug logging for integrations
     if (integration.id === "twilio") {
       console.log("Twilio integration debug:", {
@@ -371,7 +412,7 @@ export function ApiIntegrations() {
         isLoading
       });
     }
-    
+
     if (integration.id === "calcom") {
       console.log("Calendar integration debug:", {
         calendarIntegrationsLength: calendarIntegrations.length,
@@ -380,22 +421,22 @@ export function ApiIntegrations() {
         isLoading
       });
     }
-    
+
     return (
       <Card className="group relative border-border/60 bg-card/50 backdrop-blur-sm hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 h-full">
         <div className="p-4 h-full flex flex-col">
           {/* Header with Icon and Status */}
           <div className="flex items-start justify-between mb-3">
-            <div 
+            <div
               className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-300"
               style={{ backgroundColor: `${integration.brandColor}15` }}
             >
-              <IconComponent 
-                className="w-4 h-4" 
+              <IconComponent
+                className="w-4 h-4"
                 style={{ color: integration.brandColor }}
               />
             </div>
-            
+
             {isConnected && (
               <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-xs px-1.5 py-0.5">
                 <CheckCircle2 className="w-2.5 h-2.5 mr-1" />
@@ -403,21 +444,21 @@ export function ApiIntegrations() {
               </Badge>
             )}
           </div>
-          
+
           {/* Content */}
           <div className="flex-1 mb-4">
-          <h3
-  className="font-semibold text-foreground text-sm mb-2 group-hover:text-primary transition-colors leading-tight"
-  onClick={integration.id === "twilio" ? () => handleIntegrationClick(integration) : undefined}
->
-  {integration.name}
-</h3>
+            <h3
+              className="font-semibold text-foreground text-sm mb-2 group-hover:text-primary transition-colors leading-tight cursor-pointer"
+              onClick={() => handleIntegrationClick(integration)}
+            >
+              {integration.name}
+            </h3>
 
             <p className="text-muted-foreground text-xs leading-relaxed line-clamp-2">
               {integration.description}
             </p>
           </div>
-          
+
           {/* Action Button */}
           <div className="mt-auto">
             {integration.id === "twilio" ? (
@@ -442,8 +483,25 @@ export function ApiIntegrations() {
                   Manage
                 </Button>
               </CalendarAuthDialog>
+            ) : integration.id === "email" ? (
+              <EmailManagementDialog
+                open={emailDialogOpen}
+                onOpenChange={setEmailDialogOpen}
+                emailIntegrations={emailIntegrations}
+                handleEmailConnect={handleEmailConnect}
+                handleRemoveEmailIntegration={handleRemoveEmailIntegration}
+              >
+                <Button
+                  variant="outline"
+                  className="w-full text-sm h-8 relative z-10 flex items-center justify-center gap-1.5"
+                  size="sm"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Manage
+                </Button>
+              </EmailManagementDialog>
             ) : (
-              <Button 
+              <Button
                 variant={isConnected ? "outline" : "default"}
                 className="w-full text-sm h-8 relative z-10 flex items-center justify-center gap-1.5"
                 size="sm"
@@ -484,7 +542,7 @@ export function ApiIntegrations() {
           <TabsTrigger value="all" className="text-sm font-medium data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
             All ({getCategoryCount("all")})
           </TabsTrigger>
-         
+
           <TabsTrigger value="communication" className="text-sm font-medium data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
             Communication ({getCategoryCount("communication")})
           </TabsTrigger>
@@ -507,12 +565,12 @@ export function ApiIntegrations() {
           )}
         </TabsContent>
       </Tabs>
-      
+
       {/* Twilio Integration Details - Only show when toggled */}
       {showTwilioDetails && twilioIntegrations.length > 0 && (
         <div className="mt-8 transition-all duration-300 ease-in-out">
           <h3 className="text-lg font-semibold text-foreground mb-4">Connected Twilio Accounts</h3>
-          <TwilioIntegrationCard 
+          <TwilioIntegrationCard
             integrations={twilioIntegrations}
             onSuccess={handleTwilioConnect}
             onRemove={handleRemoveIntegration}
@@ -520,12 +578,12 @@ export function ApiIntegrations() {
           />
         </div>
       )}
-      
+
       {/* Calendar Integration Details - Only show when toggled */}
       {showCalendarDetails && calendarIntegrations.length > 0 && (
         <div className="mt-8 transition-all duration-300 ease-in-out">
           <h3 className="text-lg font-semibold text-foreground mb-4">Connected Calendar Accounts</h3>
-          <CalendarIntegrationCard 
+          <CalendarIntegrationCard
             integrations={calendarIntegrations}
             onSuccess={handleCalendarConnect}
             onRemove={handleRemoveCalendarIntegration}
@@ -533,21 +591,59 @@ export function ApiIntegrations() {
           />
         </div>
       )}
-      
+
       {/* WhatsApp Integration Details - Only show when toggled */}
       {showWhatsappDetails && whatsappIntegrations.length > 0 && (
         <div className="mt-8 transition-all duration-300 ease-in-out">
           <h3 className="text-lg font-semibold text-foreground mb-4">Connected WhatsApp Accounts</h3>
-          <WhatsAppIntegrationCard 
+          <WhatsAppIntegrationCard
             integrations={whatsappIntegrations}
             onIntegrationsChange={setWhatsappIntegrations}
           />
         </div>
       )}
-      
+
+
       <SecurityCard />
-      
+
       <div className="mb-20"></div>
     </div>
   );
+
+  async function handleEmailConnect(data: any) {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/v1/integrations/email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        toast({ title: "Connected", description: "Email account connected successfully" });
+        loadEmailCredentials();
+      } else {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to connect email");
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  }
+
+  async function handleRemoveEmailIntegration(email: string) {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/v1/integrations/email/${email}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+      });
+      if (res.ok) {
+        toast({ title: "Removed", description: "Email account removed" });
+        loadEmailCredentials();
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  }
 }

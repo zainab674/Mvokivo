@@ -45,7 +45,7 @@ interface Contact {
   listName: string;
   status: 'active' | 'inactive' | 'do-not-call';
   created: string;
-  doNotCall?: boolean;
+  doNotCall: boolean;
 }
 
 interface CSVFile {
@@ -56,51 +56,9 @@ interface CSVFile {
   data: CSVContact[];
 }
 
-interface CSVContact {
-  first_name: string;
-  last_name: string;
-  phone: string;
-  email: string;
-  status: 'active' | 'inactive' | 'do-not-call';
-  do_not_call: boolean;
-}
 
 
-// CSV parsing utility function
-const parseCSV = (csvText: string): CSVContact[] => {
-  const lines = csvText.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
-  const data: CSVContact[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(',').map(v => v.trim().replace(/['"]/g, ''));
-    if (values.length !== headers.length) continue;
-
-    const row: any = {};
-    headers.forEach((header, index) => {
-      row[header] = values[index] || '';
-    });
-
-    // Map common column names to our interface
-    const contact: CSVContact = {
-      first_name: row.first_name || row.firstname || row.first || row.fname || '',
-      last_name: row.last_name || row.lastname || row.last || row.lname || '',
-      phone: row.phone || row.phone_number || row.telephone || row.mobile || '',
-      email: row.email || row.email_address || row.e_mail || '',
-      status: (row.status || 'active') as 'active' | 'inactive' | 'do-not-call',
-      do_not_call: row.do_not_call === 'true' || row.dnd === 'true' || row.do_not_call === '1' || row.dnd === '1' || false
-    };
-
-    // Only add if we have at least first name and either phone or email
-    if (contact.first_name && (contact.phone || contact.email)) {
-      data.push(contact);
-    }
-  }
-
-  return data;
-};
+import { parseContactCSV, ParsedContact as CSVContact } from "@/utils/csvParser";
 
 export default function Contacts() {
   const { user } = useAuth();
@@ -161,7 +119,7 @@ export default function Contacts() {
         listName: contact.list_name,
         status: contact.status,
         created: contact.created_at.split('T')[0],
-        doNotCall: contact.do_not_call
+        doNotCall: !!contact.do_not_call
       }));
       setContacts(transformedContacts);
 
@@ -194,7 +152,15 @@ export default function Contacts() {
     await loadContacts();
   };
 
-  const handleCreateContact = async (contactData: Omit<Contact, 'id' | 'listName' | 'created'>) => {
+  const handleCreateContact = async (contactData: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    email: string;
+    listId: string;
+    status: 'active' | 'inactive' | 'do-not-call';
+    doNotCall: boolean;
+  }) => {
     // Refresh data after creating contact
     await loadContacts();
   };
@@ -226,12 +192,20 @@ export default function Contacts() {
     if (!file) return;
 
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      alert('Please upload a CSV file');
+      toast({
+        title: "Invalid file",
+        description: "Please upload a CSV file",
+        variant: "destructive"
+      });
       return;
     }
 
     if (!user?.id) {
-      alert('Please log in to upload CSV files');
+      toast({
+        title: "Authentication required",
+        description: "Please log in to upload CSV files",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -242,10 +216,14 @@ export default function Contacts() {
       reader.onload = async (e) => {
         try {
           const csvText = e.target?.result as string;
-          const csvData = parseCSV(csvText);
+          const csvData = parseContactCSV(csvText);
 
           if (csvData.length === 0) {
-            alert('No valid contact data found in CSV file');
+            toast({
+              title: "No data",
+              description: "No valid contact data found in CSV file. Check if headers are correct.",
+              variant: "destructive"
+            });
             setIsUploading(false);
             return;
           }
@@ -261,7 +239,11 @@ export default function Contacts() {
           const csvFileResult = await saveCsvFile(csvFileData);
 
           if (!csvFileResult.success || !csvFileResult.csvFileId) {
-            alert('Failed to save CSV file: ' + csvFileResult.error);
+            toast({
+              title: "Upload Failed",
+              description: 'Failed to save CSV file: ' + csvFileResult.error,
+              variant: "destructive"
+            });
             setIsUploading(false);
             return;
           }
@@ -276,7 +258,11 @@ export default function Contacts() {
           const csvContactsResult = await saveCsvContacts(csvContactsData);
 
           if (!csvContactsResult.success) {
-            alert('Failed to save CSV contacts: ' + csvContactsResult.error);
+            toast({
+              title: "Upload Failed",
+              description: 'Failed to save CSV contacts: ' + csvContactsResult.error,
+              variant: "destructive"
+            });
             setIsUploading(false);
             return;
           }
@@ -295,9 +281,17 @@ export default function Contacts() {
           setShowCsvPreview(true);
 
           alert(`Successfully uploaded ${csvContactsResult.savedCount} contacts from ${file.name}`);
+          toast({
+            title: "Success",
+            description: `Successfully uploaded ${csvContactsResult.savedCount} contacts from ${file.name}`,
+          });
         } catch (error) {
           console.error('Error processing CSV file:', error);
-          alert('Error processing CSV file: ' + (error instanceof Error ? error.message : 'Unknown error'));
+          toast({
+            title: "Error",
+            description: 'Error processing CSV file: ' + (error instanceof Error ? error.message : 'Unknown error'),
+            variant: "destructive"
+          });
         } finally {
           setIsUploading(false);
         }
@@ -305,7 +299,11 @@ export default function Contacts() {
       reader.readAsText(file);
     } catch (error) {
       console.error('Error reading file:', error);
-      alert('Error reading file: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: "Error",
+        description: 'Error reading file: ' + (error instanceof Error ? error.message : 'Unknown error'),
+        variant: "destructive"
+      });
       setIsUploading(false);
     }
   };
@@ -337,7 +335,11 @@ export default function Contacts() {
         ));
       } catch (error) {
         console.error('Error loading CSV contacts:', error);
-        alert('Error loading CSV contacts: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        toast({
+          title: "Error",
+          description: 'Error loading CSV contacts: ' + (error instanceof Error ? error.message : 'Unknown error'),
+          variant: "destructive"
+        });
       }
     }
   };
@@ -376,12 +378,20 @@ export default function Contacts() {
         if (result.campaigns) {
           setCsvToDelete(prev => prev ? { ...prev, campaigns: result.campaigns } : null);
         } else {
-          alert('Error deleting CSV file: ' + result.error);
+          toast({
+            title: "Delete Failed",
+            description: 'Error deleting CSV file: ' + result.error,
+            variant: "destructive"
+          });
         }
       }
     } catch (error) {
       console.error('Error deleting CSV file:', error);
-      alert('Error deleting CSV file: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: "Error",
+        description: 'Error deleting CSV file: ' + (error instanceof Error ? error.message : 'Unknown error'),
+        variant: "destructive"
+      });
     } finally {
       setDeletingCsv(false);
     }
@@ -494,8 +504,8 @@ export default function Contacts() {
               <div className="space-y-2">
                 <div
                   className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedList === "all" && !showCsvPreview
-                      ? "bg-primary/10 border border-primary/20 text-primary"
-                      : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                    ? "bg-primary/10 border border-primary/20 text-primary"
+                    : "hover:bg-accent hover:text-accent-foreground border border-transparent"
                     }`}
                   onClick={() => {
                     setSelectedList("all");
@@ -515,8 +525,8 @@ export default function Contacts() {
                   <div
                     key={list.id}
                     className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedList === list.id && !showCsvPreview
-                        ? "bg-primary/10 border border-primary/20 text-primary"
-                        : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                      ? "bg-primary/10 border border-primary/20 text-primary"
+                      : "hover:bg-accent hover:text-accent-foreground border border-transparent"
                       }`}
                     onClick={() => {
                       setSelectedList(list.id);
@@ -559,8 +569,8 @@ export default function Contacts() {
                     <div
                       key={file.id}
                       className={`flex items-center justify-between p-3 rounded-lg transition-all group cursor-pointer ${selectedCsvFile === file.id && showCsvPreview
-                          ? "bg-primary/10 border border-primary/20 text-primary"
-                          : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                        ? "bg-primary/10 border border-primary/20 text-primary"
+                        : "hover:bg-accent hover:text-accent-foreground border border-transparent"
                         }`}
                       onClick={(e) => {
                         e.preventDefault();
@@ -710,10 +720,10 @@ export default function Contacts() {
                                 <Badge
                                   variant={contact.status === 'active' ? 'default' : contact.status === 'inactive' ? 'secondary' : 'destructive'}
                                   className={`text-xs ${contact.status === 'active'
-                                      ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                                      : contact.status === 'inactive'
-                                        ? 'bg-muted text-muted-foreground border-border'
-                                        : 'bg-destructive/10 text-destructive border-destructive/20'
+                                    ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                    : contact.status === 'inactive'
+                                      ? 'bg-muted text-muted-foreground border-border'
+                                      : 'bg-destructive/10 text-destructive border-destructive/20'
                                     }`}
                                 >
                                   {contact.status}
@@ -843,6 +853,7 @@ export default function Contacts() {
         open={uploadContactsOpen}
         onOpenChange={setUploadContactsOpen}
         contactLists={contactLists}
+        onSuccess={loadContacts}
       />
 
       <DeleteCsvFileDialog

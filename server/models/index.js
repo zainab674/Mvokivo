@@ -174,6 +174,25 @@ const userCalendarCredentialSchema = new mongoose.Schema({
 
 export const UserCalendarCredential = mongoose.model('UserCalendarCredential', userCalendarCredentialSchema);
 
+const userEmailCredentialSchema = new mongoose.Schema({
+    user_id: { type: String, required: true },
+    provider: { type: String, enum: ['smtp', 'gmail', 'outlook'], default: 'smtp' },
+    smtpHost: String,
+    smtpPort: Number,
+    smtpUser: String,
+    smtpPass: String,
+    imapHost: String,
+    imapPort: Number,
+    imapUser: String,
+    imapPass: String,
+    email: { type: String, required: true },
+    isActive: { type: Boolean, default: true },
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
+});
+
+export const UserEmailCredential = mongoose.model('UserEmailCredential', userEmailCredentialSchema);
+
 const calendarEventTypeSchema = new mongoose.Schema({
     calendar_credential_id: { type: String, required: true },
     event_type_id: String,
@@ -417,6 +436,98 @@ const csvContactSchema = new mongoose.Schema({
 });
 
 export const CsvContact = mongoose.model('CsvContact', csvContactSchema);
+
+const emailCampaignSchema = new mongoose.Schema({
+    userId: {
+        type: String, // Changed to String to match MananUltratalk ID pattern
+        required: true,
+        index: true
+    },
+    name: {
+        type: String,
+        required: true
+    },
+    assistantId: {
+        type: String,
+        required: true
+    },
+    emailIntegrationId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'UserEmailCredential',
+        required: true
+    },
+    contactSource: {
+        type: String,
+        enum: ['contact_list', 'csv_file'],
+        required: true
+    },
+    contactListId: String,
+    csvFileId: String,
+    subject: {
+        type: String,
+        required: true
+    },
+    body: {
+        type: String,
+        required: true
+    },
+    attachmentPath: String,
+    attachmentOriginalName: String,
+    status: {
+        type: String,
+        enum: ['draft', 'sending', 'completed', 'failed', 'paused'],
+        default: 'draft'
+    },
+    stats: {
+        sent: { type: Number, default: 0 },
+        delivered: { type: Number, default: 0 },
+        failed: { type: Number, default: 0 },
+        replies: { type: Number, default: 0 }
+    },
+    totalRecipients: { type: Number, default: 0 }
+}, {
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+});
+
+export const EmailCampaign = mongoose.model('EmailCampaign', emailCampaignSchema);
+
+const emailLogSchema = new mongoose.Schema({
+    userId: {
+        type: String,
+        required: true,
+        index: true
+    },
+    assistantId: String,
+    campaignId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'EmailCampaign'
+    },
+    from: String,
+    to: String,
+    subject: String,
+    body: String,
+    direction: {
+        type: String,
+        enum: ['inbound', 'outbound'],
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['sent', 'received', 'failed'],
+        default: 'sent'
+    },
+    threadId: String,
+    inReplyTo: String,
+    hasAttachments: Boolean,
+    messageId: String,
+    error: String,
+    created_at: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+export const EmailLog = mongoose.model('EmailLog', emailLogSchema);
 
 const whitelabelSettingsSchema = new mongoose.Schema({
     domain: { type: String, unique: true, required: true },

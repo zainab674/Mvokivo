@@ -11,6 +11,9 @@ import {
   X,
   Bot,
   MessageSquare,
+  Mail,
+  Megaphone,
+  Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -44,6 +47,9 @@ export function Sidebar() {
     { icon: <Bot size={20} className="text-primary/80" />, label: "Assistants", to: "/assistants" },
     { icon: <Phone size={20} className="text-primary/80" />, label: "Calls", to: "/calls" },
     { icon: <MessageSquare size={20} className="text-primary/80" />, label: "Conversations", to: "/conversations" },
+    { icon: <Rocket size={20} className="text-primary/80" />, label: "Call Campaigns", to: "/campaigns" },
+    { icon: <Mail size={20} className="text-primary/80" />, label: "Emails", to: "/emails" },
+    { icon: <Megaphone size={20} className="text-primary/80" />, label: "Email Campaign", to: "/email-campaigns" },
     { icon: <Settings size={20} className="text-primary/80" />, label: "Settings", to: "/settings" },
   ];
 

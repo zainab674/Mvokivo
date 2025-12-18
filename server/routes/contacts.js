@@ -171,6 +171,43 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * Bulk create contacts
+ * POST /api/v1/contacts/bulk
+ */
+router.post('/bulk', async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { contacts, listId } = req.body;
+
+        if (!contacts || !Array.isArray(contacts)) {
+            return res.status(400).json({ success: false, message: 'Contacts array is required' });
+        }
+
+        const contactsToInsert = contacts.map(c => ({
+            user_id: userId,
+            name: c.name || (c.first_name + (c.last_name ? ` ${c.last_name}` : '')),
+            email: c.email,
+            phone: c.phone || c.phone_number,
+            list_id: listId || c.listId || c.list_id || null,
+            tenant: req.tenant,
+            created_at: new Date(),
+            updated_at: new Date()
+        }));
+
+        const result = await Contact.insertMany(contactsToInsert);
+
+        res.json({
+            success: true,
+            message: `Successfully imported ${result.length} contacts`,
+            count: result.length
+        });
+    } catch (error) {
+        console.error('Error bulk creating contacts:', error);
+        res.status(500).json({ success: false, message: 'Failed to bulk create contacts' });
+    }
+});
+
+/**
  * Update a contact
  * PUT /api/v1/contacts/:id
  */

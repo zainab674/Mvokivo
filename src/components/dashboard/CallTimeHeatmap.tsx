@@ -36,7 +36,7 @@ export default function CallTimeHeatmap({ callLogs = [] }: CallTimeHeatmapProps)
           <div className="ml-16 h-[calc(100%-32px)] p-2">
             <HeatmapGrid heatmapData={heatmapData} />
           </div>
-          
+
           {/* X-axis labels (days) */}
           <div className="absolute bottom-0 left-16 right-0 grid grid-cols-7 gap-1 px-2">
             {DAYS.map((day, index) => (
