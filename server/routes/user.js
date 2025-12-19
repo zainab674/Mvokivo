@@ -14,6 +14,40 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 
 /**
+ * Get user profile
+ * GET /api/v1/user/profile
+ */
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ id: req.user.id }).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+/**
+ * Get user profile
+ * GET /api/v1/user/profile
+ */
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ id: req.user.id }).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, user });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+/**
  * Update user profile
  * PUT /api/v1/user/profile
  */
@@ -73,6 +107,50 @@ router.post('/onboarding', authenticateToken, async (req, res) => {
     if (tenant) updates.tenant = tenant;
     if (slug_name) updates.slug_name = slug_name;
 
+    // Fetch plan configuration to get minutes allocation
+    if (plan) {
+      try {
+        const { PlanConfig } = await import('../models/index.js');
+
+        // Determine tenant for plan lookup
+        const planTenant = tenant && tenant !== 'main' ? tenant : null;
+
+        // Find the plan configuration
+        const planConfig = await PlanConfig.findOne({
+          plan_key: plan.toLowerCase(),
+          tenant: planTenant,
+          is_active: true
+        });
+
+        if (planConfig) {
+          // Assign minutes based on plan configuration
+          if (planConfig.minutes !== undefined && planConfig.minutes !== null) {
+            updates.minutes_limit = Number(planConfig.minutes);
+            console.log(`Assigned ${planConfig.minutes} minutes to user ${userId} based on plan ${plan}`);
+          } else if (planConfig.pay_as_you_go) {
+            // Pay as you go plan - no minutes included
+            updates.minutes_limit = 0;
+            console.log(`User ${userId} on pay-as-you-go plan ${plan} - no minutes included`);
+          } else {
+            // Unlimited or unspecified
+            updates.minutes_limit = 0;
+            console.log(`User ${userId} on plan ${plan} with unlimited/unspecified minutes`);
+          }
+        } else {
+          console.warn(`Plan configuration not found for plan: ${plan}, tenant: ${planTenant}`);
+          // Default to 0 minutes if plan not found
+          updates.minutes_limit = 0;
+        }
+      } catch (error) {
+        console.error('Error fetching plan configuration:', error);
+        // Continue with onboarding even if plan fetch fails
+        updates.minutes_limit = 0;
+      }
+    }
+
+    // Reset minutes_used to 0 for new onboarding
+    updates.minutes_used = 0;
+
     const user = await User.findOneAndUpdate(
       { id: userId },
       { $set: updates },
@@ -85,6 +163,7 @@ router.post('/onboarding', authenticateToken, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 
 /**
  * Complete signup with white label support
@@ -779,5 +858,81 @@ router.post('/settings', authenticateToken, async (req, res) => {
   }
 });
 
+/**
+ * Change user's plan
+ * POST /api/v1/user/change-plan
+ */
+router.post('/change-plan', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { newPlan } = req.body;
+
+    if (!newPlan) {
+      return res.status(400).json({ success: false, message: 'New plan is required' });
+    }
+
+    const user = await User.findOne({ id: userId });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Determine tenant for plan lookup
+    const planTenant = user.tenant && user.tenant !== 'main' ? user.tenant : null;
+
+    // Find the new plan configuration
+    const { PlanConfig } = await import('../models/index.js');
+    const planConfig = await PlanConfig.findOne({
+      plan_key: newPlan.toLowerCase(),
+      tenant: planTenant,
+      is_active: true
+    });
+
+    if (!planConfig) {
+      return res.status(404).json({ success: false, message: 'Plan not found' });
+    }
+
+    // Update user's plan and reset minutes
+    const updates = {
+      plan: newPlan.toLowerCase(),
+      updated_at: new Date()
+    };
+
+    // Assign minutes based on new plan configuration
+    if (planConfig.minutes !== undefined && planConfig.minutes !== null) {
+      updates.minutes_limit = Number(planConfig.minutes);
+      console.log(`Assigned ${planConfig.minutes} minutes to user ${userId} for new plan ${newPlan}`);
+    } else if (planConfig.pay_as_you_go) {
+      // Pay as you go plan - no minutes included
+      updates.minutes_limit = 0;
+      console.log(`User ${userId} switched to pay-as-you-go plan ${newPlan} - no minutes included`);
+    } else {
+      // Unlimited or unspecified
+      updates.minutes_limit = 0;
+      console.log(`User ${userId} switched to plan ${newPlan} with unlimited/unspecified minutes`);
+    }
+
+    // Reset minutes_used to 0 when changing plans
+    updates.minutes_used = 0;
+
+    const updatedUser = await User.findOneAndUpdate(
+      { id: userId },
+      { $set: updates },
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      user: updatedUser,
+      message: 'Plan changed successfully',
+      minutesAssigned: updates.minutes_limit
+    });
+
+  } catch (error) {
+    console.error('Error changing plan:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 export default router;
+
 

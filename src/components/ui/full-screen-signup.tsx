@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff, Loader2, ArrowRight, Sparkles, Shield, Zap } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight, Sparkles, Shield, Zap, User, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
+import { extractTenantFromHostname } from "@/lib/tenant-utils";
 
 const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -78,6 +79,9 @@ export const FullScreenSignup = () => {
       localStorage.removeItem("onboarding-state");
       localStorage.removeItem("onboarding-completed");
 
+      // Extract tenant from current hostname (subdomain)
+      const tenant = extractTenantFromHostname();
+
       // Store signup data in localStorage instead of creating auth user
       // User will be created after onboarding is complete
       const signupData = {
@@ -85,7 +89,8 @@ export const FullScreenSignup = () => {
         email: data.email,
         password: data.password,
         phone: data.phone,
-        countryCode: data.countryCode
+        countryCode: data.countryCode,
+        tenant: tenant !== 'main' ? tenant : null // Include tenant if on whitelabel subdomain
       };
 
       localStorage.setItem("signup-data", JSON.stringify(signupData));
@@ -108,289 +113,207 @@ export const FullScreenSignup = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center overflow-hidden p-4 relative">
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
-      <div className="absolute inset-0 bg-[url('/src/assets/glass-bg.png')] bg-cover bg-center opacity-[0.03] pointer-events-none" />
+    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4">
+      {/* Background decoration */}
+      <div className="fixed inset-0 bg-[#7c3aed] opacity-90 z-0" />
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(255,255,255,0.1)_0%,_transparent_50%)] z-0" />
 
-      {/* Animated Gradient Orbs */}
-      <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+      <div className="w-full max-w-5xl bg-white rounded-[30px] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[650px] relative z-10">
 
-      <div className="w-full max-w-6xl mx-auto relative z-10">
-        <div className="grid lg:grid-cols-2 gap-8 items-center">
-          {/* Left Section - Brand/Features */}
-          <div className="hidden lg:flex flex-col space-y-8 text-left">
-            <div className="space-y-4">
-              {websiteSettings?.logo && (
-                <div className="mb-6">
-                  <img
-                    src={websiteSettings.logo}
-                    alt={websiteSettings.website_name || "Logo"}
-                    className="h-12 w-auto object-contain"
-                  />
-                </div>
-              )}
-              <h1 className="text-5xl font-bold tracking-tight text-foreground leading-tight">
-                Start your journey with{" "}
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-primary">
-                  {websiteSettings?.website_name || "Vokivo"}
-                </span>
-              </h1>
-              <p className="text-xl text-muted-foreground leading-relaxed">
-                Join thousands of businesses using AI to transform their customer communication.
-              </p>
+        {/* Left Side - Form (White) */}
+        <div className="w-full md:w-[60%] bg-white p-8 md:p-14 flex flex-col justify-center">
+          <div className="max-w-md w-full mx-auto space-y-8">
+            <div className="text-center">
+              <h1 className="text-4xl font-bold text-[#7c3aed]">Create Account</h1>
             </div>
 
-            <div className="space-y-4 pt-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Sparkles className="w-5 h-5 text-primary" />
+            {/* Social Logins */}
+            <div className="flex gap-4 justify-center">
+              <button
+                type="button"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                <span className="text-sm font-medium text-gray-500">Sign in with google</span>
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="w-5 h-5 bg-[#1877f2] rounded flex items-center justify-center">
+                  <span className="text-white text-[10px] font-bold">f</span>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">AI-Powered Analytics</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Get real-time insights and analytics for all your calls
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Zap className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">Real-Time Monitoring</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Track performance and optimize your call center operations
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Shield className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">Enterprise Security</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Bank-level encryption and compliance standards
-                  </p>
-                </div>
-              </div>
+                <span className="text-sm font-medium text-gray-500">Sign in with facebook</span>
+              </button>
             </div>
-          </div>
 
-          {/* Right Section - Sign Up Form */}
-          <div className="w-full">
-            <div className="w-full max-w-md mx-auto backdrop-blur-xl bg-zinc-900/50 border border-zinc-800/50 rounded-2xl shadow-2xl p-8">
-              {/* Header */}
-              <div className="flex flex-col items-start mb-8">
-                {websiteSettings?.logo && (
-                  <div className="mb-4 lg:hidden">
-                    <img
-                      src={websiteSettings.logo}
-                      alt={websiteSettings.website_name || "Logo"}
-                      className="h-10 w-auto object-contain"
-                    />
-                  </div>
-                )}
-                <h2 className="text-3xl font-bold mb-2 tracking-tight text-foreground">
-                  Create your account
-                </h2>
-                <p className="text-muted-foreground text-base">
-                  Get started with {websiteSettings?.website_name || "Vokivo"} today
-                </p>
-              </div>
+            <div className="relative flex items-center">
+              <div className="flex-grow border-t border-gray-100"></div>
+              <span className="flex-shrink mx-4 text-gray-400 text-xs uppercase">or use your email address for registration</span>
+              <div className="flex-grow border-t border-gray-100"></div>
+            </div>
 
-              {/* Form */}
-              <form className="flex flex-col gap-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+              <div className="space-y-3">
                 {/* Full Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium">
-                    Full Name
-                  </Label>
-                  <Input
-                    type="text"
-                    id="name"
-                    placeholder="John Doe"
-                    className="w-full h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50"
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <input
                     {...register("name")}
+                    id="name"
+                    type="text"
+                    placeholder="Name"
+                    className="w-full pl-12 pr-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                   />
                   {errors.name && (
-                    <p className="text-destructive text-xs mt-1">{errors.name.message}</p>
+                    <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.name.message}</p>
                   )}
                 </div>
 
-                {/* Email */}
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium">
-                    Email address
-                  </Label>
-                  <Input
-                    type="email"
-                    id="email"
-                    placeholder="name@company.com"
-                    className="w-full h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50"
+                {/* Email address */}
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <input
                     {...register("email")}
+                    id="email"
+                    type="email"
+                    placeholder="Email address"
+                    className="w-full pl-12 pr-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                   />
                   {errors.email && (
-                    <p className="text-destructive text-xs mt-1">{errors.email.message}</p>
+                    <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.email.message}</p>
                   )}
                 </div>
 
                 {/* Phone Number */}
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-medium">
-                    Phone Number
-                  </Label>
-                  <div className="flex gap-3">
-                    <Select
-                      value={selectedCountry?.code}
-                      onValueChange={(value) => {
-                        const country = countryCodes.find(c => c.code === value);
-                        setSelectedCountry(country || countryCodes[0]);
-                        setValue("countryCode", value);
-                      }}
-                    >
-                      <SelectTrigger className="w-28 h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50">
-                        <SelectValue>
-                          <span className="text-sm">{selectedCountry?.flag}</span>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="backdrop-blur-xl border-zinc-700 bg-zinc-900 z-50">
-                        {countryCodes.map((country, index) => (
-                          <SelectItem
-                            key={`${country.code}-${country.country}-${index}`}
-                            value={country.code}
-                            className="hover:bg-zinc-800 focus:bg-zinc-800"
-                          >
-                            <span className="flex items-center gap-2 text-sm">
-                              <span>{country.flag}</span>
-                              <span>{country.code}</span>
-                              <span className="text-muted-foreground">{country.country}</span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedCountry?.code}
+                    onValueChange={(value) => {
+                      const country = countryCodes.find(c => c.code === value);
+                      setSelectedCountry(country || countryCodes[0]);
+                      setValue("countryCode", value);
+                    }}
+                  >
+                    <SelectTrigger className="w-24 h-12 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20">
+                      <SelectValue>
+                        <span className="text-base">{selectedCountry?.flag}</span>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      {countryCodes.map((country, index) => (
+                        <SelectItem key={`${country.code}-${index}`} value={country.code}>
+                          <span className="flex items-center gap-2">
+                            <span>{country.flag}</span>
+                            <span className="font-medium">{country.code}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex-1 relative group">
+                    <input
+                      {...register("phone")}
                       id="phone"
                       type="tel"
                       placeholder="Phone number"
-                      className="flex-1 h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50"
-                      {...register("phone")}
+                      className="w-full px-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                     />
+                    {errors.phone && (
+                      <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.phone.message}</p>
+                    )}
                   </div>
-                  {errors.phone && (
-                    <p className="text-destructive text-xs mt-1">{errors.phone.message}</p>
-                  )}
                 </div>
 
                 {/* Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      id="password"
-                      placeholder="Create a strong password"
-                      className="w-full pr-12 h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50"
-                      {...register("password")}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 p-0 hover:bg-zinc-800 text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
+                    <Lock className="w-5 h-5" />
                   </div>
-                  {errors.password && (
-                    <p className="text-destructive text-xs mt-1">{errors.password.message}</p>
-                  )}
-                </div>
-
-                {/* Terms and Conditions */}
-                <div className="flex items-start space-x-3 pt-1">
-                  <Checkbox
-                    id="acceptTerms"
-                    checked={acceptTerms || false}
-                    onCheckedChange={(checked) => setValue("acceptTerms", checked as boolean)}
-                    className="mt-1 border-zinc-700"
+                  <input
+                    {...register("password")}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Password"
+                    className="w-full pl-12 pr-12 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                   />
-                  <Label
-                    htmlFor="acceptTerms"
-                    className="text-xs text-muted-foreground leading-relaxed cursor-pointer"
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    I agree to the{" "}
-                    <Link to="/terms" className="text-primary underline hover:no-underline font-medium">
-                      Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link to="/privacy" className="text-primary underline hover:no-underline font-medium">
-                      Privacy Policy
-                    </Link>
-                  </Label>
-                </div>
-                {errors.acceptTerms && (
-                  <p className="text-destructive text-xs -mt-2">{errors.acceptTerms.message}</p>
-                )}
-
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors mt-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    <>
-                      Create account
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                  {errors.password && (
+                    <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.password.message}</p>
                   )}
-                </Button>
-
-                {/* Alternative Method */}
-                <div className="relative my-2">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-zinc-700" />
-                  </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-zinc-900/50 px-3 text-muted-foreground font-medium">or</span>
-                  </div>
                 </div>
+              </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-11 bg-zinc-800/50 border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-600"
-                >
-                  Continue with email code
-                </Button>
+              <div className="flex items-start space-x-3 pt-2">
+                <Checkbox
+                  id="acceptTerms"
+                  checked={acceptTerms || false}
+                  onCheckedChange={(checked) => setValue("acceptTerms", checked as boolean)}
+                  className="mt-1 border-gray-300 data-[state=checked]:bg-[#7c3aed] data-[state=checked]:border-[#7c3aed]"
+                />
+                <Label htmlFor="acceptTerms" className="text-[11px] text-gray-500 leading-relaxed cursor-pointer">
+                  I agree to the <Link to="/terms" className="text-[#7c3aed] font-semibold hover:underline">Terms of Service</Link> and <Link to="/privacy" className="text-[#7c3aed] font-semibold hover:underline">Privacy Policy</Link>
+                </Label>
+              </div>
+              {errors.acceptTerms && (
+                <p className="text-[10px] text-red-500 -mt-1 pl-2">{errors.acceptTerms.message}</p>
+              )}
 
-                {/* Sign In Link */}
-                <div className="text-center text-muted-foreground text-sm pt-2">
-                  Already have an account?{" "}
-                  <Link to="/login" className="text-primary hover:underline font-medium transition-colors">
-                    Sign in
-                  </Link>
-                </div>
-              </form>
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-14 bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-full text-lg font-bold shadow-lg shadow-[#7c3aed]/20 transition-all active:scale-[0.98] uppercase tracking-wider mt-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  "Sign Up"
+                )}
+              </Button>
+            </form>
+
+            <div className="text-center text-sm text-gray-500">
+              <span>Already have an account? </span>
+              <Link to="/login" className="text-[#7c3aed] font-bold hover:underline">
+                Log In
+              </Link>
             </div>
+          </div>
+        </div>
+
+        {/* Right Side - Info (Purple) */}
+        <div className="w-full md:w-[40%] bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] p-12 text-white flex flex-col items-center justify-center text-center space-y-8 relative overflow-hidden order-first md:order-last">
+          {/* Animated Background Waves */}
+          <div className="absolute inset-0 opacity-20 transform scale-x-[-1]">
+            <svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+              <path d="M0,1000 C300,800 400,950 700,700 C900,500 1000,600 1000,0 L0,0 Z" fill="white" opacity="0.1" />
+              <path d="M1000,1000 C700,800 600,950 300,700 C100,500 0,600 0,0 L1000,0 Z" fill="white" opacity="0.05" />
+            </svg>
+          </div>
+
+          <div className="relative z-10 space-y-4">
+            <h2 className="text-4xl font-bold">Welcome</h2>
+            <p className="text-sm opacity-90 leading-relaxed max-w-[250px] mx-auto">
+              To keep connected with us and get latest update, please log in with your gmail or facebook or email address
+            </p>
+            <Link to="/login">
+              <Button
+                variant="outline"
+                className="mt-8 rounded-full border-2 border-white bg-transparent text-white hover:bg-white hover:text-[#7c3aed] px-10 h-12 uppercase font-bold transition-all"
+              >
+                Log In
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

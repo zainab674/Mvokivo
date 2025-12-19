@@ -75,21 +75,21 @@
   --glass-opacity-premium: 0.9;
 
   /* Neutral Accents */
-  --neutral-accent-subtle: 220 15% 20% / 0.40;
-  --neutral-accent-light: 210 20% 25% / 0.50;
-  --neutral-accent-medium: 200 25% 30% / 0.60;
-  --neutral-accent-strong: 190 30% 35% / 0.70;
-  --neutral-glow: 180 100% 50% / 0.15;
-  /* Cyan glow */
-  --neutral-atmosphere: 210 20% 10% / 0.30;
+  --neutral-accent-subtle: 240 5% 15% / 0.40;
+  --neutral-accent-light: 240 5% 20% / 0.50;
+  --neutral-accent-medium: 240 5% 25% / 0.60;
+  --neutral-accent-strong: 240 5% 30% / 0.70;
+  --neutral-glow: 0 0% 100% / 0.15;
+  /* White glow */
+  --neutral-atmosphere: 240 5% 10% / 0.30;
 
-  /* Tech Shadows - Sharper, Glowy */
-  --shadow-xs: 0 0 2px hsl(var(--primary) / 0.2);
-  --shadow-sm: 0 0 4px hsl(var(--primary) / 0.2);
-  --shadow-md: 0 0 8px hsl(var(--primary) / 0.25);
-  --shadow-lg: 0 0 16px hsl(var(--primary) / 0.3);
-  --shadow-xl: 0 0 24px hsl(var(--primary) / 0.35);
-  --shadow-2xl: 0 0 40px hsl(var(--primary) / 0.4);
+  /* Tech Shadows - Neutral */
+  --shadow-xs: 0 0 2px hsl(var(--foreground) / 0.05);
+  --shadow-sm: 0 0 4px hsl(var(--foreground) / 0.05);
+  --shadow-md: 0 0 8px hsl(var(--foreground) / 0.1);
+  --shadow-lg: 0 0 16px hsl(var(--foreground) / 0.15);
+  --shadow-xl: 0 0 24px hsl(var(--foreground) / 0.2);
+  --shadow-2xl: 0 0 40px hsl(var(--foreground) / 0.25);
 
   /* Theme Surface System */
   --surface-base: var(--background);

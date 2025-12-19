@@ -21,7 +21,9 @@ import {
   Settings as SettingsIcon,
   ExternalLink,
   ChevronRight,
+  Plus,
 } from "lucide-react";
+import { TwilioAuthDialog } from "../TwilioAuthDialog";
 
 interface TwilioIntegrationCardProps {
   integrations: TwilioIntegration[];
@@ -39,8 +41,8 @@ export function TwilioIntegrationCard({
   return (
     <div className="space-y-4">
       {integrations.map((integration) => (
-        <div 
-          key={integration.id} 
+        <div
+          key={integration.id}
           className="rounded-lg border p-4 transition-all hover:bg-secondary/20"
         >
           <div className="flex items-center justify-between">
@@ -61,10 +63,10 @@ export function TwilioIntegrationCard({
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-2">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0"
                 onClick={() => onRefresh(integration.id)}
@@ -72,7 +74,7 @@ export function TwilioIntegrationCard({
                 <span className="sr-only">Refresh</span>
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive">
@@ -89,7 +91,7 @@ export function TwilioIntegrationCard({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
+                    <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => onRemove(integration.id)}
                     >
@@ -100,10 +102,10 @@ export function TwilioIntegrationCard({
               </AlertDialog>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full sm:w-auto justify-start"
               size="sm"
             >
@@ -111,9 +113,9 @@ export function TwilioIntegrationCard({
               Configure Settings
               <ChevronRight className="ml-auto h-4 w-4" />
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               className="w-full sm:w-auto justify-start"
               size="sm"
             >
@@ -124,6 +126,16 @@ export function TwilioIntegrationCard({
           </div>
         </div>
       ))}
+
+      <TwilioAuthDialog onSuccess={onSuccess}>
+        <Button
+          variant="outline"
+          className="w-full border-dashed border-2 h-12 hover:bg-secondary/20"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Account
+        </Button>
+      </TwilioAuthDialog>
     </div>
   );
 }

@@ -437,47 +437,55 @@ export default function Contacts() {
     );
   }
 
+
   return (
     <DashboardLayout>
-      <div className="h-screen flex flex-col bg-background">
+      <div className="flex flex-col h-full bg-background overflow-hidden">
         {/* Top Header Bar */}
-        <div className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
+        <div className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
+          <div className="container mx-auto px-4 sm:px-6 py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-semibold text-foreground mb-1">
+                <h1 className="text-xl sm:text-2xl font-semibold text-foreground mb-1">
                   Contacts
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {totalContacts} {totalContacts === 1 ? 'contact' : 'contacts'} • {activeContacts} active
                 </p>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <Button
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="h-9"
+                  className="h-8 sm:h-9 text-xs sm:text-sm flex-1 sm:flex-none"
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isUploading ? 'Uploading...' : 'Upload CSV'}
+                  <Upload className="h-3.5 w-3.5 mr-1.5 sm:mr-2" />
+                  {isUploading ? '...' : (
+                    <>
+                      <span className="hidden sm:inline">Upload CSV</span>
+                      <span className="sm:hidden">CSV</span>
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setUploadContactsOpen(true)}
-                  className="h-9"
+                  className="h-8 sm:h-9 text-xs sm:text-sm flex-1 sm:flex-none"
                 >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload List
+                  <Upload className="h-3.5 w-3.5 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Upload List</span>
+                  <span className="sm:hidden">List</span>
                 </Button>
                 <Button
                   onClick={() => setAddContactOpen(true)}
-                  className="h-9"
+                  className="h-8 sm:h-9 text-xs sm:text-sm flex-1 sm:flex-none"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Contact
+                  <Plus className="h-3.5 w-3.5 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Add Contact</span>
+                  <span className="sm:hidden">Add</span>
                 </Button>
               </div>
             </div>
@@ -485,165 +493,154 @@ export default function Contacts() {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex min-h-0 overflow-hidden">
-          {/* Left Sidebar - Contact Lists & CSV Files */}
-          <div className="w-72 flex-shrink-0 border-r border-border bg-card/50 backdrop-blur-sm overflow-y-auto">
-            <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-foreground">Contact Lists</h2>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setAddListOpen(true)}
-                  className="h-7 w-7 p-0 hover:bg-accent"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                <div
-                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedList === "all" && !showCsvPreview
-                    ? "bg-primary/10 border border-primary/20 text-primary"
-                    : "hover:bg-accent hover:text-accent-foreground border border-transparent"
-                    }`}
-                  onClick={() => {
-                    setSelectedList("all");
-                    setShowCsvPreview(false);
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <Users className="h-4 w-4" />
-                    <span className="font-medium text-sm">All Contacts</span>
-                  </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {totalContacts}
-                  </Badge>
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
+          {/* Left Sidebar - Contact Lists & CSV Files (Mobile Horizontal Scroll) */}
+          <div className="lg:w-72 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-border bg-card/50 backdrop-blur-sm overflow-x-auto lg:overflow-y-auto no-scrollbar">
+            <div className="flex lg:flex-col p-2 lg:p-6 gap-6">
+              {/* Contact Lists Section */}
+              <div className="flex lg:flex-col flex-shrink-0 sm:min-w-[200px] lg:min-w-0">
+                <div className="hidden lg:flex items-center justify-between mb-4">
+                  <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Contact Lists</h2>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setAddListOpen(true)}
+                    className="h-7 w-7 p-0 hover:bg-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
 
-                {contactLists.map(list => (
+                <div className="flex lg:flex-col gap-2">
                   <div
-                    key={list.id}
-                    className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${selectedList === list.id && !showCsvPreview
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all whitespace-nowrap lg:whitespace-normal ${selectedList === "all" && !showCsvPreview
                       ? "bg-primary/10 border border-primary/20 text-primary"
-                      : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                      : "hover:bg-accent hover:text-accent-foreground border border-transparent text-muted-foreground"
                       }`}
                     onClick={() => {
-                      setSelectedList(list.id);
+                      setSelectedList("all");
                       setShowCsvPreview(false);
                     }}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-primary" />
-                      <span className="font-medium text-sm">{list.name}</span>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Users className="h-4 w-4" />
+                      <span className="font-medium text-xs sm:text-sm">All Contacts</span>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {list.count}
+                    <Badge variant="secondary" className="hidden lg:flex text-xs">
+                      {totalContacts}
                     </Badge>
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* CSV Files Section */}
-            <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-semibold text-foreground">CSV Files</h2>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="h-7 w-7 p-0 hover:bg-accent"
-                >
-                  <Upload className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+                  {contactLists.map(list => (
+                    <div
+                      key={list.id}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all whitespace-nowrap lg:whitespace-normal ${selectedList === list.id && !showCsvPreview
+                        ? "bg-primary/10 border border-primary/20 text-primary"
+                        : "hover:bg-accent hover:text-accent-foreground border border-transparent text-muted-foreground"
+                        }`}
+                      onClick={() => {
+                        setSelectedList(list.id);
+                        setShowCsvPreview(false);
+                      }}
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <div className={`w-1.5 h-1.5 rounded-full ${selectedList === list.id ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                        <span className="font-medium text-xs sm:text-sm">{list.name}</span>
+                      </div>
+                      <Badge variant="secondary" className="hidden lg:flex text-xs">
+                        {list.count}
+                      </Badge>
+                    </div>
+                  ))}
 
-              {csvFiles.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground text-sm">
-                  No CSV files uploaded yet
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="lg:hidden h-8 px-2 text-muted-foreground"
+                    onClick={() => setAddListOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
-              ) : (
-                <div className="space-y-2">
+              </div>
+
+              {/* CSV Files Section */}
+              <div className="flex lg:flex-col flex-shrink-0 sm:min-w-[200px] lg:min-w-0 border-l lg:border-l-0 lg:border-t border-border/50 pl-4 lg:pl-0 lg:pt-6">
+                <div className="hidden lg:flex items-center justify-between mb-4">
+                  <h2 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">CSV Files</h2>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-7 w-7 p-0 hover:bg-accent"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+
+                <div className="flex lg:flex-col gap-2">
                   {csvFiles.map(file => (
                     <div
                       key={file.id}
-                      className={`flex items-center justify-between p-3 rounded-lg transition-all group cursor-pointer ${selectedCsvFile === file.id && showCsvPreview
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg transition-all group cursor-pointer whitespace-nowrap lg:whitespace-normal ${selectedCsvFile === file.id && showCsvPreview
                         ? "bg-primary/10 border border-primary/20 text-primary"
-                        : "hover:bg-accent hover:text-accent-foreground border border-transparent"
+                        : "hover:bg-accent hover:text-accent-foreground border border-transparent text-muted-foreground"
                         }`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         handleCsvFileSelect(file.id);
                       }}
-                      style={{ position: 'relative', zIndex: 10, pointerEvents: 'auto' }}
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                         <FileText className="h-4 w-4 flex-shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm truncate">
+                        <div className="min-w-0 flex-1 lg:block hidden">
+                          <div className="font-medium text-xs sm:text-sm truncate">
                             {file.name}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {file.rowCount} contacts
+                          <div className="text-[10px] opacity-70">
+                            {file.rowCount} rows
                           </div>
                         </div>
+                        <span className="lg:hidden text-xs sm:text-sm font-medium">{file.name}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs">
-                          {file.rowCount}
-                        </Badge>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveCsvFile(file.id);
-                          }}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 hidden lg:flex opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveCsvFile(file.id);
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-
-            {/* Stats Section */}
-            <div className="p-6">
-              <div className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  <div className="flex justify-between mb-2">
-                    <span>Total Contacts</span>
-                    <span className="font-semibold text-foreground">{totalContacts}</span>
-                  </div>
-                  <div className="flex justify-between mb-2">
-                    <span>Active</span>
-                    <span className="font-semibold text-green-500">{activeContacts}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Inactive</span>
-                    <span className="font-semibold text-orange-500">{totalContacts - activeContacts}</span>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="lg:hidden h-8 px-2 text-muted-foreground"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col min-h-0 bg-background/50">
+          <div className="flex-1 flex flex-col min-h-0 bg-background/50 overflow-hidden">
             {/* Search Bar */}
-            <div className="flex-shrink-0 p-4 border-b border-border bg-background/95 backdrop-blur-sm">
-              <div className="relative max-w-md">
+            <div className="flex-shrink-0 p-3 sm:p-4 border-b border-border bg-background/95 backdrop-blur-sm">
+              <div className="relative w-full sm:max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder={showCsvPreview ? "Search CSV contacts..." : "Search contacts..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-9 h-9 sm:h-10 text-xs sm:text-sm"
                 />
               </div>
             </div>
@@ -657,176 +654,190 @@ export default function Contacts() {
               className="hidden"
             />
 
-            {/* Contacts Table or CSV Preview */}
-            <div className="flex-1 overflow-auto">
+            {/* Table Area */}
+            <div className="flex-1 overflow-auto custom-scrollbar">
               {showCsvPreview && selectedCsvData ? (
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
                     <div>
                       <h3 className="text-lg font-semibold text-foreground mb-1">
                         CSV Preview: {selectedCsvData.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {selectedCsvData.rowCount} contacts • Uploaded on {selectedCsvData.uploadedAt}
+                        {selectedCsvData.rowCount} contacts • {selectedCsvData.uploadedAt}
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowCsvPreview(false);
-                        setSelectedCsvFile(null);
-                      }}
-                      className="h-9 hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Regular Contacts
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleRemoveCsvFile(selectedCsvData.id)}
+                        className="sm:hidden flex-1 h-9"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Delete CSV
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowCsvPreview(false);
+                          setSelectedCsvFile(null);
+                        }}
+                        className="h-9 flex-1 sm:flex-none"
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Regular Contacts
+                      </Button>
+                    </div>
                   </div>
 
-                  <div className="bg-card rounded-lg border border-border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-b border-border hover:bg-transparent">
-                          <TableHead className="w-[200px] text-foreground font-semibold text-sm">Name</TableHead>
-                          <TableHead className="w-[250px] text-foreground font-semibold text-sm">Email</TableHead>
-                          <TableHead className="w-[160px] text-foreground font-semibold text-sm">Phone Number</TableHead>
-                          <TableHead className="w-[120px] text-foreground font-semibold text-sm">Status</TableHead>
-                          <TableHead className="w-[100px] text-foreground font-semibold text-sm">DND</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedCsvData.data
-                          .filter(contact => {
-                            if (!searchQuery) return true;
-                            return (
-                              contact.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              contact.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              contact.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              contact.phone.includes(searchQuery)
-                            );
-                          })
-                          .map((contact, index) => (
-                            <TableRow key={index} className="border-b border-border hover:bg-accent/50 transition-colors">
-                              <TableCell className="font-medium text-foreground">
-                                {contact.first_name} {contact.last_name}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {contact.email || '-'}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {contact.phone ? formatPhoneNumber(contact.phone) : '-'}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge
-                                  variant={contact.status === 'active' ? 'default' : contact.status === 'inactive' ? 'secondary' : 'destructive'}
-                                  className={`text-xs ${contact.status === 'active'
-                                    ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                                    : contact.status === 'inactive'
-                                      ? 'bg-muted text-muted-foreground border-border'
-                                      : 'bg-destructive/10 text-destructive border-destructive/20'
-                                    }`}
-                                >
-                                  {contact.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {contact.do_not_call ? (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Yes
+                  <div className="bg-card rounded-xl border border-border/60 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-b border-border/60 hover:bg-transparent">
+                            <TableHead className="min-w-[150px] text-foreground font-semibold text-xs sm:text-sm">Name</TableHead>
+                            <TableHead className="min-w-[200px] text-foreground font-semibold text-xs sm:text-sm">Email</TableHead>
+                            <TableHead className="min-w-[140px] text-foreground font-semibold text-xs sm:text-sm">Phone Number</TableHead>
+                            <TableHead className="min-w-[100px] text-foreground font-semibold text-xs sm:text-sm text-center">Status</TableHead>
+                            <TableHead className="min-w-[80px] text-foreground font-semibold text-xs sm:text-sm text-center">DND</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedCsvData.data
+                            .filter(contact => {
+                              if (!searchQuery) return true;
+                              return (
+                                contact.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                contact.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                contact.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                contact.phone.includes(searchQuery)
+                              );
+                            })
+                            .map((contact, index) => (
+                              <TableRow key={index} className="border-b border-border/40 hover:bg-accent/30 transition-colors">
+                                <TableCell className="font-medium text-foreground text-xs sm:text-sm">
+                                  {contact.first_name} {contact.last_name}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs sm:text-sm">
+                                  {contact.email || '-'}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs sm:text-sm">
+                                  {contact.phone ? formatPhoneNumber(contact.phone) : '-'}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] ${contact.status === 'active'
+                                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                                      : 'bg-muted text-muted-foreground border-border'
+                                      }`}
+                                  >
+                                    {contact.status}
                                   </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">No</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {contact.do_not_call ? (
+                                    <Badge variant="destructive" className="text-[10px]">
+                                      Yes
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">No</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="p-6">
-                  <div className="bg-card rounded-lg border border-border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-b border-border hover:bg-transparent">
-                          <TableHead className="w-[200px] text-foreground font-semibold text-sm">Name</TableHead>
-                          <TableHead className="w-[250px] text-foreground font-semibold text-sm">Email</TableHead>
-                          <TableHead className="w-[160px] text-foreground font-semibold text-sm">Phone Number</TableHead>
-                          <TableHead className="w-[120px] text-foreground font-semibold text-sm">List</TableHead>
-                          <TableHead className="w-[100px] text-foreground font-semibold text-sm">DND</TableHead>
-                          <TableHead className="w-[60px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredContacts.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-12">
-                              <div className="text-muted-foreground">
-                                <div className="w-16 h-16 mx-auto mb-4 bg-muted rounded-2xl flex items-center justify-center border border-border">
-                                  <Users className="w-8 h-8 text-muted-foreground" />
-                                </div>
-                                <p className="text-foreground font-medium mb-1">
-                                  {searchQuery ? "No contacts found" : "No contacts yet"}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {searchQuery ? "Try adjusting your search." : "Add your first contact to get started."}
-                                </p>
-                              </div>
-                            </TableCell>
+                <div className="p-4 sm:p-6">
+                  <div className="bg-card rounded-xl border border-border/60 overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-b border-border/60 hover:bg-transparent">
+                            <TableHead className="min-w-[150px] text-foreground font-semibold text-xs sm:text-sm">Name</TableHead>
+                            <TableHead className="min-w-[200px] text-foreground font-semibold text-xs sm:text-sm">Email</TableHead>
+                            <TableHead className="min-w-[140px] text-foreground font-semibold text-xs sm:text-sm">Phone Number</TableHead>
+                            <TableHead className="min-w-[100px] text-foreground font-semibold text-xs sm:text-sm">List</TableHead>
+                            <TableHead className="min-w-[80px] text-foreground font-semibold text-xs sm:text-sm text-center">DND</TableHead>
+                            <TableHead className="w-[60px]"></TableHead>
                           </TableRow>
-                        ) : (
-                          filteredContacts.map(contact => (
-                            <TableRow key={contact.id} className="border-b border-border hover:bg-accent/50 transition-colors">
-                              <TableCell className="font-medium text-foreground">
-                                {contact.firstName} {contact.lastName}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {contact.email}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                {formatPhoneNumber(contact.phone)}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
-                                {contact.listName}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                {contact.doNotCall ? (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Yes
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground text-sm">No</span>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-accent">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="bg-zinc-800/95 border-zinc-700/50 backdrop-blur-sm">
-                                    <DropdownMenuItem
-                                      onClick={() => handleEditContact(contact)}
-                                      className="text-white hover:bg-zinc-700/50"
-                                    >
-                                      Edit Contact
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      className="text-red-400 hover:bg-red-600/20"
-                                      onClick={() => handleDeleteContact(contact)}
-                                    >
-                                      Delete Contact
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredContacts.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center py-12">
+                                <div className="text-muted-foreground">
+                                  <div className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-4 bg-muted rounded-2xl flex items-center justify-center border border-border">
+                                    <Users className="w-6 sm:w-8 h-6 sm:h-8 text-muted-foreground" />
+                                  </div>
+                                  <p className="text-foreground font-medium mb-1 text-sm sm:text-base">
+                                    {searchQuery ? "No contacts found" : "No contacts yet"}
+                                  </p>
+                                  <p className="text-xs sm:text-sm text-muted-foreground">
+                                    {searchQuery ? "Try adjusting your search." : "Add your first contact to get started."}
+                                  </p>
+                                </div>
                               </TableCell>
                             </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
+                          ) : (
+                            filteredContacts.map(contact => (
+                              <TableRow key={contact.id} className="border-b border-border/40 hover:bg-accent/30 transition-colors">
+                                <TableCell className="font-medium text-foreground text-xs sm:text-sm">
+                                  {contact.firstName} {contact.lastName}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs sm:text-sm">
+                                  {contact.email}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs sm:text-sm">
+                                  {formatPhoneNumber(contact.phone)}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground text-xs sm:text-sm">
+                                  {contact.listName}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {contact.doNotCall ? (
+                                    <Badge variant="destructive" className="text-[10px]">
+                                      Yes
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground text-xs">No</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="bg-zinc-900 border-zinc-800">
+                                      <DropdownMenuItem
+                                        onClick={() => handleEditContact(contact)}
+                                        className="text-xs"
+                                      >
+                                        Edit Contact
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-red-400 text-xs"
+                                        onClick={() => handleDeleteContact(contact)}
+                                      >
+                                        Delete Contact
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </div>
               )}

@@ -3,7 +3,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Phone, Clock, Mic, MicOff, MessageSquare, Users } from "lucide-react";
+
+import { Phone, Clock, Mic, MicOff, MessageSquare, Users, Video, Share2, Volume2, Image, Plus, ChevronUp, MoreHorizontal, ChevronLeft } from "lucide-react";
+
 import { format, isSameDay } from "date-fns";
 import { Conversation } from "./types";
 import { MessageBubble } from "./MessageBubble";
@@ -18,15 +20,20 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
+
 
 interface MessageThreadProps {
   conversation: Conversation;
   messageFilter: 'all' | 'calls' | 'sms';
   onMessageFilterChange: (filter: 'all' | 'calls' | 'sms') => void;
+  onBack?: () => void;
 }
 
-export function MessageThread({ conversation, messageFilter, onMessageFilterChange }: MessageThreadProps) {
+export function MessageThread({ conversation, messageFilter, onMessageFilterChange, onBack }: MessageThreadProps) {
 
   // Debug: Log when conversation prop changes
   useEffect(() => {
@@ -40,7 +47,11 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
       lastActivity: conversation.lastActivityTimestamp?.toISOString()
     });
   }, [conversation]);
+
+  const { user } = useAuth();
+
   const [assistants, setAssistants] = useState<Assistant[]>([]);
+
   const [loadingAssistants, setLoadingAssistants] = useState(false);
   const [phoneMappings, setPhoneMappings] = useState<PhoneNumberMapping[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("all");
@@ -53,23 +64,59 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
   // Load assistants and phone mappings on component mount
   useEffect(() => {
     const loadData = async () => {
+      if (!user?.id) {
+        console.warn('🔍 [DIAGNOSTIC] loadData skipped - no user ID');
+        return;
+      }
+
       setLoadingAssistants(true);
       try {
-        const [assistantsResponse, phoneMappingsResponse] = await Promise.all([
-          fetchAssistants(),
-          fetchPhoneNumberMappings()
+        console.log('🔍 [DIAGNOSTIC] loadData started for user:', user.id);
+
+        // Fetch both but handle them separately so one failure doesn't block the other
+        const fetchResults = await Promise.allSettled([
+          fetchAssistants(user.id),
+          fetchPhoneNumberMappings(user.id)
         ]);
-        setAssistants(assistantsResponse.assistants);
-        setPhoneMappings(phoneMappingsResponse.mappings);
+
+        const assistantsRes = fetchResults[0];
+        const mappingsRes = fetchResults[1];
+
+        if (assistantsRes.status === 'fulfilled' && assistantsRes.value) {
+          const data = assistantsRes.value;
+          console.log('🔍 [DIAGNOSTIC] Assistants Response:', data);
+          if (data.assistants) {
+            console.log(`🔍 [DIAGNOSTIC] Found ${data.assistants.length} assistants`);
+            setAssistants(data.assistants);
+          } else {
+            console.warn('🔍 [DIAGNOSTIC] Assistants list is missing in response object:', data);
+            setAssistants([]);
+          }
+        } else {
+          console.error('🔍 [DIAGNOSTIC] Failed to fetch assistants:', assistantsRes.status === 'rejected' ? assistantsRes.reason : 'Invalid response');
+          setAssistants([]);
+        }
+
+        if (mappingsRes.status === 'fulfilled' && mappingsRes.value) {
+          const data = mappingsRes.value;
+          console.log('🔍 [DIAGNOSTIC] Phone Mappings Response:', data);
+          if (data.mappings) {
+            setPhoneMappings(data.mappings);
+          }
+        } else {
+          console.error('🔍 [DIAGNOSTIC] Failed to fetch phone mappings:', mappingsRes.status === 'rejected' ? mappingsRes.reason : 'Invalid response');
+        }
+
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('🔍 [DIAGNOSTIC] Unexpected error in loadData:', error);
       } finally {
         setLoadingAssistants(false);
       }
     };
 
     loadData();
-  }, []);
+  }, [user?.id]);
+
 
   // Debug message filter changes - moved after allMessages declaration
 
@@ -241,8 +288,14 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
     }
 
     // Fallback to formatted phone number if no name found
-    return formatPhoneNumber(conversation.phoneNumber);
+    const name = formatPhoneNumber(conversation.phoneNumber);
+    if (name === 'Web Call' || name.toLowerCase() === 'unknown') {
+      return 'Web Call';
+    }
+    return name;
   };
+
+
 
   // Helper function to get assistant ID for a phone number
   const getAssistantIdForPhoneNumber = (phoneNumber: string): string | null => {
@@ -260,42 +313,60 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
     return mapping?.number || null;
   };
 
+
+
   // Convert calls to messages with proper grouping using created_at timestamp
-  const callMessages = conversation.calls.map(call => ({
-    id: call.id,
-    type: 'call' as const,
-    timestamp: new Date(call.created_at || `${call.date}T${call.time}`),
-    direction: call.direction,
-    duration: call.duration,
-    status: call.status,
-    resolution: call.resolution,
-    summary: call.summary,
-    recording: call.call_recording,
-    transcript: call.transcript,
-    date: call.date,
-    time: call.time
-  }));
+
+  const callMessages = conversation.calls.map(call => {
+    const assistant = assistants.find(a => a.id === call.assistant_id);
+    return {
+      id: call.id,
+      type: 'call' as const,
+      timestamp: new Date(call.created_at || `${call.date}T${call.time}`),
+      direction: call.direction,
+      duration: call.duration,
+      status: call.status,
+      resolution: call.resolution,
+      summary: call.summary,
+      recording: call.call_recording,
+      transcript: call.transcript,
+      date: call.date,
+      time: call.time,
+      agentId: call.assistant_id,
+      agentName: assistant?.name
+    };
+  });
 
   // Convert SMS messages to message format using created_at timestamp
-  const smsMessages = (conversation.smsMessages || []).map(sms => ({
-    id: sms.messageSid,
-    type: 'sms' as const,
-    timestamp: new Date(sms.dateCreated), // dateCreated is the created_at timestamp
-    direction: sms.direction,
-    duration: '0:00',
-    status: sms.status,
-    resolution: undefined,
-    summary: undefined,
-    recording: undefined,
-    transcript: [{
-      speaker: sms.direction === 'inbound' ? 'Customer' : 'Agent',
+  const smsMessages = (conversation.smsMessages || []).map(sms => {
+    // Check both from and to phone numbers for assistant mapping
+    const fromAssistantId = getAssistantIdForPhoneNumber(sms.from);
+    const toAssistantId = getAssistantIdForPhoneNumber(sms.to);
+    const assistantId = fromAssistantId || toAssistantId || undefined;
+    const assistant = assistants.find(a => a.id === assistantId);
+
+    return {
+      id: sms.messageSid,
+      type: 'sms' as const,
+      timestamp: new Date(sms.dateCreated), // dateCreated is the created_at timestamp
+      direction: sms.direction,
+      duration: '0:00',
+      status: sms.status,
+      resolution: undefined,
+      summary: undefined,
+      recording: undefined,
+      transcript: [{
+        speaker: sms.direction === 'inbound' ? 'Customer' : 'Agent',
+        time: format(new Date(sms.dateCreated), 'HH:mm'),
+        text: sms.body
+      }],
+      date: format(new Date(sms.dateCreated), 'yyyy-MM-dd'),
       time: format(new Date(sms.dateCreated), 'HH:mm'),
-      text: sms.body
-    }],
-    date: format(new Date(sms.dateCreated), 'yyyy-MM-dd'),
-    time: format(new Date(sms.dateCreated), 'HH:mm'),
-    smsData: sms
-  }));
+      smsData: sms,
+      agentId: assistantId,
+      agentName: assistant?.name
+    };
+  });
 
   // Combine and sort all messages by created_at timestamp (WhatsApp style - newest at bottom)
   const messages = [...callMessages, ...smsMessages]
@@ -395,177 +466,92 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
     .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime());
 
   return (
-    <div
-      className="h-full flex flex-col"
-      onClick={(e) => {
-        console.log('MessageThread container clicked', e.target);
-      }}
-    >
+    <div className="flex-1 flex flex-col min-h-0">
 
-      {/* Thread Header */}
-      <div
-        className="p-4 border-b border-border bg-card/30 backdrop-blur-sm"
-        onClick={(e) => {
-          console.log('Header clicked', e.target);
-        }}
-      >
-        <div
-          className="flex items-center justify-between"
-          onClick={(e) => {
-            console.log('Header content clicked', e.target);
-          }}
-        >
-          <div className="flex items-center space-x-3">
-            <Avatar className="h-10 w-10 bg-primary/20 border border-primary/30">
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+      {/* Premium Header */}
+      <div className="chat-header">
+        <div className="chat-header-user">
+          {onBack && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden mr-2 -ml-2 text-muted-foreground"
+              onClick={onBack}
+            >
+              <ChevronLeft size={24} />
+            </Button>
+          )}
+          <Avatar className="h-10 w-10 border-2 border-primary/20 bg-background">
+            {conversation.avatarUrl ? (
+              <img src={conversation.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+            ) : (
+              <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
                 {getInitials(getDisplayName())}
               </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h2 className="text-base font-semibold text-foreground">
-                {getDisplayName()}
-              </h2>
-            </div>
-            <div className="flex items-center space-x-2 relative">
-              {messageFilter !== 'all' && (
-                <button
-                  type="button"
-                  className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 cursor-pointer hover:scale-105 select-none active:scale-95 z-10 relative border-primary/50 bg-primary/20 text-primary hover:bg-primary/30 hover:border-primary/70"
-                  onClick={() => {
-                    console.log('Show All clicked');
-                    onMessageFilterChange('all');
-                  }}
-                  style={{ pointerEvents: 'auto' }}
-                >
-                  Show All
-                </button>
-              )}
-            </div>
-          </div>
+            )}
+          </Avatar>
 
-          <div className="flex items-center space-x-3">
-            <Select
-              value={selectedAgentId}
-              onValueChange={setSelectedAgentId}
-            >
-              <SelectTrigger className="w-48 h-9 text-xs bg-secondary/50 border-input text-foreground hover:bg-secondary/70 hover:border-input/70">
-                <div className="flex items-center space-x-2">
-                  <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="Filter by Agent" />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border backdrop-blur-sm">
-                <SelectItem value="all" className="text-foreground hover:bg-accent">All Agents</SelectItem>
-                {assistants.map((assistant) => (
-                  <SelectItem key={assistant.id} value={assistant.id} className="text-foreground hover:bg-accent">
-                    {assistant.name}
+        </div>
+        <div className="flex items-center gap-3">
+          <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+            <SelectTrigger className="w-[180px] h-9 bg-white/5 border-white/10 text-xs font-bold transition-all hover:bg-white/10">
+              <div className="flex items-center gap-2">
+                <Users className="w-3.5 h-3.5 text-primary" />
+                <SelectValue placeholder="Filter by Agent" />
+                <span className="ml-1 text-[10px] opacity-30">({assistants?.length || 0})</span>
+              </div>
+            </SelectTrigger>
+            <SelectContent className="bg-[#1A1F2C] border-white/10 text-white z-[10000]">
+              <SelectGroup>
+                <SelectLabel className="text-[10px] text-white/30 uppercase tracking-widest px-2 py-1.5">
+                  Available Agents ({assistants.length})
+                </SelectLabel>
+                <SelectItem value="all" className="text-xs focus:bg-primary/20 cursor-pointer">
+                  All Agents
+                </SelectItem>
+                {assistants.length > 0 && assistants.map((assistant) => (
+                  <SelectItem
+                    key={assistant.id || (assistant as any)._id}
+                    value={assistant.id || (assistant as any)._id}
+                    className="text-xs focus:bg-primary/20 cursor-pointer"
+                  >
+                    {assistant.name || 'Unnamed Agent'}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-
-            {/* Filter status indicator */}
-            {messageFilter !== 'all' && (
-              <div className="flex items-center space-x-1.5 text-xs text-muted-foreground">
-                <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
-                <span>
-                  {messageFilter === 'calls' ? 'Calls only' : 'SMS only'}
-                </span>
-              </div>
-            )}
-
-            {/* Agent filter indicator */}
-            {selectedAgentId !== "all" && (
-              <div className="flex items-center space-x-1.5 text-xs text-muted-foreground">
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                <span>
-                  {assistants.find(a => a.id === selectedAgentId)?.name || 'Unknown Agent'}
-                </span>
-                {allMessages.length === 0 && (
-                  <span className="text-orange-400">(no messages)</span>
-                )}
-              </div>
-            )}
-          </div>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {/* scrollable messages */}
-        <div className="flex-1 min-h-0">
-          <ScrollArea
-            ref={scrollAreaRef}
-            className="h-full"
-            onScrollCapture={handleScroll}
-          >
-            {/* Message count indicator */}
-            {messageFilter !== 'all' && (
-              <div className="px-4 pt-3 pb-2">
-                <div className="text-xs text-muted-foreground">
-                  Showing {allMessages.length} {messageFilter === 'calls' ? 'call' : 'SMS'} message{allMessages.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-            )}
+      <div className="flex-1 overflow-y-auto custom-scrollbar chat-messages" ref={scrollAreaRef} onScrollCapture={handleScroll}>
+        <div className="flex flex-col gap-6">
+          {sortedDateGroups.map(([dateKey, dayMessages]) => (
+            <div key={dateKey} className="flex flex-col gap-4">
 
-            <div className="p-4 space-y-4">
-              {sortedDateGroups.length > 0 ? (
-                sortedDateGroups.map(([dateKey, dayMessages]) => (
-                  <div key={dateKey} className="space-y-2">
-                    {/* Date Separator */}
-                    <div className="flex items-center justify-center">
-                      <div className="px-3 py-1 bg-secondary border border-border rounded-full text-xs text-muted-foreground">
-                        {format(new Date(dateKey), 'MMM d, yyyy')}
-                      </div>
-                    </div>
-
-                    {/* Messages for this day */}
-                    {dayMessages.map((message, index) => (
-                      <MessageBubble
-                        key={message.id}
-                        message={message}
-                        conversation={conversation}
-                        showAvatar={index === 0 || dayMessages[index - 1]?.direction !== message.direction}
-                      />
-                    ))}
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-center h-32">
-                  <div className="text-center text-muted-foreground">
-                    <div className="w-12 h-12 mx-auto mb-3 bg-secondary/50 border border-border rounded-full flex items-center justify-center">
-                      <MessageSquare className="w-6 h-6 text-muted-foreground" />
-                    </div>
-                    <div className="text-sm font-medium mb-1 text-foreground">
-                      {selectedAgentId === "all" ? "No messages found" : "No messages for this agent"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {selectedAgentId === "all"
-                        ? "This conversation doesn't have any messages yet."
-                        : `No calls or SMS messages are associated with the selected agent.`
-                      }
-                    </div>
-                    {selectedAgentId !== "all" && (
-                      <div className="text-xs mt-2 text-muted-foreground/70">
-                        Try selecting "All Agents" to see all messages, or check if the agent has been assigned to handle this conversation.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              {dayMessages.map((message, index) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  conversation={conversation}
+                  showAvatar={index === 0 || dayMessages[index - 1]?.direction !== message.direction}
+                />
+              ))}
             </div>
-          </ScrollArea>
-        </div>
+          ))}
 
-        {/* input pinned to bottom */}
-        <div className="shrink-0 border-t border-border bg-background/20">
-          <ModernMessageInput
-            conversation={conversation}
-            selectedAgentPhoneNumber={getPhoneNumberForSelectedAgent()}
-            isDisabled={selectedAgentId === "all"}
-          />
+
         </div>
       </div>
+
+
+      {/* Modern SMS Input Section */}
+      <ModernMessageInput
+        conversation={conversation}
+        selectedAgentPhoneNumber={getPhoneNumberForSelectedAgent()}
+        isDisabled={selectedAgentId === "all"}
+      />
     </div>
   );
 }

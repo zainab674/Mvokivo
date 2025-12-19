@@ -17,7 +17,7 @@ export default function CallDetails() {
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
   const { toast } = useToast();
-  
+
   const { data: callData, isLoading, error, isError } = useQuery({
     queryKey: ["call", id],
     queryFn: () => {
@@ -72,18 +72,18 @@ export default function CallDetails() {
                   <PageHeading>Call Details</PageHeading>
                 </div>
               </div>
-              
+
               <ThemeCard variant="liquid">
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Error Loading Call</AlertTitle>
                   <AlertDescription>
-                    {error instanceof Error 
-                      ? error.message 
+                    {error instanceof Error
+                      ? error.message
                       : "Could not load call details. Please try again later."}
                   </AlertDescription>
                 </Alert>
-                
+
                 <div className="mt-[var(--space-lg)] text-center">
                   <p className="mb-[var(--space-lg)]">This could be because:</p>
                   <ul className="list-disc list-inside text-left max-w-md mx-auto">
@@ -128,32 +128,34 @@ export default function CallDetails() {
   return (
     <DashboardLayout>
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
-        <div className="container mx-auto px-[var(--space-2xl)] py-[var(--space-2xl)]">
-          <ThemeSection spacing="lg">
-            <div className="flex items-center justify-between border-theme-light pb-[var(--space-lg)]">
-              <div className="flex items-center gap-[var(--space-lg)]">
-                <Button variant="outline" size="sm" asChild>
+        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 md:py-[var(--space-2xl)]">
+          <ThemeSection spacing="md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-6 sm:pb-8">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <Button variant="outline" size="sm" asChild className="w-fit">
                   <Link to="/calls" className="flex items-center">
-                    <ArrowLeft className="h-4 w-4 mr-[var(--space-md)]" />
-                    Back to Calls
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Back to Calls</span>
+                    <span className="sm:hidden">Back</span>
                   </Link>
                 </Button>
-                <PageHeading>Call Details</PageHeading>
+                <PageHeading className="text-xl sm:text-2xl font-light">Call Details</PageHeading>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleDownload} 
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
                 disabled={!hasRecording}
+                className="w-full sm:w-fit"
               >
-                <Download className="mr-[var(--space-md)] h-4 w-4" />
+                <Download className="mr-2 h-4 w-4" />
                 Download Recording
               </Button>
             </div>
-            
+
             <CallDetailCards callData={callData} />
-            
-            <CallContentTabs 
+
+            <CallContentTabs
               callData={callData}
               activeTab={activeTab}
               onTabChange={setActiveTab}

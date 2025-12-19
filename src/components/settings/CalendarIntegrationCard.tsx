@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarAuthDialog } from "./CalendarAuthDialog";
 import { CalendarCredentialsService, type UserCalendarCredentials } from "@/lib/calendar-credentials";
-import { Calendar, CheckCircle2, Trash2, RefreshCw, Clock } from "lucide-react";
+import { Calendar, CheckCircle2, Trash2, RefreshCw, Clock, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CalendarIntegrationCardProps {
@@ -14,11 +14,11 @@ interface CalendarIntegrationCardProps {
   onRefresh: (id: string) => void;
 }
 
-export function CalendarIntegrationCard({ 
-  integrations, 
-  onSuccess, 
-  onRemove, 
-  onRefresh 
+export function CalendarIntegrationCard({
+  integrations,
+  onSuccess,
+  onRemove,
+  onRefresh
 }: CalendarIntegrationCardProps) {
   const { toast } = useToast();
 
@@ -26,10 +26,10 @@ export function CalendarIntegrationCard({
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return "Just now";
     if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
   };
@@ -68,7 +68,7 @@ export function CalendarIntegrationCard({
     <div className="space-y-4">
       {integrations.map((integration) => {
         const providerInfo = getProviderInfo(integration.provider);
-        
+
         return (
           <Card key={integration.id} className="border-border/60 bg-card/50 backdrop-blur-sm">
             <CardHeader className="pb-3">
@@ -92,7 +92,7 @@ export function CalendarIntegrationCard({
                 </div>
               </div>
             </CardHeader>
-            
+
             <CardContent className="pt-0">
               <div className="space-y-3">
                 {/* Integration Details */}
@@ -123,7 +123,7 @@ export function CalendarIntegrationCard({
                       Add Another
                     </Button>
                   </CalendarAuthDialog>
-                  
+
                   {!integration.is_active && (
                     <Button
                       variant="outline"
@@ -133,7 +133,7 @@ export function CalendarIntegrationCard({
                       <RefreshCw className="h-3 w-3" />
                     </Button>
                   )}
-                  
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -148,6 +148,16 @@ export function CalendarIntegrationCard({
           </Card>
         );
       })}
+
+      <CalendarAuthDialog onSuccess={onSuccess}>
+        <Button
+          variant="outline"
+          className="w-full border-dashed border-2 h-12 hover:bg-secondary/20"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Account
+        </Button>
+      </CalendarAuthDialog>
     </div>
   );
 }

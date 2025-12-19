@@ -3,18 +3,21 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Phone, Clock, MessageSquare, Check, CheckCheck, AlertTriangle, RotateCcw, Loader2 } from "lucide-react";
+import { Phone, Clock, MessageSquare, Check, CheckCheck, AlertTriangle, RotateCcw, Loader2, FileText, ExternalLink, ChevronRight, ChevronDown, Users } from "lucide-react";
+
 import { format } from "date-fns";
 import { Conversation } from "./types";
 import { normalizeResolution } from "@/components/dashboard/call-outcomes/utils";
 import { CompactAudioPlayer } from "@/components/ui/compact-audio-player";
 import { InlineTranscriptView } from "./InlineTranscriptView";
+import { TranscriptExpandDialog } from "./TranscriptExpandDialog";
 import { SummaryExpandDialog } from "./SummaryExpandDialog";
 import { SMSMessage } from "@/lib/api/sms/smsService";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { ExternalLink } from "lucide-react";
 import { formatSummaryForDisplay } from "@/utils/summaryUtils";
+
+
 
 interface MessageBubbleProps {
   message: {
@@ -37,7 +40,8 @@ interface MessageBubbleProps {
     body?: string;
     deliveryStatus?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
     effects?: string;
-    reactions?: string[];
+    agentName?: string;
+    agentId?: string;
   };
   conversation: Conversation;
   showAvatar?: boolean;
@@ -45,6 +49,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, conversation, showAvatar = true, onRetryMessage }: MessageBubbleProps) {
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -57,11 +62,11 @@ export function MessageBubble({ message, conversation, showAvatar = true, onRetr
   // Get channel-specific styling
   const getChannelStyles = (channel: string, isIncoming: boolean) => {
     const baseStyles = "px-3 py-2 rounded-xl backdrop-blur-sm border";
-    
+
     if (isIncoming) {
       return cn(baseStyles, "message-bubble-incoming");
     }
-    
+
     return cn(baseStyles, "message-bubble-outgoing");
   };
 
@@ -129,9 +134,9 @@ export function MessageBubble({ message, conversation, showAvatar = true, onRetr
   // Render delivery status indicators
   const renderDeliveryStatus = (message: any) => {
     if (!message.deliveryStatus || message.direction === 'inbound') return null;
-    
+
     const statusInfo = getStatusInfo(message.deliveryStatus);
-    
+
     // Common status indicators for all channels
     const renderStatusIcon = () => {
       switch (message.deliveryStatus) {
@@ -157,7 +162,7 @@ export function MessageBubble({ message, conversation, showAvatar = true, onRetr
         default:
           break;
       }
-      
+
       // Channel-specific indicators for successful states
       switch (message.channel) {
         case 'whatsapp':
@@ -209,7 +214,7 @@ export function MessageBubble({ message, conversation, showAvatar = true, onRetr
   const getOutcomeBadgeColor = (outcome?: string) => {
     if (!outcome) return "secondary";
     const normalized = normalizeResolution(outcome).toLowerCase();
-    
+
     if (normalized.includes('appointment') || normalized.includes('booked')) {
       return "default";
     } else if (normalized.includes('qualified') && !normalized.includes('not')) {
@@ -224,186 +229,165 @@ export function MessageBubble({ message, conversation, showAvatar = true, onRetr
 
   const isIncoming = message.direction === 'inbound';
 
-  // Render message content for SMS, WhatsApp, and iMessage
-  if (message.type === 'sms' || message.type === 'whatsapp' || message.type === 'imessage') {
+  if (message.type === 'sms' || message.type === 'whatsapp' || message.type === 'imessage' || message.type === 'call') {
+    const isCall = message.type === 'call';
+
+    // Robust check for details
+    const hasRecording = !!message.recording;
+    const hasTranscript = message.transcript && (
+      (Array.isArray(message.transcript) && message.transcript.length > 0) ||
+      (typeof message.transcript === 'string' && message.transcript.length > 0) ||
+      (typeof message.transcript === 'object' && Object.keys(message.transcript).length > 0)
+    );
+    const hasSummary = !!message.summary && message.summary.trim().length > 0;
+    const hasAnyDetails = hasRecording || hasTranscript || hasSummary;
+
     return (
-      <div className={`flex ${isIncoming ? 'justify-start' : 'justify-end'} space-x-2`}>
-        {isIncoming && showAvatar && (
-          <Avatar className="h-6 w-6 bg-primary/10 flex-shrink-0">
-            <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-medium">
-              {getInitials(conversation.displayName)}
-            </AvatarFallback>
-          </Avatar>
-        )}
-        {isIncoming && !showAvatar && (
-          <div className="w-6" />
-        )}
+      <div className={`message-group ${isIncoming ? '' : 'message-right'}`}>
+        <div className={`flex items-end gap-3 ${isIncoming ? 'flex-row' : 'flex-row-reverse'}`}>
+          {isIncoming && (
+            <Avatar className="h-8 w-8 border border-white/10">
+              <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-bold">
+                {getInitials(conversation.displayName)}
+              </AvatarFallback>
+            </Avatar>
+          )}
 
-        <div className={`max-w-xs ${!isIncoming ? 'ml-auto' : ''}`}>
-          <div className={getChannelStyles(message.channel || 'sms', isIncoming)}>
-            {/* Message Content */}
-            <p className={cn(
-              "text-sm text-foreground leading-relaxed",
-              message.channel === 'imessage' && "message-bubble-imessage-text"
-            )}>
-              {message.body || message.smsData?.body}
-            </p>
-            
-            {/* Message Effects for iMessage */}
-            {message.effects && message.channel === 'imessage' && (
-              <div className="text-[10px] text-muted-foreground mt-1 italic">
-                Sent with {message.effects} effect
-              </div>
-            )}
-            
-            {/* Reactions for iMessage */}
-            {message.reactions && message.reactions.length > 0 && (
-              <div className="flex space-x-1 mt-1">
-                {message.reactions.map((reaction, idx) => (
-                  <span key={idx} className="text-sm">{reaction}</span>
-                ))}
-              </div>
-            )}
-          </div>
+          <div className="flex flex-col">
+            <div className={`flex items-center gap-2 mb-1 px-1 ${isIncoming ? 'justify-start' : 'justify-end'}`}>
+              <span className="text-[11px] font-bold text-white/50">
+                {isIncoming ? conversation.displayName : 'You'}
+              </span>
+              <span className="text-[10px] text-white/30">
+                {format(message.timestamp, 'h:mm a')}
+              </span>
+            </div>
 
-          {/* Timestamp and Delivery Status */}
-          <div className={`flex items-center space-x-1 mt-1 ${!isIncoming ? 'justify-end' : ''}`}>
-            <div className="text-[10px] text-muted-foreground">
-              {format(message.timestamp, 'h:mm a')}
+            <div
+              className={cn(
+                "message-bubble-premium transition-all min-w-[280px] max-w-[400px]",
+                isIncoming ? "message-bubble-left" : "message-bubble-right",
+                isCall && "p-4 hover:ring-1 hover:ring-white/10"
+              )}
+            >
+              {isCall ? (
+                <div className="flex flex-col gap-3">
+                  {/* Header Row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-primary/10">
+                        <Phone className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <span className="text-sm font-bold text-white/90">
+                        {isIncoming ? 'Incoming' : 'Outgoing'} Call
+                      </span>
+                      {message.resolution && (
+                        <Badge
+                          variant={getOutcomeBadgeColor(message.resolution)}
+                          className="px-2 py-0 h-4.5 text-[10px] uppercase font-bold tracking-wider"
+                        >
+                          {normalizeResolution(message.resolution)}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Duration & Status Row */}
+                  <div className="flex items-center gap-4 text-white/40 text-[11px] font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3 h-3" />
+                      <span className="tabular-nums">{message.duration || '0:00'}</span>
+                    </div>
+                    {message.agentName && (
+                      <>
+                        <span>•</span>
+                        <div className="flex items-center gap-1.5">
+                          <Users className="w-3 h-3 text-primary/70" />
+                          <span className="text-white/60">{message.agentName}</span>
+                        </div>
+                      </>
+                    )}
+                    <span>•</span>
+                    <span className="capitalize">{message.resolution || 'No interest'}</span>
+                  </div>
+
+                  {/* Summary Section */}
+                  <div className="relative group/summary mt-1">
+                    {hasSummary ? (
+                      <div className="flex items-start gap-3">
+                        <p className="text-[13px] leading-relaxed text-white/70 flex-1 line-clamp-3 italic">
+                          "{formatSummaryForDisplay(message.summary)}"
+                        </p>
+                        <SummaryExpandDialog
+                          summary={formatSummaryForDisplay(message.summary!)}
+                          trigger={
+                            <button className="p-1 hover:bg-white/5 rounded transition-colors text-white/20 hover:text-white/60">
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-[12px] text-white/30 italic">No summary generated for this call.</p>
+                    )}
+                  </div>
+
+                  {/* Audio Player Section */}
+                  {hasRecording && (
+                    <div className="my-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <CompactAudioPlayer
+                        src={message.recording!}
+                        className="bg-white/5 border-white/10 rounded-xl"
+                      />
+                    </div>
+                  )}
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center justify-between pt-2 mt-1 border-t border-white/5">
+                    {hasTranscript ? (
+                      <TranscriptExpandDialog
+                        transcript={message.transcript}
+                        trigger={
+                          <button className="flex items-center gap-2 text-white/60 hover:text-white/90 transition-colors group/transcript">
+                            <FileText className="w-4 h-4 text-primary/70 group-hover/transcript:text-primary transition-colors" />
+                            <span className="text-[12px] font-bold">Transcript</span>
+                            <ChevronRight className="w-3.5 h-3.5 opacity-40 group-hover/transcript:opacity-100 transition-all" />
+                          </button>
+                        }
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 opacity-30 cursor-not-allowed">
+                        <FileText className="w-4 h-4" />
+                        <span className="text-[12px] font-bold">No Transcript</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      {hasRecording && (
+                        <SummaryExpandDialog
+                          summary={formatSummaryForDisplay(message.summary || "No summary available")}
+                          trigger={
+                            <button className="p-1.5 hover:bg-white/5 rounded-full transition-colors text-white/40 hover:text-white/80">
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  {message.body || message.smsData?.body}
+                </p>
+              )}
             </div>
-            <div className={message.channel === 'imessage' ? 'delivery-status' : ''}>
-              {renderDeliveryStatus(message)}
-            </div>
+            {!isIncoming && renderDeliveryStatus(message)}
           </div>
         </div>
-
-        {!isIncoming && showAvatar && (
-          <Avatar className="h-6 w-6 bg-primary/20 flex-shrink-0">
-            <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-medium">
-              ME
-            </AvatarFallback>
-          </Avatar>
-        )}
-        {!isIncoming && !showAvatar && (
-          <div className="w-6" />
-        )}
       </div>
     );
   }
-
-  // Render call message
-  return (
-    <div className={`flex ${isIncoming ? 'justify-start' : 'justify-end'} space-x-2`}>
-      {isIncoming && showAvatar && (
-        <Avatar className="h-6 w-6 bg-primary/10 flex-shrink-0">
-          <AvatarFallback className="bg-primary/20 text-primary text-[10px] font-medium">
-            {getInitials(conversation.displayName)}
-          </AvatarFallback>
-        </Avatar>
-      )}
-      {isIncoming && !showAvatar && (
-        <div className="w-6" />
-      )}
-
-      <div className={`max-w-sm ${!isIncoming ? 'ml-auto' : ''}`}>
-        <div
-          className={`px-3 py-2 rounded-xl backdrop-blur-sm ${
-            isIncoming
-              ? 'message-bubble-incoming'
-              : 'message-bubble-outgoing'
-          }`}
-        >
-          {/* Call Header */}
-          <div className="flex items-center space-x-2 mb-1">
-            <Phone className="w-3 h-3 text-muted-foreground" />
-            <span className="text-xs font-medium text-foreground">
-              {isIncoming ? 'Incoming' : 'Outgoing'} Call
-            </span>
-            <Badge 
-              variant={getOutcomeBadgeColor(message.resolution)}
-              className="text-[10px] ml-auto px-1.5 py-0"
-            >
-              {normalizeResolution(message.resolution || 'Unknown')}
-            </Badge>
-          </div>
-
-          {/* Call Details */}
-          <div className="flex items-center space-x-2 text-[11px] text-muted-foreground mb-2">
-            <div className="flex items-center space-x-1">
-              <Clock className="w-2.5 h-2.5" />
-              <span>{message.duration}</span>
-            </div>
-            <span>•</span>
-            <span>{message.resolution || message.status}</span>
-          </div>
-
-          {/* Summary */}
-          {message.summary && (
-            <div className="mb-2">
-              <div className="flex items-start gap-1">
-                <div className="flex-1">
-                  <p 
-                    className="text-xs text-foreground leading-relaxed"
-                    style={{
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis'
-                    }}
-                  >
-                    {formatSummaryForDisplay(message.summary)}
-                  </p>
-                </div>
-                <SummaryExpandDialog
-                  summary={formatSummaryForDisplay(message.summary)}
-                  trigger={
-                    <button
-                      className="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground transition-colors"
-                      title="View full summary"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Recording */}
-          {message.recording && (
-            <div className="mt-2">
-              <CompactAudioPlayer
-                src={message.recording}
-                title={`Call with ${conversation.displayName}`}
-              />
-            </div>
-          )}
-
-          {/* Transcript */}
-          {message.transcript && (
-            <div className="mt-2">
-              <InlineTranscriptView transcript={message.transcript} />
-            </div>
-          )}
-        </div>
-
-        {/* Timestamp */}
-        <div className={`text-[10px] text-muted-foreground mt-1 ${!isIncoming ? 'text-right' : ''}`}>
-          {format(message.timestamp, 'h:mm a')}
-        </div>
-      </div>
-
-      {!isIncoming && showAvatar && (
-        <Avatar className="h-6 w-6 bg-primary/20 flex-shrink-0">
-          <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-medium">
-            ME
-          </AvatarFallback>
-        </Avatar>
-      )}
-      {!isIncoming && !showAvatar && (
-        <div className="w-6" />
-      )}
-    </div>
-  );
+  return null;
 }
+

@@ -17,11 +17,13 @@
 /* @import "./styles/components/content-zones.css"; */
 /* @import "./styles/animations.css"; */
 @import "./styles/navigation.css";
+@import "./styles/components/chat-premium.css";
+
 
 /* Theme-aware transcript styles - Robotics Overrides */
 .transcript-message-user {
   @apply bg-primary/10 border border-primary/30 text-foreground rounded-br-none rounded-bl-xl rounded-tr-xl rounded-tl-xl !important;
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.1);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
 .transcript-message-agent {
@@ -59,11 +61,11 @@
 
 /* Calendar Overrides */
 .rdp {
-  @apply bg-card border border-primary/20 rounded-md text-foreground !important;
-  box-shadow: 0 0 20px rgba(0, 243, 255, 0.1) !important;
+  @apply bg-card border border-border rounded-md text-foreground !important;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.05) !important;
 }
 
 .rdp-day_selected {
   @apply bg-primary text-primary-foreground font-bold rounded-sm !important;
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.5) !important;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2) !important;
 }

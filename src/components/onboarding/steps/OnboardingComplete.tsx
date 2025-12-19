@@ -42,12 +42,8 @@ export function OnboardingComplete() {
 
       // 1. SIGNUP (if needed)
       if (signupData) {
-        // Extract tenant
-        let tenant = extractTenantFromHostname();
-        // Verify tenant existence via API if not main? 
-        // For now, simplify and rely on backend validation or defaulting.
-        // Or fetch public settings to check. 
-        // We'll trust extractTenantFromHostname() + backend validation in /onboarding.
+        // Extract tenant from signup data (already determined during signup)
+        const signupTenant = signupData.tenant || null;
 
         const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/auth/signup`, {
           method: 'POST',
@@ -55,7 +51,8 @@ export function OnboardingComplete() {
           body: JSON.stringify({
             email: signupData.email,
             password: signupData.password,
-            name: signupData.name
+            name: signupData.name,
+            tenant: signupTenant // Pass tenant from signup data
           })
         });
 
@@ -80,59 +77,27 @@ export function OnboardingComplete() {
         throw new Error("User ID or Token is missing");
       }
 
-      // 2. TENANT DETERMINATION (Client-side logic + Backend validation later)
-      let finalTenant = 'main';
-      const tenantFromHost = extractTenantFromHostname();
-      if (tenantFromHost !== 'main') {
-        // Optional: Validation check could go here, but we pass it to onboarding endpoint
-        finalTenant = tenantFromHost;
-      }
+      // 2. TENANT DETERMINATION
+      // Use the tenant from the authenticated user (already set during signup)
+      let finalTenant = currentUser?.tenant || 'main';
 
-      // 3. PAYMENT METHOD
-      if (data.paymentMethodId) {
-        try {
-          await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/billing/payment-methods`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${currentToken}`
-            },
-            body: JSON.stringify({
-              stripe_payment_method_id: data.paymentMethodId,
-              is_default: true,
-              card_brand: data.cardBrand,
-              card_last4: data.cardLast4,
-              card_exp_month: data.cardExpMonth,
-              card_exp_year: data.cardExpYear
-            })
-          });
-        } catch (error) {
-          console.error('Error saving payment method:', error);
-          toast({
-            title: "Payment method not saved",
-            description: "You can add a payment method later in settings.",
-            variant: "default",
-          });
-        }
-      }
-
-      // 4. ONBOARDING / PROFILE UPDATE
+      // 3. ONBOARDING / PROFILE UPDATE
       // Calculate trial end
       const trialEndsAt = new Date();
       trialEndsAt.setDate(trialEndsAt.getDate() + 7);
 
-      // Prepare payload
+      // Prepare payload - backend will assign minutes based on plan
       const onboardingPayload = {
         name: signupData?.name || currentUser?.fullName || "",
         company: data.companyName,
         industry: data.industry,
         team_size: data.teamSize,
-        role: data.role || "user", // Admin role handling is done by backend (complete-signup/onboarding logic)
+        role: data.role || "user",
         use_case: data.useCase,
         theme: data.theme,
         notifications: data.notifications,
         goals: data.goals,
-        plan: data.plan,
+        plan: data.plan, // Backend will use this to assign minutes
         contact: {
           email: signupData?.email || currentUser?.email || "",
           phone: signupData?.phone || null,
@@ -140,9 +105,6 @@ export function OnboardingComplete() {
         },
         trial_ends_at: trialEndsAt.toISOString(),
         tenant: finalTenant
-        // slug_name is handled if backend detects admin privileges or via separate call?
-        // Actually `user.js` `POST /onboarding` handles `slug_name` if passed.
-        // We preserve existing if user is admin.
       };
 
       const profileResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/user/onboarding`, {
@@ -185,6 +147,7 @@ export function OnboardingComplete() {
       });
     }
   };
+
 
   const completedSteps = [
     { title: "Business Profile", description: `${data.companyName} in ${data.industry}` },

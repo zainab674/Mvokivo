@@ -231,31 +231,44 @@ export default function VoiceAgent() {
   return (
     <DashboardLayout>
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
-        <div className="container mx-auto px-[var(--space-2xl)] py-[var(--space-2xl)]">
-          <ThemeSection spacing="lg">
-            <div className="flex items-center justify-between pb-[var(--space-lg)]">
+        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 md:py-[var(--space-2xl)]">
+          <ThemeSection spacing="md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 sm:pb-8 border-b border-white/[0.08]">
               <div>
-                <h1 className="text-3xl font-extralight tracking-tight text-foreground">
+                <h1 className="text-2xl sm:text-3xl font-extralight tracking-tight text-foreground">
                   Voice Agent
                 </h1>
-                <p className="text-muted-foreground mt-1">
+                <p className="text-sm sm:text-base text-muted-foreground mt-1">
                   Speak with your assistant in a LiveKit room
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Room: <span className="font-mono">{roomName}</span>
-                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[10px] sm:text-xs uppercase tracking-wider text-muted-foreground font-semibold">Room:</span>
+                  <span className="text-[10px] sm:text-xs font-mono bg-white/[0.05] px-2 py-0.5 rounded border border-white/[0.1]">{roomName}</span>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                 {!token ? (
-                  <Button onClick={handleConnect} disabled={connecting || !serverUrl}>
+                  <Button
+                    onClick={handleConnect}
+                    disabled={connecting || !serverUrl}
+                    className="flex-1 sm:flex-none h-10 sm:h-11"
+                  >
                     {connecting ? "Connecting…" : "Start Call"}
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={handleDisconnect}>
+                  <Button
+                    variant="outline"
+                    onClick={handleDisconnect}
+                    className="flex-1 sm:flex-none h-10 sm:h-11 border-red-500/20 text-red-500 hover:bg-red-500/10"
+                  >
                     End Call
                   </Button>
                 )}
-                <Button variant="outline" onClick={() => navigate("/assistants")}>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/assistants")}
+                  className="h-10 sm:h-11"
+                >
                   Back
                 </Button>
               </div>

@@ -294,10 +294,10 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-white mb-1">
-            Your Assistants
+            Your Agents
           </h2>
           <p className="text-sm text-zinc-400">
-            Manage and configure your AI assistants for different use cases
+            Manage and configure your AI agents for different use cases
           </p>
         </div>
         <Button

@@ -8,7 +8,6 @@ import { BusinessProfileStep } from "./steps/BusinessProfileStep";
 import { UseCaseSelectionStep } from "./steps/UseCaseSelectionStep";
 import { PreferencesStep } from "./steps/PreferencesStep";
 import { PricingPlanStep } from "./steps/PricingPlanStep";
-import { PaymentStep } from "./steps/PaymentStep";
 import { OnboardingComplete } from "./steps/OnboardingComplete";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -20,9 +19,9 @@ const steps = [
   { component: UseCaseSelectionStep, title: "Use Case" },
   { component: PreferencesStep, title: "Preferences" },
   { component: PricingPlanStep, title: "Pricing" },
-  { component: PaymentStep, title: "Payment" },
   { component: OnboardingComplete, title: "Complete" }
 ];
+
 
 export function OnboardingLayout() {
   const { currentStep, totalSteps, getProgress, prevStep, isCompleted } = useOnboarding();
@@ -35,10 +34,10 @@ export function OnboardingLayout() {
   // Check if user has signup data (new flow) or is authenticated (existing flow)
   React.useEffect(() => {
     if (isLoading || isProfileLoading) return;
-    
+
     // Check for signup data in localStorage (new flow - onboarding before auth)
     const signupData = localStorage.getItem("signup-data");
-    
+
     // If no signup data and not authenticated, redirect to signup
     if (!signupData && !isAuthenticated) {
       navigate("/signup");
@@ -84,8 +83,8 @@ export function OnboardingLayout() {
               {currentStep + 1} of {totalSteps}
             </span>
           </div>
-          <Progress 
-            value={progress} 
+          <Progress
+            value={progress}
             className="h-2 liquid-glass-light [&>div]:bg-gradient-to-r [&>div]:from-primary [&>div]:to-primary/80"
           />
         </div>

@@ -2,8 +2,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
 import { ProfileForm } from "./account/ProfileForm";
-import { NotificationsForm } from "./account/NotificationsForm";
-import { UIPreferencesSettings } from "./UIPreferencesSettings";
 
 interface AccountSettingsProps {
   initialSubTab?: string | null;
@@ -26,8 +24,6 @@ export function AccountSettings({ initialSubTab }: AccountSettingsProps) {
 
   const subTabs = [
     { id: "profile", label: "Profile" },
-    { id: "notifications", label: "Notifications" },
-    { id: "preferences", label: "Preferences" }
   ];
 
   return (
@@ -48,15 +44,15 @@ export function AccountSettings({ initialSubTab }: AccountSettingsProps) {
               onClick={() => setActiveSubTab(tab.id)}
               className={`
                 relative px-4 py-3 text-sm font-medium transition-all duration-300
-                ${activeSubTab === tab.id 
-                  ? 'text-foreground' 
+                ${activeSubTab === tab.id
+                  ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground/80'
                 }
               `}
             >
               {tab.label}
               {activeSubTab === tab.id && (
-                <motion.div 
+                <motion.div
                   layoutId="activeAccountSubTab"
                   className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
                   initial={false}
@@ -79,8 +75,6 @@ export function AccountSettings({ initialSubTab }: AccountSettingsProps) {
           transition={{ duration: 0.2 }}
         >
           {activeSubTab === "profile" && <ProfileForm />}
-          {activeSubTab === "notifications" && <NotificationsForm />}
-          {activeSubTab === "preferences" && <UIPreferencesSettings />}
         </motion.div>
       </AnimatePresence>
     </div>

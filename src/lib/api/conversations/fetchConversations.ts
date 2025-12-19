@@ -54,7 +54,10 @@ export interface ContactSummary {
   hasNewMessages?: boolean;
   hasNewSMS?: boolean;
   hasNewCalls?: boolean;
+  avatarUrl?: string;
+  isOnline?: boolean;
 }
+
 
 export interface ConversationDetailsResponse {
   conversation: Conversation;
@@ -209,7 +212,7 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
 
       if (callTime > contact.lastActivity) {
         contact.lastActivity = callTime;
-        contact.lastCallOutcome = determineCallResolution(call.transcription, call.call_status, call.call_outcome);
+        contact.lastCallOutcome = determineCallResolution(call.transcript || call.transcription, call.call_status || call.status, call.call_outcome || call.status);
         // Update identity if we found a better name
         if (hasStructuredName) {
           contact.participantIdentity = contactName;
@@ -245,7 +248,7 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
 
     // Convert map to array
     const contacts: ContactSummary[] = Array.from(contactsMap.values())
-      .map(contact => {
+      .map((contact, index) => {
         const displayName = contact.participantIdentity;
         const nameParts = displayName.split(' ');
 
@@ -267,7 +270,10 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
             qualified: 0,
             notQualified: 0,
             spam: 0
-          }
+          },
+          avatarUrl: undefined,
+          isOnline: false,
+          hasNewMessages: false
         };
       })
       .sort((a, b) => b.lastActivityTimestamp.getTime() - a.lastActivityTimestamp.getTime())
@@ -329,17 +335,31 @@ export const fetchConversationDetails = async (
       phoneNumber: call.phone_number || phoneNumber,
       date: format(new Date(call.started_at || call.created_at || Date.now()), 'yyyy-MM-dd'),
       time: format(new Date(call.started_at || call.created_at || Date.now()), 'HH:mm'),
-      duration: typeof call.duration === 'string' ? call.duration : formatDuration(call.duration || 0),
+      duration: typeof call.duration === 'string' ? call.duration : formatDuration(call.call_duration || call.duration || 0),
       direction: 'inbound' as const,
       channel: 'voice' as const, // Added missing property
       tags: [], // Added missing property
       status: call.status || call.call_status,
-      resolution: determineCallResolution(call.transcription, call.status),
-      call_recording: call.recording_url || '',
-      summary: call.summary,
-      transcript: typeof call.transcription === 'string' ? JSON.parse(call.transcription) : call.transcription,
-      analysis: call.structured_data,
-      created_at: call.started_at || call.created_at,
+      resolution: determineCallResolution(call.transcript || call.transcription, call.status || call.call_status),
+      call_recording: call.call_recording || call.recording_url || '',
+      summary: call.summary || call.call_summary,
+      transcript: (() => {
+        const rawTranscript = call.transcript || call.transcription;
+        if (!rawTranscript) return null;
+
+        let transcriptArray = typeof rawTranscript === 'string' ? JSON.parse(rawTranscript) : rawTranscript;
+
+        if (Array.isArray(transcriptArray)) {
+          return transcriptArray.map((entry: any) => ({
+            speaker: entry.speaker || (entry.role === 'assistant' ? 'Agent' : entry.role === 'user' ? 'Customer' : entry.role) || 'Unknown',
+            text: entry.text || entry.content || '',
+            time: entry.time || ''
+          }));
+        }
+        return transcriptArray;
+      })(),
+      analysis: call.analysis || call.structured_data,
+      created_at: call.created_at || call.started_at,
       assistant_id: call.assistant_id
     }));
 

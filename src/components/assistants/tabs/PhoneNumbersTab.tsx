@@ -314,7 +314,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
 
       // Fetch phone number mappings from database
       if (!user?.id) throw new Error("User ID required");
-      const mappingsResponse = await fetchPhoneNumberMappings(user.id);
+      const mappingsResponse = await fetchPhoneNumberMappings(user.id, token);
       const mappings = mappingsResponse.mappings;
 
       console.log('Phone number mappings from database:', mappings);
@@ -376,7 +376,8 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
       const url = `${base}/api/v1/twilio/phone-numbers`;
       const res = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user?.id || '',
         }
       });
       const json = await res.json();
@@ -389,7 +390,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
 
       // Fetch phone number mappings from database
       if (!user?.id) throw new Error("User ID required");
-      const mappingsResponse = await fetchPhoneNumberMappings(user.id);
+      const mappingsResponse = await fetchPhoneNumberMappings(user.id, token);
       const mappings = mappingsResponse.mappings;
 
       console.log('Phone number mappings from database (admin):', mappings);
@@ -462,11 +463,13 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
     try {
       setLoading(true);
 
+      const token = await getAccessToken();
       // Step 1: attach PN to the user's Twilio trunk
       const attachResp = await fetch(`${base}/api/v1/twilio/user/trunk/attach`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
           'x-user-id': user?.id || '',
         },
         body: JSON.stringify({ phoneSid: phoneNumber.id }),
@@ -483,6 +486,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            'Authorization': `Bearer ${token}`,
             'x-user-id': user?.id || ''
           },
           body: JSON.stringify({
@@ -509,6 +513,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
           'x-user-id': user?.id || '',
         },
         body: JSON.stringify({

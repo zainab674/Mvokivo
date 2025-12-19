@@ -2,10 +2,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useBusinessUseCase } from "@/components/BusinessUseCaseProvider";
 import DashboardLayout from "@/layout/DashboardLayout";
-import FilterBar from "@/components/navigation/FilterBar";
-import DashboardContent from "@/components/dashboard/DashboardContent";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useRouteChangeData } from "@/hooks/useRouteChange";
+import PremiumDashboard from "@/components/dashboard/PremiumDashboard";
 
 interface CallHistory {
   id: string;
@@ -31,8 +30,11 @@ export default function Index() {
   // Set data-page attribute for dashboard page
   useEffect(() => {
     document.body.setAttribute('data-page', 'dashboard');
+    // Apply a specific class to the body for the dark theme if needed
+    document.body.classList.add('premium-dashboard');
     return () => {
       document.body.removeAttribute('data-page');
+      document.body.classList.remove('premium-dashboard');
     };
   }, []);
 
@@ -146,7 +148,8 @@ export default function Index() {
 
       return {
         id: call.id,
-        name: call.participant_identity || call.phone_number || 'Unknown',
+        name: call.participant_identity || call.phone_number || 'Web Call',
+
         phoneNumber: call.phone_number || '',
         date: new Date(call.start_time).toLocaleDateString('en-US'),
         time: new Date(call.start_time).toLocaleTimeString('en-US', {
@@ -169,8 +172,10 @@ export default function Index() {
         phone_number: call.phone_number || '',
         call_outcome: getCallOutcome(call.transcription),
         call_duration: call.call_duration || 0,
-        created_at: call.start_time
+        created_at: call.start_time,
+        assistantId: call.assistant_id
       };
+
     });
   }, [realCallHistory]);
 
@@ -273,15 +278,10 @@ export default function Index() {
 
   return (
     <DashboardLayout>
-      <div className="relative">
-        <FilterBar onRangeChange={handleRangeChange} />
-      </div>
-      <DashboardContent
-        dateRange={dateRange}
+      <PremiumDashboard
+        stats={stats}
         callLogs={callLogs}
         isLoading={isAuthLoading || isLoadingRealData}
-        stats={stats}
-        callOutcomesData={callOutcomesData}
       />
     </DashboardLayout>
   );

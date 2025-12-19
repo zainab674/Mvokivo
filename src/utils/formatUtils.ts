@@ -3,21 +3,22 @@ import { format, parseISO } from "date-fns";
 
 export const formatPhoneNumber = (phone?: string): string => {
   // Handle undefined, null or empty phone numbers
-  if (!phone) return 'Unknown';
-  
+  if (!phone) return 'Web Call';
+
+
   // Remove any non-digit characters except + at the beginning
   const cleaned = phone.replace(/[^\d+]/g, '');
-  
+
   // If it starts with +, return as international format
   if (cleaned.startsWith('+')) {
     return cleaned;
   }
-  
+
   // If it's 10 digits, format as US number
   if (cleaned.length === 10) {
     return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
   }
-  
+
   // For other lengths, return as is
   return phone;
 };
@@ -44,12 +45,12 @@ export const formatCallDuration = (duration: string): string => {
   if (duration.includes(':')) {
     return duration;
   }
-  
+
   // Handle 's' suffix for seconds format (e.g. "45s")
   const seconds = parseInt(duration.replace(/[^0-9]/g, ''));
-  
+
   if (isNaN(seconds)) return '00:00';
-  
+
   // Format as MM:SS
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;

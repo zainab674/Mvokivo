@@ -61,6 +61,8 @@ const planConfigSchema = new mongoose.Schema({
     plan_key: { type: String, required: true },
     name: { type: String, required: true },
     price: { type: Number, required: true },
+    minutes: { type: Number }, // Included minutes per month (0 or null = unlimited)
+    pay_as_you_go: { type: Boolean, default: false }, // If true, user must buy minutes separately
     features: { type: [String], default: [] },
     whitelabel_enabled: { type: Boolean, default: false },
     tenant: String, // Can be null for global plans

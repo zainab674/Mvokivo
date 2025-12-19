@@ -193,25 +193,16 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
   }, [data.provider, data.model, data.conversationStart, data.temperature, data.maxTokens, onChange]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[540px]">
+    <div className=" min-h-[540px]">
       {/* Left Column - Main Content */}
       <div className="lg:col-span-8 flex flex-col h-full">
-        {/* Header Section */}
-        <div className="mb-6">
-          <h2 className="text-[28px] font-light tracking-[0.2px] mb-2">Model Configuration</h2>
-          <p className="text-base text-muted-foreground max-w-xl">
-            Configure your assistant's core AI model and behavior settings
-          </p>
-        </div>
+
 
         {/* First Message Section */}
         <div className="mb-6">
-          <label className="block text-base font-semibold tracking-[0.2px] mb-2">
+          <label className="text-base font-semibold tracking-[0.2px] mb-2 block">
             First Message (Call Greeting)
           </label>
-          <p className="text-sm text-muted-foreground mb-2">
-            This is the first message your assistant will say when a call starts
-          </p>
           <Textarea
             placeholder="Hi! This is [Your Name] from [Your Company]. How may I help you today?"
             value={data.firstMessage}
@@ -238,6 +229,7 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
 
       {/* Right Column - Sidebar */}
       <div className="lg:col-span-4">
+
         <div className="bg-background/50 rounded-lg p-5 h-full">
           <h3 className="text-lg font-semibold tracking-tight mb-4">Model Settings</h3>
 
@@ -453,6 +445,6 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
       </div>
 
 
-    </div>
+    </div >
   );
 };

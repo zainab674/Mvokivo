@@ -171,26 +171,40 @@ router.get('/usage', authenticateToken, async (req, res) => {
         });
 
         // 6. Team Members (Stub for now, or count users with same tenant)
-        // For now just return 1 (owner)
         const teamMembersCount = 1;
 
-        // Fetch Plan Config to get limits
-        // Logic to determine plan config similar to frontend
+        // Fetch Plan Config to get full plan details
         let planConfig = null;
+        let payAsYouGo = false;
+
         if (user.plan) {
-            // Try to find plan config by plan key (user.plan)
-            // Need to logic for tenant/main plan... 
-            // For simplicity in this endpoint:
-            const plans = await PlanConfig.find({ is_active: true });
-            planConfig = plans.find(p => p.plan_key === user.plan) || plans.find(p => p.plan_key === 'free');
+            // Determine tenant for plan lookup
+            const planTenant = user.tenant && user.tenant !== 'main' ? user.tenant : null;
+
+            // Find the plan configuration
+            planConfig = await PlanConfig.findOne({
+                plan_key: user.plan.toLowerCase(),
+                tenant: planTenant,
+                is_active: true
+            });
+
+            if (planConfig) {
+                payAsYouGo = planConfig.pay_as_you_go || false;
+            }
         }
 
         if (!planConfig) {
             // Fallback free plan limits
-            planConfig = { features: ['2500 api calls', '10 team members'] };
+            planConfig = {
+                plan_key: 'free',
+                name: 'Free',
+                price: 0,
+                features: ['2500 api calls', '10 team members'],
+                pay_as_you_go: false
+            };
         }
 
-        // Extract limits from plan features (strings like "2500 api calls")
+        // Extract limits from plan features
         const getLimit = (keyword, defaultVal) => {
             if (!planConfig.features) return defaultVal;
             const feature = planConfig.features.find(f => f.toLowerCase().includes(keyword));
@@ -203,25 +217,38 @@ router.get('/usage', authenticateToken, async (req, res) => {
 
         const apiCallsLimit = getLimit('calls', 2500);
         const teamMembersLimit = getLimit('team', 10);
-        const textMessagesLimit = 2000; // Hardcoded default
+        const textMessagesLimit = 2000;
+
+        // Calculate next billing date (trial_ends_at or monthly from created_at)
+        let nextBilling = null;
+        if (user.trial_ends_at && new Date(user.trial_ends_at) > new Date()) {
+            nextBilling = new Date(user.trial_ends_at).toLocaleDateString();
+        } else if (user.created_at) {
+            const nextBillingDate = new Date(user.created_at);
+            nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
+            nextBilling = nextBillingDate.toLocaleDateString();
+        }
 
         res.json({
             success: true,
             usage: {
                 minutesBalance: remainingMinutes,
-                minutesUsed: minutesUsed, // This is current month used or total used depending on how user.minutes_used is tracked. 
-                // Assuming user.minutes_used is total used, but for "Usage This Month" we might want month specific? 
-                // Wait, User.minutes_used is usually tracked as total or resetting? 
-                // Let's assume it's what the frontend used: user.minutes_used. 
-
+                minutesUsed: minutesUsed,
+                minutesLimit: minutesLimit,
                 apiCalls: { used: apiCallsCount, limit: apiCallsLimit },
                 textMessages: { used: textMessagesCount, limit: textMessagesLimit },
                 teamMembers: { used: teamMembersCount, limit: teamMembersLimit },
-                phoneMinutes: { used: phoneMinutesCount, limit: -1 } // Unlimited or N/A
+                phoneMinutes: { used: phoneMinutesCount, limit: -1 }
             },
             plan: {
-                name: user.plan || 'Free',
-                isActive: user.is_active
+                key: planConfig.plan_key || user.plan || 'free',
+                name: planConfig.name || user.plan || 'Free',
+                price: planConfig.price || 0,
+                period: 'month',
+                status: user.is_active ? 'active' : 'inactive',
+                nextBilling: nextBilling,
+                payAsYouGo: payAsYouGo,
+                features: planConfig.features || []
             }
         });
 
@@ -230,5 +257,6 @@ router.get('/usage', authenticateToken, async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
+
 
 export default router;

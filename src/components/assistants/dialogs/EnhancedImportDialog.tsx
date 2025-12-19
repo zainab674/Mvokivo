@@ -56,13 +56,13 @@ interface EnhancedImportDialogProps {
   assistants: Array<{ id: string; name: string }>;
 }
 
-export function EnhancedImportDialog({ 
-  open, 
-  onOpenChange, 
-  assistants 
+export function EnhancedImportDialog({
+  open,
+  onOpenChange,
+  assistants
 }: EnhancedImportDialogProps) {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [twilioNumbers, setTwilioNumbers] = useState<TwilioNumbersResponse | null>(null);
   const [selectedNumbers, setSelectedNumbers] = useState<Set<string>>(new Set());
@@ -91,14 +91,16 @@ export function EnhancedImportDialog({
   const fetchTwilioNumbers = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const base = (import.meta.env.VITE_BACKEND_URL as string) ?? "http://localhost:4000";
-      
+
+      const token = await getAccessToken();
       // Try user-specific endpoint first
       const url = `${base}/api/v1/twilio/user/phone-numbers`;
       const res = await fetch(url, {
         headers: {
+          'Authorization': `Bearer ${token}`,
           'x-user-id': user?.id || '',
         },
       });
@@ -108,14 +110,14 @@ export function EnhancedImportDialog({
         if (res.status === 404 && json.message === 'No Twilio credentials found') {
           throw new Error('No Twilio credentials found. Please configure your Twilio credentials in Settings.');
         }
-        
+
         // If user endpoint fails, try fallback to admin endpoint
         console.log('User endpoint failed, trying admin endpoint:', json.message);
         return fetchFromAdminEndpoint();
       }
 
       // Filter for only numbers with demo voice URL AND no trunk assignment (unused numbers)
-      const demoNumbers = (json.numbers || []).filter((n: any) => 
+      const demoNumbers = (json.numbers || []).filter((n: any) =>
         n.voiceUrl === "https://demo.twilio.com/welcome/voice/" && n.trunkSid === null
       );
 
@@ -156,9 +158,15 @@ export function EnhancedImportDialog({
 
   const fetchFromAdminEndpoint = async () => {
     try {
+      const token = await getAccessToken();
       const base = (import.meta.env.VITE_BACKEND_URL as string) ?? "http://localhost:4000";
       const url = `${base}/api/v1/twilio/phone-numbers`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user?.id || '',
+        }
+      });
       const json = await res.json();
 
       if (!json.success) {
@@ -166,7 +174,7 @@ export function EnhancedImportDialog({
       }
 
       // Filter for only numbers with demo voice URL AND no trunk assignment (unused numbers)
-      const demoNumbers = (json.numbers || []).filter((n: any) => 
+      const demoNumbers = (json.numbers || []).filter((n: any) =>
         n.voiceUrl === "https://demo.twilio.com/welcome/voice/" && n.trunkSid === null
       );
 
@@ -206,7 +214,7 @@ export function EnhancedImportDialog({
   const handleNumberSelection = (number: TwilioNumber, checked: boolean) => {
     const newSelected = new Set(selectedNumbers);
     const newConfigured = new Map(configuredNumbers);
-    
+
     if (checked) {
       newSelected.add(number.sid);
       // Set default configuration
@@ -219,7 +227,7 @@ export function EnhancedImportDialog({
       newSelected.delete(number.sid);
       newConfigured.delete(number.sid);
     }
-    
+
     setSelectedNumbers(newSelected);
     setConfiguredNumbers(newConfigured);
   };
@@ -249,35 +257,37 @@ export function EnhancedImportDialog({
 
   const handleImportSelected = async () => {
     if (selectedNumbers.size === 0) return;
-    
+
     setIsLoading(true);
-    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-    
+    const token = await getAccessToken();
+    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
     try {
       // Process each selected number with trunk-based assignment
       for (const sid of selectedNumbers) {
         const twilioNumber = twilioNumbers?.numbers.find(n => n.sid === sid);
         const config = configuredNumbers.get(sid);
-        
+
         if (!twilioNumber || !config?.assistant) {
           console.warn(`Skipping ${sid}: missing number or assistant config`);
           continue;
         }
-        
+
         // Find the assistant object
         const assistant = assistants.find(a => a.name === config.assistant);
         if (!assistant) {
           console.warn(`Assistant not found: ${config.assistant}`);
           continue;
         }
-        
+
         console.log(`Processing ${twilioNumber.phoneNumber} → ${assistant.name}`);
-        
+
         // Step 1: Attach phone number to user's Twilio trunk
         const attachResp = await fetch(`${base}/api/v1/twilio/user/trunk/attach`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            'Authorization': `Bearer ${token}`,
             'x-user-id': user?.id || '',
           },
           body: JSON.stringify({ phoneSid: twilioNumber.sid }),
@@ -293,8 +303,9 @@ export function EnhancedImportDialog({
         try {
           const livekitResp = await fetch(`${base}/api/v1/livekit/assistant-trunk`, {
             method: "POST",
-            headers: { 
+            headers: {
               "Content-Type": "application/json",
+              'Authorization': `Bearer ${token}`,
               'x-user-id': user?.id || ''
             },
             body: JSON.stringify({
@@ -319,8 +330,9 @@ export function EnhancedImportDialog({
         // Step 3: Map phone number to assistant in database (including outbound trunk info)
         const mapResp = await fetch(`${base}/api/v1/twilio/map`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
+            'Authorization': `Bearer ${token}`,
             'x-user-id': user?.id || '',
           },
           body: JSON.stringify({
@@ -337,14 +349,14 @@ export function EnhancedImportDialog({
         }
         console.log('Phone number mapped to assistant with trunk info');
       }
-      
+
       // Success - close dialog and show success message
       toast({
         title: "Import successful",
         description: `${selectedNumbers.size} phone number(s) assigned successfully with trunk integration`,
       });
       onOpenChange(false);
-      
+
     } catch (error) {
       console.error('Error during trunk-based assignment:', error);
       toast({
@@ -359,33 +371,35 @@ export function EnhancedImportDialog({
 
   const handleManualImport = async () => {
     if (!manualNumber) return;
-    
+
     setIsLoading(true);
-    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-    
+    const token = await getAccessToken();
+    const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+
     try {
       // Find the assistant object
       const assistant = assistants.find(a => a.name === manualAssistant);
       if (!assistant) {
         throw new Error("Please select an assistant");
       }
-      
+
       console.log(`Processing manual number ${manualNumber} → ${assistant.name}`);
-      
+
       // For manual numbers, we'll create a temporary SID and use the trunk system
       const tempSid = `manual-${Date.now()}`;
-      
+
       // Step 1: Create phone number entry in Twilio (if needed) and attach to trunk
       const attachResp = await fetch(`${base}/api/v1/twilio/user/trunk/attach`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
           'x-user-id': user?.id || '',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           phoneSid: tempSid,
           phoneNumber: manualNumber,
-          isManual: true 
+          isManual: true
         }),
       });
       const attachJson = await attachResp.json();
@@ -399,8 +413,9 @@ export function EnhancedImportDialog({
       try {
         const livekitResp = await fetch(`${base}/api/v1/livekit/assistant-trunk`, {
           method: "POST",
-          headers: { 
+          headers: {
             "Content-Type": "application/json",
+            'Authorization': `Bearer ${token}`,
             'x-user-id': user?.id || ''
           },
           body: JSON.stringify({
@@ -423,8 +438,9 @@ export function EnhancedImportDialog({
       // Step 3: Map phone number to assistant in database
       const mapResp = await fetch(`${base}/api/v1/twilio/map`, {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
           'x-user-id': user?.id || '',
         },
         body: JSON.stringify({
@@ -442,14 +458,14 @@ export function EnhancedImportDialog({
         throw new Error(mapJson.message || "Failed to map manual phone number to assistant");
       }
       console.log('Manual phone number mapped to assistant with trunk info');
-      
+
       // Success
       toast({
         title: "Manual import successful",
         description: `${manualNumber} assigned to ${assistant.name} with trunk integration`,
       });
       onOpenChange(false);
-      
+
     } catch (error) {
       console.error('Error during manual trunk-based assignment:', error);
       toast({
@@ -464,10 +480,10 @@ export function EnhancedImportDialog({
 
   return (
     <ThemedDialog open={open} onOpenChange={onOpenChange}>
-      <ThemedDialogContent 
+      <ThemedDialogContent
         className="sm:max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900/95 backdrop-blur-sm"
       >
-        <ThemedDialogHeader 
+        <ThemedDialogHeader
           title="Import Phone Numbers from Twilio"
           description="Select from all available phone numbers in your Twilio account"
         />
@@ -518,9 +534,9 @@ export function EnhancedImportDialog({
                 <div className="p-4 rounded-lg bg-muted/30 border border-border">
                   <div className="flex items-center justify-between">
                     <div className="text-white">
-                      <h3 
+                      <h3
                         className="font-medium text-white"
-                        style={{ 
+                        style={{
                           color: '#ffffff !important',
                           fontSize: '16px',
                           fontWeight: '500'
@@ -528,14 +544,14 @@ export function EnhancedImportDialog({
                       >
                         {twilioNumbers.accountLabel}
                       </h3>
-                      <p 
+                      <p
                         className="text-sm text-white/70"
-                        style={{ 
+                        style={{
                           color: 'rgba(255, 255, 255, 0.7) !important',
                           fontSize: '14px'
                         }}
                       >
-                        {twilioNumbers.totalCount} total numbers • {twilioNumbers.availableCount} available for assignment 
+                        {twilioNumbers.totalCount} total numbers • {twilioNumbers.availableCount} available for assignment
                       </p>
                     </div>
                     <Badge variant="secondary" className="text-white">
@@ -551,7 +567,7 @@ export function EnhancedImportDialog({
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <Label className="text-foreground text-sm">Apply Assistant to All</Label>
-                        <select 
+                        <select
                           onChange={(e) => handleBatchConfiguration('assistant', e.target.value)}
                           className="w-full h-10 px-3 py-2 bg-background border border-border text-foreground rounded-md"
                         >
@@ -570,15 +586,14 @@ export function EnhancedImportDialog({
                 {/* Numbers List */}
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {twilioNumbers.numbers.map((number) => (
-                    <div 
-                      key={number.sid} 
-                      className={`p-4 rounded-lg border transition-all ${
-                        number.isConfigured 
-                          ? 'bg-muted/50 border-border opacity-75' 
-                          : selectedNumbers.has(number.sid)
-                            ? 'bg-primary/5 border-primary'
-                            : 'bg-background border-border hover:border-border/60'
-                      }`}
+                    <div
+                      key={number.sid}
+                      className={`p-4 rounded-lg border transition-all ${number.isConfigured
+                        ? 'bg-muted/50 border-border opacity-75'
+                        : selectedNumbers.has(number.sid)
+                          ? 'bg-primary/5 border-primary'
+                          : 'bg-background border-border hover:border-border/60'
+                        }`}
                     >
                       <div className="flex items-start space-x-3">
                         <Checkbox
@@ -587,13 +602,13 @@ export function EnhancedImportDialog({
                           disabled={number.isConfigured}
                           className="mt-1"
                         />
-                        
+
                         <div className="flex-1 space-y-3">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h4 
+                              <h4
                                 className="font-medium text-white"
-                                style={{ 
+                                style={{
                                   color: '#ffffff !important',
                                   fontSize: '16px',
                                   fontWeight: '500'
@@ -601,9 +616,9 @@ export function EnhancedImportDialog({
                               >
                                 {formatPhoneNumber(number.phoneNumber)}
                               </h4>
-                              <p 
+                              <p
                                 className="text-sm text-white/70"
-                                style={{ 
+                                style={{
                                   color: 'rgba(255, 255, 255, 0.7) !important',
                                   fontSize: '14px'
                                 }}
@@ -632,8 +647,8 @@ export function EnhancedImportDialog({
                               </div>
                               <div>
                                 <Label className="text-white text-xs">Assistant</Label>
-                                <select 
-                                  value={configuredNumbers.get(number.sid)?.assistant || ""} 
+                                <select
+                                  value={configuredNumbers.get(number.sid)?.assistant || ""}
                                   onChange={(e) => updateNumberConfiguration(number.sid, 'assistant', e.target.value)}
                                   className="w-full h-10 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-sm rounded-md"
                                 >
@@ -658,8 +673,8 @@ export function EnhancedImportDialog({
                   <Button variant="outline" onClick={() => onOpenChange(false)}>
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={handleImportSelected} 
+                  <Button
+                    onClick={handleImportSelected}
                     disabled={selectedNumbers.size === 0}
                     className="min-w-32"
                   >
@@ -694,8 +709,8 @@ export function EnhancedImportDialog({
               </div>
               <div>
                 <Label htmlFor="manual-assistant" className="text-white">Assistant</Label>
-                <select 
-                  value={manualAssistant} 
+                <select
+                  value={manualAssistant}
                   onChange={(e) => setManualAssistant(e.target.value)}
                   className="w-full h-10 px-3 py-2 bg-gray-800 border border-gray-600 text-white text-sm rounded-md"
                 >
@@ -708,7 +723,7 @@ export function EnhancedImportDialog({
                 </select>
               </div>
             </div>
-            
+
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel

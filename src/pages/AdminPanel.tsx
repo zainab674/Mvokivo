@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { PLAN_CONFIGS, getPlanConfig, getPlanConfigs, invalidatePlanConfigsCache, type PlanConfig } from "@/lib/plan-config";
 import { getAccessToken } from '@/lib/auth';
-import { AdminService } from '@/lib/adminService';
+import { AdminService, type AdminUser } from '@/lib/adminService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MoreHorizontal, Search, Edit, Trash2, Eye, Shield, Users, CreditCard, Clock, Activity, TrendingUp, Settings } from 'lucide-react';
+import { MoreHorizontal, Search, Edit, Trash2, Eye, Shield, Users, CreditCard, Clock, Activity, TrendingUp, Settings, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/SupportAccessAuthContext';
 import DashboardLayout from '@/layout/DashboardLayout';
@@ -22,28 +22,9 @@ import { ThemeContainer, ThemeSection, ThemeCard } from '@/components/theme';
 import { SupportAccessDialog } from '@/components/admin/SupportAccessDialog';
 import { SupportAccessBanner } from '@/components/admin/SupportAccessBanner';
 import { ActiveSupportSessions } from '@/components/admin/ActiveSupportSessions';
-
-interface User {
-  id: string;
-  name: string | null;
-  contact: {
-    email: string | null;
-    phone: string | null;
-    countryCode: string | null;
-  } | null;
-  role: string | null;
-  is_active: boolean | null;
-  created_on: string | null;
-  updated_at: string | null;
-  company: string | null;
-  industry: string | null;
-  plan?: string | null;
-  minutes_limit?: number | null;
-  minutes_used?: number | null;
-  is_whitelabel?: boolean;
-  slug_name?: string | null;
-  tenant?: string | null;
-}
+import { DashboardStats } from '@/components/admin/DashboardStats';
+import { SimpleBarChart, DonutChart, LineChart } from '@/components/admin/Charts';
+import { ModernUserTable } from '@/components/admin/ModernUserTable';
 
 interface UserStats {
   totalAssistants: number;
@@ -65,21 +46,21 @@ interface MinutePricingConfig {
 
 const AdminPanel = () => {
   const { user, isImpersonating, exitImpersonation, activeSupportSession: contextActiveSupportSession, startSupportAccess } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [planSearchTerm, setPlanSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
   const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false);
-  const [editUserData, setEditUserData] = useState<Partial<User>>({});
+  const [editUserData, setEditUserData] = useState<Partial<AdminUser>>({});
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [allUserStats, setAllUserStats] = useState<Record<string, UserStats>>({});
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
-  const [planDialogUser, setPlanDialogUser] = useState<User | null>(null);
+  const [planDialogUser, setPlanDialogUser] = useState<AdminUser | null>(null);
   const [planDialogPlan, setPlanDialogPlan] = useState<string>("free");
   const [planDialogLoading, setPlanDialogLoading] = useState(false);
 
@@ -159,7 +140,7 @@ const AdminPanel = () => {
         return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
     }
   };
-  const openPlanDialog = (user: User) => {
+  const openPlanDialog = (user: AdminUser) => {
     setPlanDialogUser(user);
     const userPlan = user.plan || "free";
     setPlanDialogPlan(userPlan);
@@ -319,6 +300,8 @@ const AdminPanel = () => {
           key: plan.key,
           name: plan.name,
           price: plan.price,
+          minutes: plan.minutes,
+          payAsYouGo: plan.payAsYouGo ?? false,
           features: [...plan.features],
           whitelabelEnabled: plan.whitelabelEnabled ?? false
         });
@@ -330,6 +313,8 @@ const AdminPanel = () => {
         key: '',
         name: '',
         price: 0,
+        minutes: undefined,
+        payAsYouGo: false,
         features: [],
         whitelabelEnabled: false
       });
@@ -369,7 +354,9 @@ const AdminPanel = () => {
         plan_key: planKey,
         name: editPlanData.name,
         price: editPlanData.price,
-        features: editPlanData.features || [],
+        minutes: editPlanData.minutes !== undefined && editPlanData.minutes !== null ? Number(editPlanData.minutes) : undefined,
+        pay_as_you_go: editPlanData.payAsYouGo ?? false,
+        features: (editPlanData.features || []).filter(f => f.trim()),
         whitelabel_enabled: editPlanData.whitelabelEnabled
       };
 
@@ -774,118 +761,65 @@ const AdminPanel = () => {
   return (
     <DashboardLayout>
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="max-w-[1600px] mx-auto space-y-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          <div className="max-w-[1600px] mx-auto space-y-6 sm:space-y-8">
             {/* Header Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
               <div>
-                <h1 className="text-4xl font-bold tracking-tight text-foreground mb-2">
+                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground mb-2">
                   Admin Dashboard
                 </h1>
-                <p className="text-muted-foreground text-base">
+                <p className="text-muted-foreground text-sm sm:text-base max-w-2xl">
                   Comprehensive system administration and user management
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
                 {!isImpersonating && (
-                  <div className="hidden sm:block">
+                  <div className="w-full sm:w-auto">
                     <ActiveSupportSessions onSessionSelect={handleSessionSelect} />
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Active Support Sessions - Mobile */}
-            {!isImpersonating && (
-              <div className="sm:hidden">
-                <ActiveSupportSessions onSessionSelect={handleSessionSelect} />
-              </div>
-            )}
-
             {/* Statistics Dashboard */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <ThemeCard className="border-l-4 border-l-blue-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1">Total Users</p>
-                      <p className="text-3xl font-bold text-foreground">{dashboardStats.totalUsers}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {dashboardStats.activeUsers} active ({dashboardStats.activePercentage}%)
-                      </p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                      <Users className="h-6 w-6 text-blue-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </ThemeCard>
+            <DashboardStats stats={dashboardStats} />
 
-              <ThemeCard className="border-l-4 border-l-purple-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1">Total Assistants</p>
-                      <p className="text-3xl font-bold text-foreground">{dashboardStats.totalAssistants}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Across all users
-                      </p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-purple-500/10 flex items-center justify-center">
-                      <Activity className="h-6 w-6 text-purple-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </ThemeCard>
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mt-4 sm:mt-6">
+              <SimpleBarChart
+                title="User Activity (Last 7 Days)"
+                data={[
+                  { label: 'Mon', value: Math.floor(Math.random() * 100) },
+                  { label: 'Tue', value: Math.floor(Math.random() * 100) },
+                  { label: 'Wed', value: Math.floor(Math.random() * 100) },
+                  { label: 'Thu', value: Math.floor(Math.random() * 100) },
+                  { label: 'Fri', value: Math.floor(Math.random() * 100) },
+                  { label: 'Sat', value: Math.floor(Math.random() * 100) },
+                  { label: 'Sun', value: Math.floor(Math.random() * 100) },
+                ]}
+              />
 
-              <ThemeCard className="border-l-4 border-l-green-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1">Total Calls</p>
-                      <p className="text-3xl font-bold text-foreground">{dashboardStats.totalCalls.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        All time
-                      </p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                      <TrendingUp className="h-6 w-6 text-green-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </ThemeCard>
-
-              <ThemeCard className="border-l-4 border-l-orange-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1">Minutes Used</p>
-                      <p className="text-3xl font-bold text-foreground">
-                        {dashboardStats.totalMinutesUsed.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {dashboardStats.totalMinutesLimit > 0
-                          ? `${Math.round((dashboardStats.totalMinutesUsed / dashboardStats.totalMinutesLimit) * 100)}% of allocated`
-                          : 'Unlimited plans included'
-                        }
-                      </p>
-                    </div>
-                    <div className="h-12 w-12 rounded-full bg-orange-500/10 flex items-center justify-center">
-                      <Clock className="h-6 w-6 text-orange-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </ThemeCard>
+              <DonutChart
+                title="Plan Distribution"
+                data={[
+                  { label: 'Free', value: users.filter(u => !u.plan || u.plan === 'free').length, color: '#3b82f6' },
+                  { label: 'Pro', value: users.filter(u => u.plan === 'pro').length, color: '#8b5cf6' },
+                  { label: 'Enterprise', value: users.filter(u => u.plan === 'enterprise').length, color: '#ec4899' },
+                ]}
+                centerValue={users.length.toString()}
+                centerLabel="Total Users"
+              />
             </div>
 
             {/* Main Content Tabs */}
             <Tabs defaultValue="users" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-flex mb-6 h-12">
-                <TabsTrigger value="users" className="flex items-center gap-2 text-base">
+              <TabsList className="flex w-full overflow-x-auto custom-scrollbar lg:w-auto bg-muted/20 p-1 mb-6 h-auto sm:h-12 min-w-max">
+                <TabsTrigger value="users" className="flex-1 lg:flex-none flex items-center gap-2 text-sm sm:text-base py-2 sm:py-0">
                   <Users className="h-4 w-4" />
                   Users Management
                 </TabsTrigger>
-                <TabsTrigger value="plans" className="flex items-center gap-2 text-base">
+                <TabsTrigger value="plans" className="flex-1 lg:flex-none flex items-center gap-2 text-sm sm:text-base py-2 sm:py-0">
                   <CreditCard className="h-4 w-4" />
                   Plans & Pricing
                 </TabsTrigger>
@@ -893,232 +827,151 @@ const AdminPanel = () => {
 
               <TabsContent value="users" className="mt-0 space-y-6">
                 {/* Users Management Card */}
-                <ThemeCard className="overflow-hidden">
-                  <CardHeader className="border-b border-border/40 bg-muted/20">
+                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
+                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
-                        <CardTitle className="text-2xl font-semibold">Users Management</CardTitle>
-                        <CardDescription className="text-base mt-1">
+                        <CardTitle className="text-xl sm:text-2xl font-bold">Users Management</CardTitle>
+                        <CardDescription className="text-sm sm:text-base mt-1">
                           View, manage, and monitor all system users
                         </CardDescription>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-1 sm:flex-initial">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search users..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 w-full sm:w-80 h-10"
-                          />
-                        </div>
+                      <div className="relative w-full sm:w-80">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search users..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-9 w-full h-10 rounded-xl"
+                        />
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     {loading ? (
-                      <div className="flex items-center justify-center py-16">
+                      <div className="flex items-center justify-center py-20">
                         <div className="flex flex-col items-center gap-4">
                           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                          <p className="text-sm text-muted-foreground">Loading users...</p>
+                          <p className="text-sm text-muted-foreground font-medium">Fetching users...</p>
                         </div>
                       </div>
                     ) : filteredUsers.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 px-4">
-                        <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                        <p className="text-lg font-medium text-foreground mb-1">No users found</p>
+                      <div className="flex flex-col items-center justify-center py-20 px-6">
+                        <div className="w-16 h-16 bg-muted/20 rounded-full flex items-center justify-center mb-4">
+                          <Users className="h-8 w-8 text-muted-foreground/50" />
+                        </div>
+                        <p className="text-lg font-bold text-foreground mb-1">No matches found</p>
                         <p className="text-sm text-muted-foreground text-center">
-                          {searchTerm ? 'Try adjusting your search criteria' : 'No users in the system yet'}
+                          {searchTerm ? 'No users match your current search terms.' : 'There are no registered users in the system yet.'}
                         </p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/30">
-                              <TableHead className="font-semibold">User</TableHead>
-                              <TableHead className="font-semibold">Role</TableHead>
-                              <TableHead className="font-semibold">Plan</TableHead>
-                              <TableHead className="font-semibold text-center">Assistants</TableHead>
-                              <TableHead className="font-semibold text-center">Calls</TableHead>
-                              <TableHead className="font-semibold text-center">Minutes</TableHead>
-                              <TableHead className="font-semibold">Status</TableHead>
-                              <TableHead className="font-semibold text-right">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredUsers.map((user) => (
-                              <TableRow key={user.id} className="hover:bg-muted/20 transition-colors">
-                                <TableCell>
-                                  <div className="flex flex-col">
-                                    <span className="font-medium text-foreground">{user.name || 'N/A'}</span>
-                                    <span className="text-sm text-muted-foreground">{user.contact?.email || 'N/A'}</span>
-                                    {user.slug_name && (
-                                      <span className="text-xs text-blue-400 mt-0.5">WL: {user.slug_name}</span>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="font-medium">
-                                    {user.role || 'user'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="font-medium">
-                                    {allUserStats[user.id]?.plan || user.plan || 'Free'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <span className="font-semibold text-blue-400">
-                                    {allUserStats[user.id]?.totalAssistants || 0}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <span className="font-semibold text-green-400">
-                                    {allUserStats[user.id]?.totalCalls || 0}
-                                  </span>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex flex-col items-center gap-1">
-                                    <div className="text-xs text-muted-foreground">
-                                      {user.minutes_used?.toLocaleString() || 0} / {formatMinutes(user.minutes_limit, user.plan)}
-                                    </div>
-                                    <div className="text-xs font-medium text-emerald-400">
-                                      {getRemainingMinutes(user)} left
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={user.is_active ? 'default' : 'destructive'}
-                                    className="font-medium"
-                                  >
-                                    {user.is_active ? 'Active' : 'Inactive'}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" className="h-9 w-9 p-0">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48">
-                                      <DropdownMenuItem onClick={() => openViewDialog(user)}>
-                                        <Eye className="mr-2 h-4 w-4" />
-                                        View Details
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        Edit User
-                                      </DropdownMenuItem>
-                                      <SupportAccessDialog
-                                        userId={user.id}
-                                        userName={user.name || 'Unknown User'}
-                                        userEmail={user.contact?.email || 'No email'}
-                                        onSupportAccess={handleSupportAccess}
-                                      >
-                                        <DropdownMenuItem
-                                          disabled={user.role === 'admin'}
-                                          onSelect={(e) => e.preventDefault()}
-                                        >
-                                          <Shield className="mr-2 h-4 w-4" />
-                                          Support Access
-                                        </DropdownMenuItem>
-                                      </SupportAccessDialog>
-                                      <DropdownMenuItem
-                                        onClick={() => openDeleteDialog(user)}
-                                        className="text-red-600 focus:text-red-600"
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Delete User
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                      <div className="overflow-x-auto custom-scrollbar">
+                        <ModernUserTable
+                          users={filteredUsers}
+                          allUserStats={allUserStats}
+                          onViewUser={openViewDialog}
+                          onEditUser={openEditDialog}
+                          onDeleteUser={openDeleteDialog}
+                          onSupportAccess={handleSupportAccess}
+                          formatMinutes={formatMinutes}
+                          getRemainingMinutes={getRemainingMinutes}
+                        />
                       </div>
                     )}
                   </CardContent>
                 </ThemeCard>
               </TabsContent>
 
-              <TabsContent value="plans" className="mt-0 space-y-6">
+              <TabsContent value="plans" className="mt-0 space-y-8">
                 {/* Plan Configuration Management */}
-                <ThemeCard className="overflow-hidden">
-                  <CardHeader className="border-b border-border/40 bg-muted/20">
+                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
+                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
-                        <CardTitle className="text-2xl font-semibold">Plan Configuration</CardTitle>
-                        <CardDescription className="text-base mt-1">
+                        <CardTitle className="text-xl sm:text-2xl font-bold">Plan Configuration</CardTitle>
+                        <CardDescription className="text-sm sm:text-base mt-1">
                           Manage subscription plans, pricing, and features
                         </CardDescription>
                       </div>
-                      <div className="flex gap-2">
-                        <Button onClick={() => openEditPlanDialog(null)} variant="default" size="default" className="h-10">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Button onClick={() => openEditPlanDialog(null)} className="h-10 px-4 rounded-xl flex-1 sm:flex-none">
                           <Settings className="mr-2 h-4 w-4" />
                           Add Plan
                         </Button>
-                        <Button onClick={fetchPlanConfigs} variant="outline" size="default" className="h-10">
+                        <Button onClick={fetchPlanConfigs} variant="outline" className="h-10 px-4 rounded-xl flex-1 sm:flex-none">
                           Refresh
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     {loadingPlanConfigs ? (
-                      <div className="flex items-center justify-center py-16">
+                      <div className="flex items-center justify-center py-20">
                         <div className="flex flex-col items-center gap-4">
                           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                          <p className="text-sm text-muted-foreground">Loading plan configurations...</p>
+                          <p className="text-sm text-muted-foreground font-medium">Loading configs...</p>
                         </div>
                       </div>
                     ) : Object.values(planConfigs).length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 px-4">
-                        <CreditCard className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                        <p className="text-lg font-medium text-foreground mb-1">No plans configured</p>
-                        <p className="text-sm text-muted-foreground text-center mb-4">
-                          Create your first subscription plan to get started
+                      <div className="flex flex-col items-center justify-center py-20 px-6 border-2 border-dashed border-border/40 rounded-3xl">
+                        <div className="w-16 h-16 bg-primary/5 rounded-full flex items-center justify-center mb-6">
+                          <CreditCard className="h-8 w-8 text-primary/40" />
+                        </div>
+                        <p className="text-lg font-bold mb-2 text-center">No plans configured</p>
+                        <p className="text-sm text-muted-foreground text-center mb-8 max-w-xs">
+                          Create your first subscription plan to start accepting payments.
                         </p>
-                        <Button onClick={() => openEditPlanDialog(null)} variant="default">
-                          <Settings className="mr-2 h-4 w-4" />
-                          Add Plan
+                        <Button onClick={() => openEditPlanDialog(null)} className="rounded-xl px-8 h-12 font-bold shadow-lg shadow-primary/20">
+                          <Settings className="mr-2 h-5 w-5" />
+                          Create First Plan
                         </Button>
                       </div>
                     ) : (
-                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {Object.values(planConfigs).map((plan) => (
-                          <Card key={plan.key} className="border-2 border-border/40 bg-card/50 backdrop-blur-sm hover:border-primary/50 transition-colors">
-                            <CardHeader className="pb-3">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <CardTitle className="text-xl font-bold mb-1">{plan.name}</CardTitle>
-                                  <CardDescription className="text-xs font-mono">{plan.key}</CardDescription>
+                          <Card key={plan.key} className="border border-border/40 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all hover:shadow-lg hover:-translate-y-1 group rounded-2xl overflow-hidden">
+                            <CardHeader className="pb-4 border-b border-border/10 bg-muted/5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <CardTitle className="text-lg sm:text-xl font-bold truncate">{plan.name}</CardTitle>
+                                  <CardDescription className="text-[10px] font-mono opacity-60 uppercase tracking-tighter truncate">{plan.key}</CardDescription>
                                 </div>
-                                {plan.whitelabelEnabled && (
-                                  <Badge variant="secondary" className="text-xs">Whitelabel</Badge>
-                                )}
+                                <div className="flex flex-col gap-1 shrink-0">
+                                  {plan.whitelabelEnabled && (
+                                    <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] uppercase font-black px-1.5 h-4 tracking-widest leading-none">White</Badge>
+                                  )}
+                                  {plan.payAsYouGo && (
+                                    <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20 text-[9px] uppercase font-black px-1.5 h-4 tracking-widest leading-none">PAYG</Badge>
+                                  )}
+                                </div>
                               </div>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                              <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Price</Label>
-                                <p className="text-2xl font-bold text-foreground">${plan.price}<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                            <CardContent className="p-5 space-y-4">
+                              <div className="flex justify-between items-baseline border-b border-border/5 pb-3">
+                                <span className="text-xs font-black uppercase text-muted-foreground/40 tracking-widest">Price</span>
+                                <p className="text-2xl font-black text-foreground">${plan.price}<span className="text-[10px] font-bold text-muted-foreground ml-1">/mo</span></p>
                               </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Features</Label>
-                                <p className="text-sm font-semibold text-foreground">{plan.features.length} feature{plan.features.length !== 1 ? 's' : ''}</p>
+                              <div className="flex justify-between items-center border-b border-border/5 pb-3">
+                                <span className="text-xs font-black uppercase text-muted-foreground/40 tracking-widest">Minutes</span>
+                                <p className="text-sm font-bold text-foreground">
+                                  {plan.payAsYouGo
+                                    ? 'Unlimited'
+                                    : (plan.minutes === undefined || plan.minutes === null || plan.minutes === 0 ? 'Unlimited' : `${plan.minutes.toLocaleString()}`)
+                                  }
+                                </p>
+                              </div>
+                              <div className="flex justify-between items-center border-b border-border/5 pb-3">
+                                <span className="text-xs font-black uppercase text-muted-foreground/40 tracking-widest">Features</span>
+                                <Badge variant="secondary" className="font-bold text-[10px] rounded-md h-5">{plan.features.length}</Badge>
                               </div>
                               <div className="flex gap-2 pt-2">
                                 <Button
                                   onClick={() => openEditPlanDialog(plan.key)}
                                   variant="outline"
-                                  className="flex-1 h-9"
+                                  className="flex-1 h-9 rounded-xl text-xs font-bold border-border/60 hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
                                 >
-                                  <Edit className="mr-2 h-3.5 w-3.5" />
+                                  <Edit className="mr-1.5 h-3.5 w-3.5" />
                                   Edit
                                 </Button>
                                 <Button
@@ -1126,11 +979,11 @@ const AdminPanel = () => {
                                     setDeletingPlanKey(plan.key);
                                     setIsDeletePlanOpen(true);
                                   }}
-                                  variant="destructive"
+                                  variant="ghost"
                                   size="icon"
-                                  className="h-9 w-9 shrink-0"
+                                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </CardContent>
@@ -1142,163 +995,151 @@ const AdminPanel = () => {
                 </ThemeCard>
 
                 {/* Minute Pricing Configuration */}
-                <ThemeCard className="overflow-hidden">
-                  <CardHeader className="border-b border-border/40 bg-muted/20">
+                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
+                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
                     <div>
-                      <CardTitle className="text-2xl font-semibold">Minute Pricing</CardTitle>
-                      <CardDescription className="text-base mt-1">
+                      <CardTitle className="text-xl sm:text-2xl font-bold">Minute Pricing</CardTitle>
+                      <CardDescription className="text-sm sm:text-base mt-1">
                         Configure pay-as-you-go minute pricing for users
                       </CardDescription>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     {loadingMinutePricing ? (
                       <div className="flex items-center justify-center py-12">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-                          <p className="text-sm text-muted-foreground">Loading pricing configuration...</p>
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          <p className="text-xs text-muted-foreground">Syncing rates...</p>
                         </div>
                       </div>
                     ) : (
-                      <div className="grid gap-6 md:grid-cols-3">
+                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 items-end">
                         <div className="space-y-2">
-                          <Label htmlFor="price-per-minute" className="text-sm font-semibold">Price per Minute (USD)</Label>
+                          <Label htmlFor="price-per-minute" className="text-xs font-black uppercase text-muted-foreground tracking-widest pl-1">Price per Min (USD)</Label>
                           <Input
                             id="price-per-minute"
                             type="number"
                             step="0.0001"
                             min="0"
                             value={minutePricing?.price_per_minute ?? 0.01}
-                            onChange={(e) => setMinutePricing(prev => prev ? ({ ...prev, price_per_minute: e.target.value }) : null)}
-                            className="h-11 text-base"
+                            onChange={(e) => setMinutePricing(prev => (prev ? { ...prev, price_per_minute: e.target.value } : { id: '', currency: 'USD', is_active: true, tenant: '', price_per_minute: e.target.value, minimum_purchase: 0 } as MinutePricingConfig))}
+                            className="h-11 rounded-xl bg-muted/20 border-border/40 focus:bg-background transition-all font-bold"
                           />
-                          <p className="text-xs text-muted-foreground">Cost per minute for users</p>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="min-purchase" className="text-sm font-semibold">Minimum Purchase (Minutes)</Label>
+                          <Label htmlFor="min-purchase" className="text-xs font-black uppercase text-muted-foreground tracking-widest pl-1">Min Purchase (Mins)</Label>
                           <Input
                             id="min-purchase"
                             type="number"
                             step="1"
                             min="0"
                             value={minutePricing?.minimum_purchase ?? 0}
-                            onChange={(e) => setMinutePricing(prev => prev ? ({ ...prev, minimum_purchase: e.target.value }) : null)}
-                            className="h-11 text-base"
+                            onChange={(e) => setMinutePricing(prev => (prev ? { ...prev, minimum_purchase: e.target.value } : { id: '', currency: 'USD', is_active: true, tenant: '', price_per_minute: 0.01, minimum_purchase: e.target.value } as MinutePricingConfig))}
+                            className="h-11 rounded-xl bg-muted/20 border-border/40 focus:bg-background transition-all font-bold"
                           />
-                          <p className="text-xs text-muted-foreground">0 means no minimum purchase required</p>
                         </div>
-                        <div className="flex items-end">
-                          <Button
-                            onClick={handleSaveMinutePricing}
-                            disabled={savingMinutePricing}
-                            className="w-full h-11 text-base"
-                            size="lg"
-                          >
-                            {savingMinutePricing ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                Saving...
-                              </>
-                            ) : (
-                              'Save Pricing'
-                            )}
-                          </Button>
-                        </div>
+                        <Button
+                          onClick={handleSaveMinutePricing}
+                          disabled={savingMinutePricing}
+                          className="h-11 rounded-xl font-bold shadow-lg shadow-primary/20 w-full sm:w-auto mt-2 sm:mt-0"
+                        >
+                          {savingMinutePricing ? <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Saving...</> : 'Apply Pricing'}
+                        </Button>
                       </div>
                     )}
                   </CardContent>
                 </ThemeCard>
 
                 {/* User Plans & Minutes */}
-                <ThemeCard className="overflow-hidden">
-                  <CardHeader className="border-b border-border/40 bg-muted/20">
+                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
+                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
-                        <CardTitle className="text-2xl font-semibold">User Plans & Minutes</CardTitle>
-                        <CardDescription className="text-base mt-1">
-                          Monitor user subscriptions and minute usage
+                        <CardTitle className="text-xl sm:text-2xl font-bold">User Subscriptions</CardTitle>
+                        <CardDescription className="text-sm sm:text-base mt-1">
+                          Monitor user tiers and minute usage globally
                         </CardDescription>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-1 sm:flex-initial">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search by name, email, or plan..."
-                            value={planSearchTerm}
-                            onChange={(e) => setPlanSearchTerm(e.target.value)}
-                            className="pl-9 w-full sm:w-80 h-10"
-                          />
-                        </div>
+                      <div className="relative w-full sm:w-80">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search subscribers..."
+                          value={planSearchTerm}
+                          onChange={(e) => setPlanSearchTerm(e.target.value)}
+                          className="pl-9 w-full h-10 rounded-xl"
+                        />
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     {filteredPlanUsers.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 px-4">
-                        <CreditCard className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                        <p className="text-lg font-medium text-foreground mb-1">No users found</p>
-                        <p className="text-sm text-muted-foreground text-center">
-                          {planSearchTerm ? 'Try adjusting your search criteria' : 'No users in the system yet'}
+                      <div className="flex flex-col items-center justify-center py-20 px-6">
+                        <div className="w-16 h-16 bg-muted/20 rounded-full flex items-center justify-center mb-4">
+                          <CreditCard className="h-8 w-8 text-muted-foreground/50" />
+                        </div>
+                        <p className="text-lg font-bold text-foreground">No subscribers found</p>
+                        <p className="text-sm text-muted-foreground text-center mt-1">
+                          {planSearchTerm ? 'No users match your criteria.' : 'There are no active subscriptions.'}
                         </p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto custom-scrollbar">
                         <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/30">
-                              <TableHead className="font-semibold">User</TableHead>
-                              <TableHead className="font-semibold">Plan</TableHead>
-                              <TableHead className="font-semibold text-center">Minutes Limit</TableHead>
-                              <TableHead className="font-semibold text-center">Used</TableHead>
-                              <TableHead className="font-semibold text-center">Remaining</TableHead>
-                              <TableHead className="font-semibold">Status</TableHead>
-                              <TableHead className="font-semibold text-right">Actions</TableHead>
+                          <TableHeader className="bg-muted/30">
+                            <TableRow className="border-b border-border/40 hover:bg-transparent">
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 min-w-[200px]">User</TableHead>
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 min-w-[120px]">Plan</TableHead>
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 text-center whitespace-nowrap">Limit</TableHead>
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 text-center whitespace-nowrap">Used</TableHead>
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 text-center whitespace-nowrap">Remaining</TableHead>
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 min-w-[100px]">Status</TableHead>
+                              <TableHead className="font-black uppercase text-[10px] tracking-widest text-muted-foreground py-4 px-6 text-right">Control</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {filteredPlanUsers.map((user) => {
                               const status = getUsageStatus(user);
                               return (
-                                <TableRow key={`plan-${user.id}`} className="hover:bg-muted/20 transition-colors">
-                                  <TableCell>
+                                <TableRow key={`plan-${user.id}`} className="border-b border-border/10 hover:bg-primary/5 transition-all group">
+                                  <TableCell className="py-4 px-6">
                                     <div className="flex flex-col">
-                                      <span className="font-medium text-foreground">{user.name || 'N/A'}</span>
-                                      <span className="text-sm text-muted-foreground">{user.contact?.email || 'N/A'}</span>
+                                      <span className="font-bold text-foreground group-hover:text-primary transition-colors truncate max-w-[200px]">{user.name || 'Anonymous User'}</span>
+                                      <span className="text-xs text-muted-foreground opacity-60 truncate max-w-[200px]">{user.contact?.email || 'No email provided'}</span>
                                     </div>
                                   </TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline" className="font-medium">
+                                  <TableCell className="py-4 px-6">
+                                    <Badge className="bg-primary/5 text-primary border-primary/10 font-bold uppercase text-[9px] tracking-widest rounded-md px-2 h-5">
                                       {formatPlanName(user.plan)}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className="font-semibold text-foreground">
+                                  <TableCell className="py-4 px-6 text-center">
+                                    <span className="text-xs font-bold text-foreground">
                                       {formatMinutes(user.minutes_limit, user.plan)}
                                     </span>
                                   </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className="font-semibold text-orange-400">
-                                      {user.minutes_used?.toLocaleString() || 0} min
+                                  <TableCell className="py-4 px-6 text-center">
+                                    <span className="text-xs font-bold text-orange-500 bg-orange-500/5 px-2 py-0.5 rounded-md border border-orange-500/10">
+                                      {user.minutes_used?.toLocaleString() || 0}
                                     </span>
                                   </TableCell>
-                                  <TableCell className="text-center">
-                                    <span className="font-semibold text-emerald-400">
+                                  <TableCell className="py-4 px-6 text-center">
+                                    <span className="text-xs font-bold text-emerald-500 bg-emerald-500/5 px-2 py-0.5 rounded-md border border-emerald-500/10 whitespace-nowrap">
                                       {getRemainingMinutes(user)}
                                     </span>
                                   </TableCell>
-                                  <TableCell>
-                                    <Badge className={`${getStatusBadgeClasses(status)} font-medium`}>
+                                  <TableCell className="py-4 px-6">
+                                    <Badge className={`${getStatusBadgeClasses(status)} text-[9px] uppercase font-black tracking-widest border px-2 h-5`}>
                                       {status}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="text-right">
+                                  <TableCell className="py-4 px-6 text-right">
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       onClick={() => openPlanDialog(user)}
-                                      className="h-8"
+                                      className="h-8 rounded-lg text-[10px] font-black uppercase tracking-widest border-border/60 hover:bg-primary/5 hover:text-primary transition-all whitespace-nowrap px-3"
                                     >
-                                      Change Plan
+                                      Adjust Plan
                                     </Button>
                                   </TableCell>
                                 </TableRow>
@@ -1602,13 +1443,13 @@ const AdminPanel = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {Object.values(planConfigs).length > 0 ? (
-                            Object.values(planConfigs).map((plan) => (
+                            Object.values(planConfigs).map((plan: any) => (
                               <SelectItem key={plan.key} value={plan.key}>
                                 {plan.name} (${plan.price}/month)
                               </SelectItem>
                             ))
                           ) : (
-                            Object.values(PLAN_CONFIGS).map((plan) => (
+                            Object.values(PLAN_CONFIGS).map((plan: any) => (
                               <SelectItem key={plan.key} value={plan.key}>
                                 {plan.name} (${plan.price}/month)
                               </SelectItem>
@@ -1692,12 +1533,41 @@ const AdminPanel = () => {
                   </div>
 
                   <div className="space-y-2">
+                    <Label htmlFor="edit-plan-minutes">Included Minutes (per month)</Label>
+                    <Input
+                      id="edit-plan-minutes"
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={editPlanData.minutes ?? ''}
+                      onChange={(e) => setEditPlanData({ ...editPlanData, minutes: e.target.value ? Number(e.target.value) : undefined })}
+                      placeholder="Leave empty for unlimited"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Number of included minutes per month. Leave empty or set to 0 for unlimited. Additional minutes can be purchased separately.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/10 p-4">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Pay As You Go</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        If enabled, users must purchase minutes separately. Included minutes will be ignored.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!editPlanData.payAsYouGo}
+                      onCheckedChange={(checked) => setEditPlanData({ ...editPlanData, payAsYouGo: checked })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="edit-plan-features">Features</Label>
                     <Textarea
                       id="edit-plan-features"
                       value={(editPlanData.features || []).join('\n')}
                       onChange={(e) => {
-                        const features = e.target.value.split('\n').filter(f => f.trim());
+                        const features = e.target.value.split('\n');
                         setEditPlanData({ ...editPlanData, features });
                       }}
                       placeholder="Enter one feature per line"

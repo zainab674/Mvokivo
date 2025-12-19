@@ -182,8 +182,8 @@ export default function Calls() {
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
         <CallsHeader />
 
-        <div className="container mx-auto px-[var(--space-2xl)] py-[var(--space-2xl)]">
-          <ThemeSection spacing="lg">
+        <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 md:py-[var(--space-2xl)]">
+          <ThemeSection spacing="md">
             <CallsToolbar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
@@ -198,15 +198,17 @@ export default function Calls() {
                 {/* <LiveKitDemo /> */}
               </div>
               <ThemeCard variant="glass" className="overflow-hidden">
-                <CallsTable
-                  calls={paginatedCalls}
-                  isLoading={isRefreshing}
-                  filteredCount={filteredCalls.length}
-                  totalCount={callsData?.total || 0}
-                />
+                <div className="overflow-x-auto">
+                  <CallsTable
+                    calls={paginatedCalls}
+                    isLoading={isRefreshing}
+                    filteredCount={filteredCalls.length}
+                    totalCount={callsData?.total || 0}
+                  />
+                </div>
               </ThemeCard>
 
-              <div className="mt-6">
+              <div className="mt-6 flex justify-center sm:justify-end">
                 <CallsPagination
                   currentPage={currentPage}
                   totalPages={totalPages}

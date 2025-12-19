@@ -70,7 +70,7 @@ export const SMSTab: React.FC<SMSTabProps> = ({ data, onChange }) => {
   }, [toast]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[540px]">
+    <div className=" min-h-[540px]">
       {/* Left Column - Main Content */}
       <div className="lg:col-span-8 flex flex-col">
         <div className="flex-1 space-y-6">

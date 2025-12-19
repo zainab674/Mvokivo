@@ -3,12 +3,23 @@ import { getAccessToken } from '@/lib/auth';
 export interface AdminUser {
   id: string;
   name: string | null;
-  email: string | null;
+  contact: {
+    email: string | null;
+    phone: string | null;
+    countryCode: string | null;
+  } | null;
   role: string | null;
   is_active: boolean | null;
   created_on: string | null;
+  updated_at: string | null;
   company: string | null;
   industry: string | null;
+  plan?: string | null;
+  minutes_limit?: number | null;
+  minutes_used?: number | null;
+  is_whitelabel?: boolean;
+  slug_name?: string | null;
+  tenant?: string | null;
 }
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? 'https://backend.vokivo.com' : 'http://localhost:4000');

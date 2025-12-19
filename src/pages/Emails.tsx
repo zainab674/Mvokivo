@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import DashboardLayout from "@/layout/DashboardLayout";
 import { Card } from "@/components/ui/card";
-import { Search, Mail, ArrowRight, Loader2, RefreshCcw } from "lucide-react";
+import { Search, Mail, ArrowRight, Loader2, RefreshCcw, ArrowLeft, ChevronLeft } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fetchEmailThreads, fetchEmailMessages, syncEmails, EmailThread, EmailMessage } from "@/lib/api/emails";
 
@@ -88,30 +88,37 @@ export default function Emails() {
 
     return (
         <DashboardLayout>
-            <div className="flex h-[calc(100vh-140px)] gap-6 overflow-hidden">
+            <div className="flex flex-col lg:flex-row h-[calc(100dvh-180px)] lg:h-[calc(100dvh-140px)] gap-4 lg:gap-6 overflow-hidden relative">
                 {/* Left Column: Email List */}
-                <Card className="w-1/3 flex flex-col border-border/40 shadow-sm bg-card/40 backdrop-blur-sm overflow-hidden rounded-xl">
-                    <div className="p-4 border-b border-border/40 flex gap-2">
-                        <div className="relative flex-1">
+                <Card className={`
+                    absolute inset-0 z-20 lg:relative lg:inset-auto lg:flex
+                    w-full lg:w-1/3 flex flex-col border-border/40 shadow-sm bg-background/95 lg:bg-card/40 backdrop-blur-md overflow-hidden rounded-none lg:rounded-xl transition-all duration-300
+                    ${selectedThread ? '-translate-x-10 lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto' : 'translate-x-0 opacity-100'}
+                `}>
+                    <div className="p-4 border-b border-border/40 flex flex-col gap-4">
+                        <div className="flex items-center justify-between">
+                            <h1 className="text-xl font-bold tracking-tight">Emails</h1>
+                            <button
+                                onClick={handleSync}
+                                className="p-2 bg-secondary/50 rounded-lg hover:bg-secondary/80 transition-colors shadow-sm"
+                                title="Sync Emails"
+                            >
+                                <RefreshCcw className={`h-4 w-4 text-primary ${loadingThreads ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
+                        <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="text"
                                 placeholder="Search emails..."
-                                className="w-full bg-secondary/50 border-none rounded-lg pl-9 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground"
+                                className="w-full bg-secondary/30 border border-border/20 rounded-xl pl-9 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-muted-foreground"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
-                        <button
-                            onClick={handleSync}
-                            className="p-2 bg-secondary/50 rounded-lg hover:bg-secondary/80 transition-colors shadow-sm"
-                            title="Sync Emails"
-                        >
-                            <RefreshCcw className={`h-4 w-4 text-primary ${loadingThreads ? 'animate-spin' : ''}`} />
-                        </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                         {loadingThreads ? (
                             <div className="flex flex-col items-center justify-center p-12 text-muted-foreground italic text-sm">
                                 <Loader2 className="animate-spin text-primary mb-2" />
@@ -129,7 +136,7 @@ export default function Emails() {
                                     onClick={() => setSelectedThread(thread)}
                                     className={`w-full text-left p-4 rounded-xl transition-all duration-200 border border-transparent 
                                         ${selectedThread?.id === thread.id
-                                            ? 'bg-primary/5 border-primary/20 shadow-sm'
+                                            ? 'bg-primary/10 border-primary/20 shadow-sm'
                                             : 'hover:bg-secondary/40'
                                         } `}
                                 >
@@ -144,7 +151,7 @@ export default function Emails() {
                                     <p className="text-xs font-semibold text-foreground/80 mb-1 truncate">
                                         {thread.subject}
                                     </p>
-                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                    <p className="text-xs text-muted-foreground line-clamp-1 opacity-70">
                                         {cleanupEmailBody(thread.lastMessage)}
                                     </p>
                                 </button>
@@ -154,22 +161,35 @@ export default function Emails() {
                 </Card>
 
                 {/* Right Column: Conversation */}
-                <Card className="flex-1 flex flex-col border-border/40 shadow-sm bg-card/40 backdrop-blur-sm overflow-hidden rounded-xl">
+                <Card className={`
+                    absolute inset-0 z-30 lg:relative lg:inset-auto lg:flex
+                    flex-1 flex flex-col border-border/40 shadow-sm bg-background/95 lg:bg-card/40 backdrop-blur-md overflow-hidden rounded-none lg:rounded-xl transition-all duration-500
+                    ${selectedThread
+                        ? 'translate-x-0 opacity-100'
+                        : 'translate-x-full lg:translate-x-0 opacity-0 lg:opacity-100 pointer-events-none lg:pointer-events-auto'}
+                `}>
                     {selectedThread ? (
                         <>
-                            <div className="p-5 border-b border-border/20 flex justify-between items-center bg-secondary/5">
-                                <div>
-                                    <h2 className="font-bold text-xl mb-1">{selectedThread.subject}</h2>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <Mail className="h-3 w-3" />
-                                        <span className="font-medium">{selectedThread.senderEmail}</span>
-                                        <span>•</span>
-                                        <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-[10px] font-bold">{selectedThread.assistantName || 'AI Assistant'}</span>
+                            <div className="p-4 sm:p-5 border-b border-border/20 flex flex-col sm:flex-row sm:items-center gap-4 bg-secondary/5">
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setSelectedThread(null)}
+                                        className="lg:hidden p-2 hover:bg-secondary/80 rounded-full transition-colors shrink-0"
+                                    >
+                                        <ArrowLeft className="h-5 w-5 text-primary" />
+                                    </button>
+                                    <div className="flex-1 min-w-0">
+                                        <h2 className="font-bold text-base sm:text-xl line-clamp-1">{selectedThread.subject}</h2>
+                                        <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                                            <span className="font-medium truncate max-w-[120px] sm:max-w-[200px]">{selectedThread.senderEmail}</span>
+                                            <span>•</span>
+                                            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold whitespace-nowrap">{selectedThread.assistantName || 'AI Assistant'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-[url('/dots.png')] bg-repeat">
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8 custom-scrollbar">
                                 {loadingMessages ? (
                                     <div className="flex flex-col items-center justify-center p-12 text-muted-foreground italic text-sm">
                                         <Loader2 className="animate-spin text-primary mb-2" />
@@ -182,20 +202,20 @@ export default function Emails() {
                                             className={`flex flex-col ${message.from === 'assistant' ? 'items-end' : 'items-start'} `}
                                         >
                                             <div
-                                                className={`max-w-[80%] rounded-2xl p-5 shadow-sm border ${message.from === 'assistant'
+                                                className={`max-w-[90%] sm:max-w-[80%] rounded-2xl p-4 sm:p-5 shadow-sm border ${message.from === 'assistant'
                                                     ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
                                                     : 'bg-card border-border/50 text-foreground'
                                                     } `}
                                             >
-                                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{cleanupEmailBody(message.content)}</p>
+                                                <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{cleanupEmailBody(message.content)}</p>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-3 px-1 opacity-60">
+                                            <div className="flex items-center gap-2 mt-2 sm:mt-3 px-1 opacity-60">
                                                 <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground">
                                                     {message.from === 'assistant' ? 'Manan AI' : message.senderEmail}
                                                 </span>
                                                 <span className="text-[9px] text-muted-foreground">•</span>
                                                 <span className="text-[9px] text-muted-foreground">
-                                                    {message.timestamp ? new Date(message.timestamp).toLocaleString() : ''}
+                                                    {message.timestamp ? new Date(message.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                 </span>
                                             </div>
                                         </div>
@@ -203,15 +223,15 @@ export default function Emails() {
                                 )}
                             </div>
 
-                            <div className="p-5 border-t border-border/20 bg-secondary/10">
+                            <div className="p-4 sm:p-5 border-t border-border/20 bg-secondary/10">
                                 <div className="relative">
                                     <textarea
                                         placeholder="Send a manual reply..."
-                                        className="w-full bg-background border border-border/40 rounded-xl p-4 pr-12 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none min-h-[100px] shadow-inner"
+                                        className="w-full bg-background border border-border/40 rounded-xl p-3 sm:p-4 pr-12 text-xs sm:text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-none min-h-[80px] sm:min-h-[100px] shadow-inner"
                                     />
-                                    <div className="absolute right-3 bottom-3">
-                                        <button className="bg-primary text-primary-foreground p-3 rounded-lg hover:bg-primary/90 transition-all shadow-md active:scale-95">
-                                            <ArrowRight className="h-5 w-5" />
+                                    <div className="absolute right-2 bottom-2 sm:right-3 sm:bottom-3">
+                                        <button className="bg-primary text-primary-foreground p-2.5 sm:p-3 rounded-lg hover:bg-primary/90 transition-all shadow-md active:scale-95">
+                                            <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
                                         </button>
                                     </div>
                                 </div>
@@ -219,11 +239,11 @@ export default function Emails() {
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/30 p-12 text-center">
-                            <div className="h-20 w-20 bg-primary/5 rounded-full flex items-center justify-center mb-6">
-                                <Mail className="h-10 w-10 opacity-30" />
+                            <div className="h-16 w-16 sm:h-20 sm:w-20 bg-primary/5 rounded-full flex items-center justify-center mb-6">
+                                <Mail className="h-8 w-8 sm:h-10 sm:w-10 opacity-30" />
                             </div>
-                            <h3 className="text-xl font-bold text-foreground/40 mb-1">No conversation selected</h3>
-                            <p className="text-sm max-w-[280px]">Select a thread from the left to view the assistant interaction history.</p>
+                            <h3 className="text-lg sm:text-xl font-bold text-foreground/40 mb-1">No conversation selected</h3>
+                            <p className="text-xs sm:text-sm max-w-[280px]">Select a thread from the left to view the assistant interaction history.</p>
                         </div>
                     )}
                 </Card>

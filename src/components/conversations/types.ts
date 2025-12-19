@@ -8,10 +8,10 @@ export interface Message {
   channel?: 'sms' | 'whatsapp' | 'imessage'; // Optional for call messages
   timestamp: Date;
   direction: string;
-  
+
   // Delivery status tracking (UI only)
   deliveryStatus?: 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
-  
+
   // Call-specific properties
   duration?: string;
   status?: string;
@@ -19,17 +19,17 @@ export interface Message {
   summary?: string;
   recording?: string;
   transcript?: any;
-  
+
   // Message-specific properties
   body?: string;
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | 'audio' | 'document';
-  
+
   // Platform-specific features (UI only)
   reactions?: string[]; // iMessage reactions
   typing?: boolean; // Real-time typing indicators
   effects?: 'slam' | 'loud' | 'gentle' | 'invisible'; // iMessage effects
-  
+
   // Common properties
   date: string;
   time: string;
@@ -63,7 +63,10 @@ export interface Conversation {
   hasNewMessages?: boolean;
   hasNewSMS?: boolean;
   hasNewCalls?: boolean;
+  avatarUrl?: string; // Profile picture
+  isOnline?: boolean; // Online status
 }
+
 
 export interface ConversationsData {
   conversations: Conversation[];

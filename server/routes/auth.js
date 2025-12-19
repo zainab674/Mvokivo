@@ -12,7 +12,7 @@ const router = express.Router();
  */
 router.post('/signup', async (req, res) => {
     try {
-        const { email, password, name } = req.body;
+        const { email, password, name, tenant } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({ success: false, message: 'Email and password are required' });
@@ -28,14 +28,38 @@ router.post('/signup', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // Determine tenant assignment
+        let userTenant = 'main';
+        let userSlugName = undefined;
+
+        if (tenant && tenant !== 'main') {
+            // User is signing up on a whitelabel subdomain
+            // Verify the tenant exists by checking if there's a user with that slug_name
+            const tenantOwner = await User.findOne({ slug_name: tenant });
+
+            if (tenantOwner) {
+                // Valid tenant - assign user to this tenant
+                userTenant = tenant;
+                // Regular users under a tenant don't get slug_name
+                userSlugName = undefined;
+            } else {
+                // Invalid tenant - fall back to main
+                console.warn(`Signup attempted on invalid tenant: ${tenant}`);
+                userTenant = 'main';
+            }
+        }
+
+        // Regular users on main tenant do not get a slug_name until they activate whitelabel
+        userSlugName = undefined;
+
         // Create user
         const newUser = new User({
             id: uuidv4(),
             email,
             password: hashedPassword,
             name: name,
-            slug_name: name ? name.toLowerCase().replace(/\s+/g, '-') : undefined,
-            tenant: 'main', // Default to main/global tenant initially
+            slug_name: userSlugName,
+            tenant: userTenant,
             role: 'user'
         });
 
@@ -50,7 +74,8 @@ router.post('/signup', async (req, res) => {
             user: {
                 id: newUser.id,
                 email: newUser.email,
-                role: newUser.role
+                role: newUser.role,
+                tenant: newUser.tenant
             }
         });
     } catch (error) {

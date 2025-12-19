@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
-import { GeneralSettings } from "./GeneralSettings";
-import { MembersSettings } from "./MembersSettings";
-import { BillingSettings } from "./BillingSettings";
 import BusinessUseCaseSettings from "./BusinessUseCaseSettings";
 import WhitelabelSettings from "./WhitelabelSettings";
 import { useAuth } from '@/contexts/SupportAccessAuthContext';
@@ -21,11 +18,11 @@ interface WorkspaceSettingsProps {
 export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
   const { user } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState(() => {
-    const allowedTabs = ['general', 'members', 'billing', 'business', 'whitelabel'];
+    const allowedTabs = ['business', 'whitelabel'];
     if (initialSubTab && allowedTabs.includes(initialSubTab)) {
       return initialSubTab;
     }
-    return "general";
+    return "business";
   });
   const [whitelabelAvailable, setWhitelabelAvailable] = useState(false);
   const [checkingWhitelabel, setCheckingWhitelabel] = useState(true);
@@ -33,7 +30,7 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
   useEffect(() => {
     const determineWhitelabelAccess = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('auth_token');
         if (!token) {
           setWhitelabelAvailable(false);
           setCheckingWhitelabel(false);
@@ -41,6 +38,7 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
         }
 
         // Fetch user profile from API to get latest plan/role/tenant info
+        console.log('[Whitelabel Check] Fetching profile...');
         const response = await fetch('/api/v1/user/profile', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -49,16 +47,18 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
         if (response.ok) {
           const data = await response.json();
           profile = data.user;
+          console.log('[Whitelabel Check] Profile fetched:', profile);
+        } else {
+          console.error('[Whitelabel Check] Profile fetch failed:', response.status, response.statusText);
         }
-
-        console.log('[Whitelabel Check] User profile:', profile);
 
         // Check if user is a whitelabel admin (admin role with slug_name)
         const isWhitelabelAdmin = profile?.role === 'admin' && profile?.slug_name != null;
-        console.log('[Whitelabel Check] Is whitelabel admin?', isWhitelabelAdmin);
+        console.log('[Whitelabel Check] Role:', profile?.role, 'Slug:', profile?.slug_name, 'Is WL Admin:', isWhitelabelAdmin);
 
         // If user is a whitelabel admin, grant access
         if (isWhitelabelAdmin) {
+          console.log('[Whitelabel Check] Granting access (WL Admin)');
           setWhitelabelAvailable(true);
           setCheckingWhitelabel(false);
           return;
@@ -70,15 +70,20 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
         console.log('[Whitelabel Check] Plan key:', planKey, 'Tenant filter:', tenantFilter);
 
         const configs = await getPlanConfigs(tenantFilter ?? undefined);
-        console.log('[Whitelabel Check] All plan configs:', configs);
+        console.log('[Whitelabel Check] All plan configs keys:', Object.keys(configs));
 
-        const planConfig = configs[planKey] || configs.free;
-        console.log('[Whitelabel Check] User plan config:', planConfig);
-        console.log('[Whitelabel Check] Whitelabel enabled?', planConfig?.whitelabelEnabled);
+        const planConfig = configs[planKey];
+        if (!planConfig) {
+          console.warn(`[Whitelabel Check] Plan config not found for key: ${planKey}. Available keys:`, Object.keys(configs));
+        }
 
-        setWhitelabelAvailable(planConfig?.whitelabelEnabled === true);
+        const isEnabled = planConfig?.whitelabelEnabled === true;
+        console.log('[Whitelabel Check] Selected plan config:', planConfig);
+        console.log('[Whitelabel Check] Final Whitelabel Access:', isEnabled);
+
+        setWhitelabelAvailable(isEnabled);
       } catch (error) {
-        console.error('Error checking whitelabel access:', error);
+        console.error('[Whitelabel Check] Error checking whitelabel access:', error);
         setWhitelabelAvailable(false);
       } finally {
         setCheckingWhitelabel(false);
@@ -96,14 +101,12 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
 
   useEffect(() => {
     if (!whitelabelAvailable && activeSubTab === 'whitelabel') {
-      setActiveSubTab('general');
+      setActiveSubTab('business');
     }
   }, [whitelabelAvailable, activeSubTab]);
 
   const subTabs = [
-    { id: "general", label: "General" },
-    { id: "members", label: "Members" },
-    { id: "billing", label: "Billing" },
+
     { id: "business", label: "Business Use Case" },
     ...(whitelabelAvailable ? [{ id: "whitelabel", label: "Whitelabel" }] : [])
   ];
@@ -156,9 +159,6 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
           exit="exit"
           transition={{ duration: 0.2 }}
         >
-          {activeSubTab === "general" && <GeneralSettings />}
-          {activeSubTab === "members" && <MembersSettings />}
-          {activeSubTab === "billing" && <BillingSettings />}
           {activeSubTab === "business" && <BusinessUseCaseSettings />}
           {activeSubTab === "whitelabel" && whitelabelAvailable && <WhitelabelSettings />}
         </motion.div>

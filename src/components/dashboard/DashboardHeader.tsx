@@ -10,20 +10,49 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Bell, Search, User, CreditCard, LogOut, Settings as SettingsIcon } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+
+import { Bell, Search, User, CreditCard, LogOut, Settings as SettingsIcon, Menu } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAccountMinutes } from "@/hooks/useAccountMinutes";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { SidebarContent } from "@/components/navigation/Sidebar";
+import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
 
 export default function DashboardHeader() {
     const { user, signOut } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const { websiteSettings } = useWebsiteSettings();
     const { remainingMinutes, percentageUsed, isLoading: minutesLoading } = useAccountMinutes();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
     return (
-        <header className="h-16 w-full border-b border-border bg-background/80 backdrop-blur-sm flex items-center justify-between px-6 z-40">
-            {/* Left Side (Breadcrumbs or Page Title) */}
+        <header className="h-16 w-full border-b border-border bg-background/80 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-40">
+            {/* Left Side (Breadcrumbs or Page Title or Mobile Menu) */}
             <div className="flex items-center gap-4">
+                {/* Mobile Menu Trigger */}
+                <div className="lg:hidden">
+                    <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                        <SheetTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-muted-foreground mr-2">
+                                <Menu size={20} />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="p-0 w-72 bg-[#121214] border-r-border">
+                            <SidebarContent
+                                collapsed={false}
+                                user={user}
+                                signOut={signOut}
+                                websiteSettings={websiteSettings}
+                                location={location}
+                                isAdmin={user?.role === 'admin'}
+                                onClose={() => setIsMobileMenuOpen(false)}
+                            />
+                        </SheetContent>
+                    </Sheet>
+                </div>
+
                 {/* Placeholder for future breadcrumbs */}
                 <div className="hidden md:flex items-center relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

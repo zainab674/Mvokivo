@@ -20,13 +20,14 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
 
   try {
     // 1. Create credential list using Programmable Voice SIP API
+    const credentialListName = `SIP-Credentials-${userId.slice(0, 8)}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
     const credentialListResponse = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/SIP/CredentialLists.json`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: `FriendlyName=SIP-Credentials-${userId.slice(0, 8)}-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+      body: new URLSearchParams({ FriendlyName: credentialListName }).toString()
     });
 
     if (!credentialListResponse.ok) {
@@ -47,7 +48,10 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
         'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: `Username=${sipUsername}&Password=${sipPassword}`
+      body: new URLSearchParams({
+        Username: sipUsername,
+        Password: sipPassword
+      }).toString()
     });
 
     if (!credentialResponse.ok) {
@@ -65,7 +69,11 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
         'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: `FriendlyName=${trunkName}&DomainName=${domainName}&TransferMode=enable-all`
+      body: new URLSearchParams({
+        FriendlyName: trunkName,
+        DomainName: domainName,
+        TransferMode: 'enable-all'
+      }).toString()
     });
 
     if (!trunkResponse.ok) {
@@ -83,7 +91,7 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
         'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: `CredentialListSid=${credentialList.sid}`
+      body: new URLSearchParams({ CredentialListSid: credentialList.sid }).toString()
     });
 
     if (!associateResponse.ok) {
@@ -114,17 +122,6 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
         auth_token: authToken,
         trunk_sid: trunkSid,
         label: label || 'default',
-        // Note: domain_name etc. fields might need to be added to UserTwilioCredential schema if not present
-        // Looking at server/models/index.js, UserTwilioCredential schema has:
-        // user_id, account_sid, auth_token, label, is_active, created_at.
-        // It MISSES: trunk_sid, domain_name, domain_prefix, credential_list_sid, sip_username, sip_password.
-        // I MUST ADD THESE TO SCHEMA FIRST OR MONGOOSE WILL DROP THEM.
-        // For now I will proceed assuming schema update is next or I missed it.
-        // Actually I should probably update schema first. But replacing file content here is safer to do first to not lose logic.
-        // I will assume schema will be updated.
-        // Or I can add them to schema in separate step.
-        // I will add them here and user can see I am updating service first.
-        trunk_sid: trunkSid,
         domain_name: domainName,
         domain_prefix: domainPrefix,
         credential_list_sid: credentialList.sid,
@@ -204,7 +201,13 @@ export async function createMainTrunkForUser({ accountSid, authToken, userId, la
                 'Authorization': `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
                 'Content-Type': 'application/x-www-form-urlencoded'
               },
-              body: `SipUrl=${finalSipUrl}&Priority=1&Weight=10&Enabled=true&FriendlyName=livekit-${livekitSipUri.replace('sip:', '')}`
+              body: new URLSearchParams({
+                SipUrl: finalSipUrl,
+                Priority: '1',
+                Weight: '10',
+                Enabled: 'true',
+                FriendlyName: `livekit-${livekitSipUri.replace('sip:', '')}`
+              }).toString()
             });
 
             if (originationResponse.ok) {

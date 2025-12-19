@@ -1,75 +1,29 @@
 /**
  * Plan Configuration
- * Defines minutes allocation and features for each plan
- * Fetches from database with fallback to defaults
+ * Fetches from database to determine features and whitelabel status
  */
-
 
 import { extractTenantFromHostname } from './tenant-utils';
 
 export interface PlanConfig {
-  key: string;
-  name: string;
-  price: number;
-  features: string[];
-  whitelabelEnabled?: boolean;
+    key: string;
+    name: string;
+    price: number;
+    minutes?: number;
+    payAsYouGo?: boolean;
+    features: string[];
+    whitelabelEnabled?: boolean;
 }
 
-// Default fallback plans (used if database fetch fails)
-const DEFAULT_PLAN_CONFIGS: Record<string, PlanConfig> = {
-  starter: {
-    key: "starter",
-    name: "Starter",
-    price: 19,
-    features: [
-      "Basic analytics",
-      "Email support",
-      "2 team members",
-      "Standard integrations",
-      "Minutes purchased separately"
-    ],
-    whitelabelEnabled: false
-  },
-  professional: {
-    key: "professional",
-    name: "Professional",
-    price: 49,
-    features: [
-      "Advanced analytics & reporting",
-      "Priority support",
-      "10 team members",
-      "All integrations",
-      "Custom branding",
-      "Minutes purchased separately"
-    ],
-    whitelabelEnabled: false
-  },
-  enterprise: {
-    key: "enterprise",
-    name: "Enterprise",
-    price: 99,
-    features: [
-      "Real-time analytics",
-      "24/7 phone support",
-      "Unlimited team members",
-      "Enterprise integrations",
-      "Advanced security",
-      "Dedicated account manager",
-      "Minutes purchased separately"
-    ],
-    whitelabelEnabled: false
-  },
-  free: {
-    key: "free",
-    name: "Free",
-    price: 0,
-    features: [
-      "Basic features",
-      "Community support",
-      "Minutes purchased separately"
-    ],
-    whitelabelEnabled: false
-  }
+// Minimal fallback plans
+export const DEFAULT_PLAN_CONFIGS: Record<string, PlanConfig> = {
+    free: {
+        key: "free",
+        name: "Free",
+        price: 0,
+        features: ["Basic features"],
+        whitelabelEnabled: false
+    }
 };
 
 // Cache for plan configs
@@ -81,154 +35,108 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * Get current tenant from hostname
  */
 function getCurrentTenant(): string | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
+    if (typeof window === 'undefined') {
+        return null;
+    }
 
-  try {
-    const tenant = extractTenantFromHostname();
-    // Return null for 'main' tenant, otherwise return the tenant slug
-    return tenant === 'main' ? null : tenant;
-  } catch (error) {
-    console.warn('Error extracting tenant:', error);
-    return null;
-  }
+    try {
+        const tenant = extractTenantFromHostname();
+        return tenant === 'main' ? null : tenant;
+    } catch (error) {
+        console.warn('Error extracting tenant:', error);
+        return null;
+    }
 }
 
 /**
- * Fetch plan configs from database (filtered by tenant)
- */
-/**
- * Fetch plan configs from database (filtered by tenant)
- */
-/**
- * Fetch plan configs from database (filtered by tenant)
+ * Fetch plan configs from database
  */
 async function fetchPlanConfigsFromDB(tenant?: string | null): Promise<Record<string, PlanConfig>> {
-  try {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    // Get tenant from hostname if not provided
-    const currentTenant = tenant ?? getCurrentTenant();
+    try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const currentTenant = tenant ?? getCurrentTenant();
 
-    // Construct URL
-    const url = new URL(`${backendUrl}/api/v1/plans`);
-    if (currentTenant) {
-      url.searchParams.append('tenant', currentTenant);
+        const url = new URL(`${backendUrl}/api/v1/plans`);
+        if (currentTenant) {
+            url.searchParams.append('tenant', currentTenant);
+        }
+
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+            return {};
+        }
+
+        const result = await response.json();
+        if (!result.success || !result.data) {
+            return {};
+        }
+
+        const plansArray = result.data;
+        const mergedPlans: Record<string, PlanConfig> = {};
+
+        plansArray.forEach((plan: any) => {
+            mergedPlans[plan.key] = {
+                key: plan.key,
+                name: plan.name || "Unknown Plan",
+                price: isNaN(Number(plan.price)) ? 0 : Number(plan.price),
+                minutes: plan.minutes !== undefined ? Number(plan.minutes) : undefined,
+                payAsYouGo: plan.payAsYouGo ?? false,
+                features: Array.isArray(plan.features) ? plan.features : [],
+                whitelabelEnabled: plan.whitelabelEnabled
+            };
+        });
+
+        return mergedPlans;
+
+    } catch (error) {
+        console.error('Error fetching plan configs:', error);
+        return {};
     }
-
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      console.warn('Failed to fetch from plans API:', response.statusText);
-      return {};
-    }
-
-    const result = await response.json();
-    if (!result.success || !result.data) {
-      return {};
-    }
-
-    const plansArray = result.data;
-    const mergedPlans: Record<string, PlanConfig> = {};
-
-    plansArray.forEach((plan: any) => {
-      mergedPlans[plan.key] = {
-        key: plan.key,
-        name: plan.name || "Unknown Plan",
-        price: isNaN(Number(plan.price)) ? 0 : Number(plan.price),
-        features: Array.isArray(plan.features) ? plan.features : [],
-        whitelabelEnabled: plan.whitelabelEnabled
-      };
-    });
-
-    return mergedPlans;
-
-  } catch (error) {
-    console.error('Error fetching plan configs:', error);
-    return {};
-  }
 }
 
 /**
  * Get plan configs (from cache or database)
- * @param tenant - Optional tenant identifier to fetch tenant-specific plans
  */
 export async function getPlanConfigs(tenant?: string | null): Promise<Record<string, PlanConfig>> {
-  const now = Date.now();
+    const now = Date.now();
 
-  // For tenant-specific requests, don't use cache (or use tenant-specific cache)
-  // For now, we'll always fetch fresh data if tenant is specified
-  if (!tenant && planConfigsCache && (now - planConfigsCacheTime) < CACHE_DURATION) {
-    return planConfigsCache;
-  }
+    if (!tenant && planConfigsCache && (now - planConfigsCacheTime) < CACHE_DURATION) {
+        return planConfigsCache;
+    }
 
-  // Fetch from database
-  const configs = await fetchPlanConfigsFromDB(tenant);
+    const configs = await fetchPlanConfigsFromDB(tenant);
 
-  // Only cache if it's a main tenant request
-  if (!tenant) {
-    planConfigsCache = configs;
-    planConfigsCacheTime = now;
-  }
+    if (!tenant && Object.keys(configs).length > 0) {
+        planConfigsCache = configs;
+        planConfigsCacheTime = now;
+    }
 
-  return configs;
+    return configs;
 }
 
 /**
  * Get plan configs synchronously (uses cache or defaults)
- * Use this for synchronous operations, but prefer getPlanConfigs() for async
  */
 export function getPlanConfigsSync(): Record<string, PlanConfig> {
-  return planConfigsCache || DEFAULT_PLAN_CONFIGS;
+    return planConfigsCache || DEFAULT_PLAN_CONFIGS;
 }
 
 /**
- * Invalidate plan configs cache (call after admin updates plans)
- */
-export function invalidatePlanConfigsCache(): void {
-  planConfigsCache = null;
-  planConfigsCacheTime = 0;
-}
-
-// Export default configs for backward compatibility
-export const PLAN_CONFIGS = DEFAULT_PLAN_CONFIGS;
-
-
-
-/**
- * Get plan configuration (synchronous - uses cache)
- * @param planKey - The plan key
- * @returns Plan configuration or free plan as default
+ * Get single plan config
  */
 export function getPlanConfig(planKey: string | null | undefined): PlanConfig {
-  const configs = getPlanConfigsSync();
-  // Fallback to default free plan if the configured free plan was deleted/hidden
-  const defaultFree = DEFAULT_PLAN_CONFIGS.free;
-
-  if (!planKey) {
-    return configs.free ?? defaultFree;
-  }
-
-  const plan = configs[planKey.toLowerCase()];
-  return plan ?? configs.free ?? defaultFree;
+    const configs = getPlanConfigsSync();
+    const plan = planKey ? configs[planKey.toLowerCase()] : null;
+    return plan ?? configs.free ?? DEFAULT_PLAN_CONFIGS.free;
 }
 
 /**
- * Get plan configuration (async - fetches from database if needed)
- * @param planKey - The plan key
- * @returns Plan configuration or free plan as default
+ * Invalidate cache
  */
-export async function getPlanConfigAsync(planKey: string | null | undefined): Promise<PlanConfig> {
-  const configs = await getPlanConfigs();
-  // Fallback to default free plan if the configured free plan was deleted/hidden
-  const defaultFree = DEFAULT_PLAN_CONFIGS.free;
-
-  if (!planKey) {
-    return configs.free ?? defaultFree;
-  }
-
-  const plan = configs[planKey.toLowerCase()];
-  return plan ?? configs.free ?? defaultFree;
+export function invalidatePlanConfigsCache(): void {
+    planConfigsCache = null;
+    planConfigsCacheTime = 0;
 }
 
-
-
+export const PLAN_CONFIGS = DEFAULT_PLAN_CONFIGS;
+export type { PlanConfig as PlanConfigType };

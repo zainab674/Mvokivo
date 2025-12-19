@@ -3,8 +3,8 @@
 /* Tech Cards - replacing glass transparency with solid tech backgrounds */
 .robotics-card {
   @apply bg-card border border-border relative overflow-hidden;
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.05);
-  /* Subtle neon glow */
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+  /* Subtle neutral glow */
 }
 
 /* Corner Accents for specific tech feel */
@@ -17,7 +17,7 @@
   height: 20px;
   border-top: 2px solid hsl(var(--primary));
   border-left: 2px solid hsl(var(--primary));
-  opacity: 0.5;
+  opacity: 0.3;
   pointer-events: none;
 }
 
@@ -30,26 +30,25 @@
   height: 20px;
   border-bottom: 2px solid hsl(var(--primary));
   border-right: 2px solid hsl(var(--primary));
-  opacity: 0.5;
+  opacity: 0.3;
   pointer-events: none;
 }
 
 /* Typography Overrides */
 .text-tech {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  /* Fallback if not loaded, but gives the idea */
+  font-family: 'Inter', sans-serif;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-/* Neon Glows */
+/* Neon Glows - Now Neutral */
 .neon-border {
-  box-shadow: 0 0 5px hsl(var(--primary) / 0.5), 0 0 10px hsl(var(--primary) / 0.3);
+  box-shadow: 0 0 5px hsl(var(--primary) / 0.3), 0 0 10px hsl(var(--primary) / 0.1);
   border-color: hsl(var(--primary));
 }
 
 .neon-text-glow {
-  text-shadow: 0 0 5px hsl(var(--primary) / 0.8);
+  text-shadow: 0 0 5px hsl(var(--primary) / 0.5);
 }
 
 /* Buttons */
@@ -60,7 +59,7 @@
 
 .btn-robotics:hover {
   @apply bg-primary/90;
-  box-shadow: 0 0 15px hsl(var(--primary) / 0.6);
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.3);
 }
 
 /* Inputs */
@@ -71,26 +70,25 @@
 
 .input-robotics:focus {
   @apply border-primary ring-0;
-  box-shadow: 0 4px 10px -2px hsl(var(--primary) / 0.2);
+  box-shadow: 0 4px 10px -2px hsl(var(--primary) / 0.1);
 }
 
 /* Grid Background Utility */
 .bg-tech-grid {
   background-size: 40px 40px;
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
 }
 
 /* Overriding Glass Classes to map to Tech styles */
 .glass-panel,
 .glass-card,
 .glass-ui .card {
-  @apply bg-card/90 border border-border backdrop-blur-md shadow-none !important;
-  border-radius: 4px !important;
+  @apply bg-card border border-border backdrop-blur-md shadow-none !important;
+  border-radius: 8px !important;
 }
 
-/* Badge Updates */
 /* Badge Updates */
 .badge {
   @apply rounded-sm font-mono tracking-wider !important;
@@ -100,7 +98,7 @@
 
 /* Angled Card Variant */
 .robotics-card-angled {
-  @apply bg-card/60 backdrop-blur-md border border-primary/20 relative overflow-hidden transition-all duration-300;
+  @apply bg-card/60 backdrop-blur-md border border-border relative overflow-hidden transition-all duration-300;
   clip-path: polygon(20px 0,
       100% 0,
       100% calc(100% - 20px),
@@ -110,8 +108,8 @@
 }
 
 .robotics-card-angled:hover {
-  @apply border-primary/60 bg-card/80;
-  box-shadow: 0 0 20px rgba(0, 243, 255, 0.1);
+  @apply border-primary/40 bg-card/80;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
 }
 
 /* Corner Brackets for Angled Cards */
@@ -125,6 +123,7 @@
   border-top: 2px solid hsl(var(--primary));
   border-left: 2px solid hsl(var(--primary));
   pointer-events: none;
+  opacity: 0.2;
 }
 
 .robotics-card-angled::after {
@@ -137,9 +136,10 @@
   border-bottom: 2px solid hsl(var(--primary));
   border-right: 2px solid hsl(var(--primary));
   pointer-events: none;
+  opacity: 0.2;
 }
 
-/* Hover Reveal Effect - Scanning Grid */
+/* Hover Reveal Effect - Scanning Grid (Neutral) */
 .robotics-hover-reveal {
   position: relative;
 }
@@ -148,7 +148,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(0deg, transparent 24%, rgba(0, 243, 255, .1) 25%, rgba(0, 243, 255, .1) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .1) 75%, rgba(0, 243, 255, .1) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 243, 255, .1) 25%, rgba(0, 243, 255, .1) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .1) 75%, rgba(0, 243, 255, .1) 76%, transparent 77%, transparent);
+  background-image: linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent);
   background-size: 30px 30px;
   opacity: 0;
   transition: opacity 0.4s ease;

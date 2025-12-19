@@ -32,39 +32,40 @@ export default function Settings() {
     { id: "integrations", label: "Integrations" },
   ];
 
+
   return (
     <DashboardLayout>
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
-        <div className="container mx-auto px-[var(--space-lg)]">
-          <div className="max-w-5xl mx-auto">
+        <div className="container mx-auto px-4 sm:px-[var(--space-lg)]">
+          <div className="max-w-5xl mx-auto py-6 sm:py-8">
             <ThemeSection spacing="lg">
-              <div className="flex flex-col space-y-[var(--space-md)]">
-                <h1 className="text-4xl font-extralight tracking-tight text-foreground">
+              <div className="flex flex-col space-y-2 sm:space-y-[var(--space-md)] mb-6 sm:mb-0">
+                <h1 className="text-3xl sm:text-4xl font-extralight tracking-tight text-foreground">
                   Settings
                 </h1>
-                <p className="text-muted-foreground text-lg font-light">
+                <p className="text-muted-foreground text-base sm:text-lg font-light">
                   Manage your account settings and preferences
                 </p>
               </div>
 
-              <ThemeCard variant="glass">
-                <div className="border-b border-white/[0.08]">
-                  <nav className="flex gap-1 px-6">
+              <ThemeCard variant="glass" className="overflow-hidden">
+                <div className="border-b border-white/[0.08] overflow-x-auto no-scrollbar">
+                  <nav className="flex gap-1 min-w-max px-2 sm:px-6">
                     {tabs.map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`
-                          relative px-6 py-4 text-sm font-medium transition-all duration-300
-                          ${activeTab === tab.id 
-                            ? 'text-foreground' 
+                          relative px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-all duration-300
+                          ${activeTab === tab.id
+                            ? 'text-foreground'
                             : 'text-muted-foreground hover:text-foreground/80'
                           }
                         `}
                       >
                         {tab.label}
                         {activeTab === tab.id && (
-                          <motion.div 
+                          <motion.div
                             layoutId="activeTab"
                             className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
                             initial={false}
@@ -76,7 +77,7 @@ export default function Settings() {
                   </nav>
                 </div>
 
-                <div className="p-8">
+                <div className="p-4 sm:p-8">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={activeTab}

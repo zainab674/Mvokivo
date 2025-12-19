@@ -19,9 +19,9 @@ interface User {
   onboardingCompleted?: boolean | null;
   plan?: string | null;
   trialEndsAt?: string | null;
-  isActive?: boolean | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
+  tenant?: string | null;
+  slug_name?: string | null;
+  is_active?: boolean;
 }
 
 interface SupportAccessSession {
@@ -117,7 +117,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         updatedAt: apiUser.updated_at,
         onboardingCompleted: apiUser.onboarding_completed,
         plan: apiUser.plan,
-        trialEndsAt: apiUser.trial_ends_at
+        trialEndsAt: apiUser.trial_ends_at,
+        tenant: apiUser.tenant || null,
+        slug_name: apiUser.slug_name || null,
+        is_active: apiUser.is_active
       };
 
       setUser(mappedUser);

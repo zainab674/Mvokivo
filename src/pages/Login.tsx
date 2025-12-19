@@ -114,229 +114,150 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950" />
-      <div className="absolute inset-0 bg-[url('/src/assets/glass-bg.png')] bg-cover bg-center opacity-[0.03] pointer-events-none" />
+    <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-4">
+      {/* Background decoration */}
+      <div className="fixed inset-0 bg-[#7c3aed] opacity-90 z-0" />
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(255,255,255,0.1)_0%,_transparent_50%)] z-0" />
 
-      {/* Animated Gradient Orbs */}
-      <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
+      <div className="w-full max-w-5xl bg-white rounded-[30px] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px] relative z-10 transition-all duration-500 ease-in-out">
 
-      {/* Theme toggle in top right */}
-      <div className="absolute top-6 right-6 z-50">
-        <ThemeToggle />
-      </div>
-
-      <div className="w-full max-w-6xl mx-auto relative z-10">
-        <div className="grid lg:grid-cols-2 gap-8 items-center">
-          {/* Left Side - Branding & Features */}
-          <div className="hidden lg:flex flex-col space-y-8 text-left">
-            <div className="space-y-4">
-              {websiteSettings?.logo && (
-                <div className="mb-6">
-                  <img
-                    src={websiteSettings.logo}
-                    alt={websiteSettings.website_name || "Logo"}
-                    className="h-12 w-auto object-contain"
-                  />
-                </div>
-              )}
-              <h1 className="text-5xl font-bold tracking-tight text-foreground leading-tight">
-                Welcome back to{" "}
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-purple-500 to-primary">
-                  {websiteSettings?.website_name || "Vokivo"}
-                </span>
-              </h1>
-              <p className="text-xl text-muted-foreground leading-relaxed">
-                Sign in to access your dashboard and continue managing your AI-powered call center.
-              </p>
-            </div>
-
-            <div className="space-y-4 pt-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Sparkles className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">AI-Powered Analytics</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Get real-time insights and analytics for all your calls
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Lock className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">Enterprise Security</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Your data is protected with bank-level encryption
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Building2 className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">Scalable Infrastructure</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Built to scale with your business needs
-                  </p>
-                </div>
-              </div>
-            </div>
+        {/* Left Side - Welcome Info (Purple) */}
+        <div className="w-full md:w-[40%] bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] p-12 text-white flex flex-col items-center justify-center text-center space-y-8 relative overflow-hidden">
+          {/* Animated Background Waves */}
+          <div className="absolute inset-0 opacity-20">
+            <svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+              <path d="M0,1000 C300,800 400,950 700,700 C900,500 1000,600 1000,0 L0,0 Z" fill="white" opacity="0.1" />
+              <path d="M1000,1000 C700,800 600,950 300,700 C100,500 0,600 0,0 L1000,0 Z" fill="white" opacity="0.05" />
+            </svg>
           </div>
 
-          {/* Right Side - Login Form */}
-          <div className="w-full">
-            <Card className="w-full max-w-md mx-auto backdrop-blur-xl bg-zinc-900/50 border border-zinc-800/50 rounded-2xl shadow-2xl">
-              <CardHeader className="text-center space-y-3 pb-6">
-                {websiteSettings?.logo && (
-                  <div className="flex justify-center mb-2 lg:hidden">
-                    <img
-                      src={websiteSettings.logo}
-                      alt={websiteSettings.website_name || "Logo"}
-                      className="h-10 w-auto object-contain"
-                    />
-                  </div>
-                )}
-                <CardTitle className="text-3xl font-bold text-foreground">
-                  Welcome back
-                </CardTitle>
-                <CardDescription className="text-base text-muted-foreground">
-                  Sign in to your account to continue
-                </CardDescription>
-              </CardHeader>
+          <div className="relative z-10 space-y-4">
+            <h2 className="text-4xl font-bold">Hello user</h2>
+            <p className="text-sm opacity-90 leading-relaxed max-w-[250px] mx-auto">
+              For make an account and stay connect in sign up with your gmail or facebook or email address
+            </p>
+            <Link to="/signup">
+              <Button
+                variant="outline"
+                className="mt-8 rounded-full border-2 border-white bg-transparent text-white hover:bg-white hover:text-[#7c3aed] px-10 h-12 uppercase font-bold transition-all"
+              >
+                Sign Up
+              </Button>
+            </Link>
+          </div>
+        </div>
 
-              <CardContent className="space-y-6">
-                {/* Social Login Options */}
-                <div className="space-y-3">
-                  <Button
-                    variant="outline"
-                    className="w-full h-11 bg-zinc-800/50 border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
-                    onClick={() => handleSocialLogin("Google")}
-                  >
-                    <Mail className="w-4 h-4 mr-2" />
-                    Continue with Google
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full h-11 bg-zinc-800/50 border-zinc-700/50 hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
-                    onClick={() => handleSocialLogin("Microsoft")}
-                  >
-                    <Building2 className="w-4 h-4 mr-2" />
-                    Continue with Microsoft
-                  </Button>
+        {/* Right Side - Login Form (White) */}
+        <div className="w-full md:w-[60%] bg-white p-8 md:p-16 flex flex-col justify-center">
+          <div className="max-w-md w-full mx-auto space-y-10">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-[#333]">Log in to your account</h1>
+            </div>
+
+            {/* Social Logins */}
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => handleSocialLogin("Google")}
+                className="flex items-center gap-3 px-6 py-2 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+                <span className="text-sm font-medium text-gray-500">Sign in with google</span>
+              </button>
+              <button
+                onClick={() => handleSocialLogin("Facebook")}
+                className="flex items-center gap-3 px-6 py-2 border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="w-5 h-5 bg-[#1877f2] rounded flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">f</span>
+                </div>
+                <span className="text-sm font-medium text-gray-500">Sign in with facebook</span>
+              </button>
+            </div>
+
+            <div className="relative flex items-center py-4">
+              <div className="flex-grow border-t border-gray-100"></div>
+              <span className="flex-shrink mx-4 text-gray-400 text-xs uppercase">or use your email address for Login</span>
+              <div className="flex-grow border-t border-gray-100"></div>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <div className="space-y-4">
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <input
+                    {...register("email")}
+                    id="email"
+                    type="email"
+                    placeholder="Email address"
+                    className="w-full pl-12 pr-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400 text-gray-700"
+                  />
+                  {errors.email && (
+                    <p className="text-xs text-red-500 mt-1 pl-2">{errors.email.message}</p>
+                  )}
                 </div>
 
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator className="w-full border-zinc-700" />
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
+                    <Lock className="w-5 h-5" />
                   </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-zinc-900/50 px-3 text-muted-foreground font-medium">or continue with email</span>
-                  </div>
-                </div>
-
-                {/* Login Form */}
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-medium">Email address</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                      <Input
-                        {...register("email")}
-                        id="email"
-                        type="email"
-                        placeholder="name@company.com"
-                        className="pl-10 h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50"
-                      />
-                    </div>
-                    {errors.email && (
-                      <p className="text-sm text-destructive mt-1">{errors.email.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                      <Input
-                        {...register("password")}
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
-                        className="pl-10 pr-10 h-11 bg-zinc-800/30 border-zinc-700/50 focus:border-primary/50"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {errors.password && (
-                      <p className="text-sm text-destructive mt-1">{errors.password.message}</p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="rememberMe"
-                        checked={rememberMe || false}
-                        onCheckedChange={(checked) => setValue("rememberMe", checked as boolean)}
-                        className="border-zinc-700"
-                      />
-                      <Label
-                        htmlFor="rememberMe"
-                        className="text-sm text-muted-foreground leading-none cursor-pointer"
-                      >
-                        Remember me
-                      </Label>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleForgotPassword}
-                      className="text-sm text-primary hover:underline font-medium"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-colors"
-                    disabled={isLoading}
+                  <input
+                    {...register("password")}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Password"
+                    className="w-full pl-12 pr-12 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400 text-gray-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {isLoading ? (
-                      "Signing in..."
-                    ) : (
-                      <>
-                        Sign in
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-
-                <div className="text-center text-sm pt-2">
-                  <span className="text-muted-foreground">Don't have an account? </span>
-                  <Link
-                    to="/signup"
-                    className="text-primary hover:underline font-medium transition-colors"
-                  >
-                    Sign up for free
-                  </Link>
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                  {errors.password && (
+                    <p className="text-xs text-red-500 mt-1 pl-2">{errors.password.message}</p>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={rememberMe || false}
+                    onCheckedChange={(checked) => setValue("rememberMe", checked as boolean)}
+                    className="border-gray-300 data-[state=checked]:bg-[#7c3aed] data-[state=checked]:border-[#7c3aed]"
+                  />
+                  <Label htmlFor="rememberMe" className="text-sm text-gray-500 cursor-pointer">
+                    Remember me
+                  </Label>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-sm text-[#7c3aed] font-semibold hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-14 bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-full text-lg font-bold shadow-lg shadow-[#7c3aed]/20 transition-all active:scale-[0.98] uppercase tracking-wider"
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
+
+            <div className="text-center text-sm text-gray-500">
+              <span>Don't have an account? </span>
+              <Link to="/signup" className="text-[#7c3aed] font-bold hover:underline">
+                Sign Up
+              </Link>
+            </div>
           </div>
         </div>
       </div>

@@ -140,37 +140,7 @@ export const DetailedFeatures = () => {
                     </div>
                 </div>
 
-                {/* Section 4 */}
-                <div className="grid md:grid-cols-2 gap-16 items-center">
-                    <div className="relative">
 
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="grid grid-cols-3 gap-8">
-                                <div className="bg-white p-2 rounded-lg shadow-lg flex items-center gap-2 animate-pulse">
-                                    <span className="text-xs font-bold">NYC</span>
-                                    <div className="w-4 h-4 bg-purple-600 rounded-full"></div>
-                                </div>
-                                <div className="bg-white p-2 rounded-lg shadow-lg flex items-center gap-2 animate-pulse" style={{ animationDelay: '0.5s' }}>
-                                    <span className="text-xs font-bold">LDN</span>
-                                    <div className="w-4 h-4 bg-purple-600 rounded-full"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 mb-4 text-purple-600">
-                            <Globe className="w-5 h-5" />
-                            <span className="font-semibold text-sm uppercase tracking-wider">Global Dialing</span>
-                        </div>
-                        <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-                            Higher pickup rates <br /> with smart caller IDs
-                        </h3>
-                        <p className="text-gray-600 text-lg mb-8">
-                            VOKIVO uses location-aware caller IDs to increase answer rates,
-                            making your AI agents feel local, trusted, and more likely to start conversations.
-                        </p>
-                    </div>
-                </div>
             </div>
         </div>
     );

@@ -12,7 +12,7 @@ import { EmailIntegrationCard } from "./EmailIntegrationCard";
 import { Mail } from "lucide-react";
 
 interface EmailManagementDialogProps {
-    children: React.ReactNode;
+    children?: React.ReactNode;
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     emailIntegrations: any[];
@@ -30,9 +30,11 @@ export function EmailManagementDialog({
 }: EmailManagementDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogTrigger asChild>
-                {children}
-            </DialogTrigger>
+            {children && (
+                <DialogTrigger asChild>
+                    {children}
+                </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-[600px] bg-card/95 backdrop-blur-2xl border-border/40 shadow-2xl rounded-[32px] overflow-hidden p-0">
                 <div className="p-8">
                     <DialogHeader className="mb-6">

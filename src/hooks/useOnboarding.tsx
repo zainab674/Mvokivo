@@ -49,7 +49,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
     const defaultState: OnboardingState = {
       currentStep: 0,
-      totalSteps: 7,
+      totalSteps: 6,
       isCompleted,
       data: {
         companyName: "",
@@ -73,8 +73,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         data: { ...initial.data, plan: "starter" },
       };
     }
-    if (!initial.totalSteps || initial.totalSteps < 7) {
-      initial = { ...initial, totalSteps: 7 };
+    if (!initial.totalSteps || initial.totalSteps < 6) {
+      initial = { ...initial, totalSteps: 6 };
     }
     if (initial.currentStep > initial.totalSteps - 1) {
       initial = { ...initial, currentStep: initial.totalSteps - 1 };
@@ -125,7 +125,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     localStorage.removeItem(COMPLETED_KEY);
     setState({
       currentStep: 0,
-      totalSteps: 7,
+      totalSteps: 6,
       isCompleted: false,
       data: {
         companyName: "",

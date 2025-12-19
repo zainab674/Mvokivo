@@ -194,12 +194,7 @@ export default function Pricing() {
                   Yes! All plans come with a 30-day money-back guarantee. Try our service risk-free and get a full refund if you're not satisfied.
                 </p>
               </div>
-              <div className="robotics-card bg-card/30 p-6">
-                <h4 className="font-semibold text-foreground mb-2">How are minutes billed?</h4>
-                <p className="text-sm text-muted-foreground">
-                  Minutes are purchased separately and billed based on usage. You only pay for what you use, with no hidden fees.
-                </p>
-              </div>
+
             </div>
           </div>
         </div>

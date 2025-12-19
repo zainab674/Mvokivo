@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Sparkles, Trash2, Edit3, Settings, Mic, MessageSquare, BarChart3, Sliders, Webhook, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2, Edit3, Settings, Mic, MessageSquare, BarChart3, Sliders, Webhook, CheckCircle2, Mail } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +27,8 @@ import { N8nTab } from "@/components/assistants/wizard/N8nTab";
 import { EmailTab } from "@/components/assistants/wizard/EmailTab";
 import { AssistantFormData } from "@/components/assistants/wizard/types";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
+import { FlowPreview } from "@/components/assistants/wizard/FlowPreview";
+import { AdvancedTab } from "@/components/assistants/wizard/AdvancedTab";
 
 const tabVariants = {
   initial: { opacity: 0, y: 10 },
@@ -38,28 +41,20 @@ const CreateAssistant = () => {
   const { id } = useParams();
   const location = useLocation();
   const isEditing = !!id;
-  const [activeTab, setActiveTab] = useState("model");
+  const [activeTab, setActiveTab] = useState("details");
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { user, getAccessToken } = useAuth();
 
-  // Debug logging
-  console.log('CreateAssistant rendered', { isEditing, id, isLoading, activeTab });
-
-  // Debug tab switching
   const handleTabClick = (tabId: string) => {
-    console.log('Tab clicked:', tabId);
     setActiveTab(tabId);
   };
 
   const tabs = [
-    { id: "model", label: "Model", icon: Settings },
-    { id: "voice", label: "Voice", icon: Mic },
-    { id: "sms", label: "Messages", icon: MessageSquare },
-    { id: "email", label: "Email", icon: Mail },
-    { id: "analysis", label: "Analysis", icon: BarChart3 },
-    { id: "advanced", label: "Advanced", icon: Sliders },
+    { id: "details", label: "Agent Details", icon: Settings },
+    { id: "messaging", label: "Call Messaging Details", icon: MessageSquare },
+    { id: "context", label: "Agent Context", icon: BarChart3 },
   ];
 
   const searchParams = new URLSearchParams(location.search);
@@ -84,7 +79,6 @@ const CreateAssistant = () => {
         model: "nova-2",
         language: "en"
       },
-      // Call Management Settings
       endCallMessage: "",
       maxCallDuration: 1800,
       idleMessages: [],
@@ -202,53 +196,29 @@ const CreateAssistant = () => {
   });
 
   const handleFormDataChange = (section: keyof AssistantFormData, data: any) => {
-    console.log('Form data change:', section, data);
     setFormData(prev => ({
       ...prev,
       [section]: { ...(prev[section] as object), ...data }
     }));
   };
 
-
-
-  // Load existing assistant data when editing
   useEffect(() => {
     const loadExistingAssistant = async () => {
-      console.log('=== loadExistingAssistant called ===', { isEditing, id });
-      if (!isEditing || !id) {
-        console.log('Skipping load: not editing or no ID');
-        return;
-      }
+      if (!isEditing || !id) return;
 
       setIsLoading(true);
       try {
         const token = await getAccessToken();
-        console.log('Got access token:', !!token);
-        if (!token) {
-          throw new Error("Authentication required");
-        }
+        if (!token) throw new Error("Authentication required");
 
-        console.log('Fetching assistant from:', `/api/v1/assistants/${id}`);
         const response = await fetch(`/api/v1/assistants/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        console.log('Response status:', response.status, response.statusText);
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Failed to load assistant:', errorText);
-          throw new Error(`Failed to load assistant: ${response.status} ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`Failed to load assistant`);
 
-        const responseData = await response.json();
-        console.log('Response data:', responseData);
-        const { data } = responseData;
-
+        const { data } = await response.json();
         if (data) {
-          console.log('Setting form data with assistant:', data.name, data.id);
-          // Map database data to form data
           setFormData({
             name: data.name || "Untitled Assistant",
             id: data.id,
@@ -264,17 +234,12 @@ const CreateAssistant = () => {
               language: data.language_setting || "en",
               firstMessage: data.first_message || "",
               systemPrompt: data.prompt || "",
-              transcriber: {
-                model: data.transcriber_model || "nova-2",
-                language: data.transcriber_language || "en"
-              },
-              // Call Management Settings
+              transcriber: { model: data.transcriber_model || "nova-2", language: data.transcriber_language || "en" },
               endCallMessage: data.end_call_message || "",
               maxCallDuration: data.max_call_duration || 30,
               idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter((item: any) => typeof item === 'string') : [],
               idleMessageMaxSpokenCount: data.max_idle_messages || 3,
               silenceTimeoutSeconds: data.silence_timeout || 10,
-              // Calendar credentials (populated from integration)
               calApiKey: data.cal_api_key || "",
               calEventTypeId: data.cal_event_type_id || "",
               calEventTypeSlug: data.cal_event_type_slug || "",
@@ -320,35 +285,19 @@ const CreateAssistant = () => {
               language: data.language_setting || "en",
               autoReply: true,
               autoReplyDelay: 1,
-              businessHours: {
-                enabled: false,
-                start: "09:00",
-                end: "17:00",
-                timezone: "America/New_York"
-              },
+              businessHours: { enabled: false, start: "09:00", end: "17:00", timezone: "America/New_York" },
               messageTemplates: [],
-              complianceSettings: {
-                tcpaCompliant: true,
-                optInEnabled: true,
-                optOutKeywords: ["STOP", "UNSUBSCRIBE", "QUIT"],
-                helpKeywords: ["HELP", "INFO", "SUPPORT"]
-              },
-              escalationRules: {
-                enabled: true,
-                humanTransferKeywords: ["AGENT", "HUMAN", "REPRESENTATIVE"],
-                maxAutoResponses: 5
-              }
+              complianceSettings: { tcpaCompliant: true, optInEnabled: true, optOutKeywords: ["STOP", "UNSUBSCRIBE", "QUIT"], helpKeywords: ["HELP", "INFO", "SUPPORT"] },
+              escalationRules: { enabled: true, humanTransferKeywords: ["AGENT", "HUMAN", "REPRESENTATIVE"], maxAutoResponses: 5 }
             },
             analysis: {
               structuredData: data.structured_data_fields || [],
               callSummary: data.analysis_summary_prompt || "",
               successEvaluation: true,
               customSuccessPrompt: data.analysis_evaluation_prompt || "",
-              // Analysis timeout settings
               summaryTimeout: data.analysis_summary_timeout || 30,
               evaluationTimeout: data.analysis_evaluation_timeout || 15,
               structuredDataTimeout: data.analysis_structured_data_timeout || 20,
-              // Structured data configuration
               structuredDataPrompt: data.analysis_structured_data_prompt || "",
               structuredDataProperties: data.analysis_structured_data_properties || {}
             },
@@ -359,7 +308,7 @@ const CreateAssistant = () => {
               audioRecordingFormat: "wav",
               videoRecordingEnabled: data.video_recording || false,
               endCallMessage: data.end_call_message || "",
-              endCallPhrases: Array.isArray(data.end_call_phrases) ? data.end_call_phrases.filter((item: any) => typeof item === 'string') : [],
+              endCallPhrPhrases: Array.isArray(data.end_call_phrases) ? data.end_call_phrases.filter((item: any) => typeof item === 'string') : [],
               maxCallDuration: data.max_call_duration || 30,
               idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter((item: any) => typeof item === 'string') : [],
               idleMessageMaxSpokenCount: data.max_idle_messages || 3,
@@ -389,49 +338,28 @@ const CreateAssistant = () => {
               webhookFields: Array.isArray((data as any).n8n_webhook_fields) ? (data as any).n8n_webhook_fields : []
             }
           });
-          console.log('Form data updated successfully');
-
-          // Calendar credentials are now loaded directly in the model tab above
-        } else {
-          console.warn('No data in response');
         }
       } catch (error) {
         console.error('Error loading assistant:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load assistant data. Please try again.',
-          variant: 'destructive',
-        });
+        toast({ title: 'Error', description: 'Failed to load assistant data.', variant: 'destructive' });
       } finally {
         setIsLoading(false);
-        console.log('Loading complete, isLoading set to false');
       }
     };
-
     void loadExistingAssistant();
   }, [isEditing, id, toast, getAccessToken]);
 
-  const mapFormToAssistantPayload = async (userId: string) => {
-    const kbId = formData.model.knowledgeBase && formData.model.knowledgeBase !== "None"
-      ? formData.model.knowledgeBase
-      : null;
-
-    // Use existing event type data (no auto-creation)
-    const calEventTypeId = formData.model.calEventTypeId || null;
-    const calEventTypeSlug = formData.model.calEventTypeSlug || null;
-
+  const mapFormToAssistantPayload = async () => {
     return {
       name: formData.name,
       llm_provider_setting: formData.model.provider,
       llm_model_setting: formData.model.model,
-      knowledge_base_id: kbId,
+      knowledge_base_id: formData.model.knowledgeBase !== "None" ? formData.model.knowledgeBase : null,
       temperature_setting: formData.model.temperature,
       max_token_setting: formData.model.maxTokens,
       language_setting: formData.model.language,
       first_message: formData.model.firstMessage || null,
       prompt: formData.model.systemPrompt || null,
-
-      // Voice
       voice_provider_setting: formData.voice.provider,
       voice_model_setting: formData.voice.model,
       voice_name_setting: formData.voice.voice,
@@ -446,9 +374,6 @@ const CreateAssistant = () => {
       voice_backoff_seconds: formData.voice.backOffSeconds,
       maximum_duration: formData.voice.maxDuration,
       smart_endpointing: String(formData.voice.smartEndpointing).toLowerCase() === "enabled",
-
-
-      // Analysis
       analysis_summary_prompt: formData.analysis.callSummary || null,
       analysis_evaluation_prompt: formData.analysis.customSuccessPrompt || null,
       analysis_summary_timeout: formData.analysis.summaryTimeout || null,
@@ -457,8 +382,6 @@ const CreateAssistant = () => {
       analysis_structured_data_properties: formData.analysis.structuredDataProperties || null,
       analysis_structured_data_timeout: formData.analysis.structuredDataTimeout || null,
       structured_data_fields: formData.analysis.structuredData?.length ? formData.analysis.structuredData : null,
-
-      // Advanced
       hipaa_compliance: formData.advanced.hipaaCompliant,
       audio_recording_setting: formData.advanced.recordingEnabled,
       video_recording: formData.advanced.videoRecordingEnabled,
@@ -466,279 +389,142 @@ const CreateAssistant = () => {
       wait_seconds: formData.voice.waitSeconds,
       voicemail_detection_enabled: formData.advanced.voicemailDetectionEnabled || false,
       voicemail_message: formData.advanced.voicemailMessage || null,
-
-      // Call Transfer (Cold Transfer Only)
       transfer_enabled: formData.advanced.transferEnabled || false,
       transfer_phone_number: formData.advanced.transferPhoneNumber || null,
       transfer_country_code: formData.advanced.transferCountryCode || "+1",
       transfer_sentence: formData.advanced.transferSentence || null,
       transfer_condition: formData.advanced.transferCondition || null,
-
-      // Call Management Settings (from Model tab)
       end_call_message: formData.model.endCallMessage || null,
       max_call_duration: formData.model.maxCallDuration || 30,
       idle_messages: formData.model.idleMessages?.length ? formData.model.idleMessages : null,
       max_idle_messages: formData.model.idleMessageMaxSpokenCount || 3,
-
-
-      // SMS fields
       first_sms: formData.advanced.firstSms || null,
       sms_prompt: formData.advanced.smsPrompt || null,
       sms_calendar_booking_enabled: formData.sms.calendarBookingEnabled || false,
-
-      // WhatsApp Integration
-      whatsapp_credentials_id: formData.model.whatsappCredentialsId || null,
       whatsapp_number: formData.advanced.whatsappNumber || null,
       whatsapp_key: formData.advanced.whatsappKey || null,
-
-      // Calendar Integration
       calendar: formData.model.calendar !== "None" ? formData.model.calendar : null,
       cal_api_key: formData.model.calApiKey || null,
-      cal_event_type_id: calEventTypeId,
-      cal_event_type_slug: calEventTypeSlug,
+      cal_event_type_id: formData.model.calEventTypeId || null,
+      cal_event_type_slug: formData.model.calEventTypeSlug || null,
       cal_timezone: formData.model.calTimezone || null,
-
-      // Email Integration
       post_call_email_subject: formData.email.subject || null,
       post_call_email_body: formData.email.body || null,
       post_call_email_from: formData.email.fromEmail || null,
-
-      // n8n Integration
       n8n_webhook_url: formData.n8n.webhookUrl || null,
       n8n_webhook_fields: formData.n8n.webhookFields?.length ? formData.n8n.webhookFields : null,
-    } as any;
+    };
   };
-
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      if (!user?.id) throw new Error('You must be signed in to save an assistant.');
-
+      if (!user?.id) throw new Error('You must be signed in.');
       const token = await getAccessToken();
       if (!token) throw new Error("Authentication required");
+      const payload = await mapFormToAssistantPayload();
 
-      const payload = await mapFormToAssistantPayload(user.id);
+      const response = await fetch(isEditing ? `/api/v1/assistants/${id}` : '/api/v1/assistants', {
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      // Debug: Log the payload
-      console.log("Assistant payload being saved:", payload);
-
-      if (isEditing && id) {
-        const response = await fetch(`/api/v1/assistants/${id}`, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update assistant: ${response.statusText}`);
-        }
-
-        toast({ title: 'Assistant updated', description: 'Your changes have been saved.' });
-        navigate('/assistants');
-      } else {
-        const response = await fetch('/api/v1/assistants', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to create assistant: ${response.statusText}`);
-        }
-
-        toast({ title: 'Assistant created', description: 'Your assistant has been saved.' });
-        navigate(`/assistants`);
-      }
+      if (!response.ok) throw new Error(`Failed to save assistant`);
+      toast({ title: isEditing ? 'Assistant updated' : 'Assistant created' });
+      navigate('/assistants');
     } catch (e: any) {
-      toast({ title: 'Save failed', description: e?.message || 'Please try again.', variant: 'destructive' });
+      toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }
   };
 
-
   const handleDelete = async () => {
     try {
       if (!isEditing || !id) return;
       const token = await getAccessToken();
-      if (!token) return;
-
       const response = await fetch(`/api/v1/assistants/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
       if (response.ok) {
-        toast({
-          title: "Assistant deleted",
-          description: "The assistant has been permanently deleted.",
-        });
+        toast({ title: "Assistant deleted" });
         navigate("/assistants");
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete assistant.",
-          variant: "destructive"
-        });
       }
     } catch (e) {
-      toast({
-        title: "Error",
-        description: "An error occurred.",
-        variant: "destructive"
-      });
+      toast({ title: "Error", variant: "destructive" });
     }
   };
 
   return (
     <DashboardLayout>
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
-        <div className="flex flex-col h-screen">
-          {/* Top Header Bar */}
+        <div className="flex flex-col h-screen overflow-hidden">
+          {/* Header */}
           <div className="border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
-            <div className="max-w-[1920px] mx-auto px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="max-w-[1920px] mx-auto px-4 sm:px-6 py-3 sm:py-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => navigate("/assistants")}
-                    className="text-muted-foreground hover:text-foreground"
+                    className="text-muted-foreground hover:text-foreground h-9 px-2 sm:px-3"
                   >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
+                    <ArrowLeft className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Back</span>
                   </Button>
-                  <div className="h-6 w-px bg-border" />
-                  <div className="flex items-center gap-3">
-                    {isEditing ? (
-                      <Edit3 className="h-5 w-5 text-primary/60" />
-                    ) : (
-                      <Sparkles className="h-5 w-5 text-primary/60" />
-                    )}
+                  <div className="h-6 w-px bg-border hidden sm:block" />
+                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                    {isEditing ? <Edit3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary/60 shrink-0" /> : <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary/60 shrink-0" />}
                     <Input
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      className="border-0 bg-transparent text-xl font-semibold px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="border-0 bg-transparent text-lg sm:text-xl font-semibold px-0 h-auto focus-visible:ring-0 truncate"
                       placeholder="Assistant Name"
                       disabled={isLoading}
                     />
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    onClick={handleSave}
-                    disabled={isSaving || isLoading}
-                    className="gap-2"
-                  >
-                    {isSaving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-4 w-4" />
-                        Save Assistant
-                      </>
-                    )}
-                  </Button>
+                <div className="flex items-center justify-between sm:justify-end gap-3 px-1 sm:px-0">
+                  <span className="text-[10px] sm:text-xs text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded truncate max-w-[150px] sm:max-w-none">
+                    ID: {formData.id}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Main Content Area */}
-          <div className="flex flex-1 overflow-hidden">
-            {/* Sidebar Navigation */}
-            <div className="w-64 border-r border-border/40 bg-background/50 backdrop-blur-sm overflow-y-auto">
-              <div className="p-4 space-y-1">
-                {tabs.map((tab) => {
-                  const Icon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => handleTabClick(tab.id)}
-                      className={`
-                        w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
-                        ${activeTab === tab.id
-                          ? 'bg-primary/10 text-primary border border-primary/20'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                        }
-                      `}
-                    >
-                      <Icon className="h-5 w-5" />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
+          {/* Tab Navigation */}
+          <div className="bg-background border-b border-border/40 overflow-x-auto custom-scrollbar">
+            <div className="max-w-[1920px] mx-auto px-4 sm:px-6">
+              <div className="flex items-center gap-4 sm:gap-8 h-12 min-w-max">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabClick(tab.id)}
+                    className={cn(
+                      "h-full px-2 text-xs sm:text-sm font-medium transition-all relative flex items-center gap-2",
+                      activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <tab.icon className="h-3.5 w-3.5 sm:hidden" />
+                    {tab.label}
+                    {activeTab === tab.id && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+                  </button>
+                ))}
               </div>
-
-              {/* Assistant Info */}
-              <div className="p-4 border-t border-border/40 mt-4">
-                <p className="text-xs text-muted-foreground font-mono mb-2">Assistant ID</p>
-                <p className="text-xs font-mono text-foreground/60 break-all">
-                  {isLoading ? "..." : formData.id}
-                </p>
-              </div>
-
-              {/* Delete Button - Only in Edit Mode */}
-              {isEditing && (
-                <div className="p-4 border-t border-border/40">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="w-full gap-2"
-                        disabled={isLoading}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete Assistant
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="liquid-glass-heavy border border-destructive/20">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-destructive">
-                          Delete Assistant
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-muted-foreground">
-                          Are you sure you want to delete this assistant? This action cannot be undone
-                          and all associated data will be permanently removed from both local storage and database.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleDelete}
-                          className="bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30"
-                        >
-                          Delete Assistant
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
             </div>
+          </div>
 
-            {/* Main Content */}
-            <div className="flex-1 overflow-y-auto bg-muted/20">
-              <div className="max-w-6xl mx-auto p-8">
+          {/* Main Content Area */}
+          <div className="flex flex-1 overflow-hidden bg-[#fbfcfd] dark:bg-zinc-950/40">
+            <div className="flex-1 flex flex-col min-w-0 border-r border-border/40">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-24">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                      <p className="text-muted-foreground">Loading assistant configuration...</p>
-                    </div>
+                    <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-primary" />
                   </div>
                 ) : (
                   <AnimatePresence mode="wait">
@@ -749,55 +535,87 @@ const CreateAssistant = () => {
                       animate="animate"
                       exit="exit"
                       transition={{ duration: 0.2 }}
-                      className="pointer-events-auto"
+                      className="max-w-4xl mx-auto space-y-6 sm:space-y-8"
                     >
-                      {activeTab === "model" && (
-                        <ModelTab
-                          data={formData.model}
-                          onChange={(data) => handleFormDataChange('model', data)}
-                        />
+                      {activeTab === "details" && (
+                        <div className="space-y-6 sm:space-y-8">
+                          <ModelTab data={formData.model} onChange={(data) => handleFormDataChange('model', data)} />
+                          <VoiceTab data={formData.voice} onChange={(data) => handleFormDataChange('voice', data)} />
+                        </div>
                       )}
-                      {activeTab === "voice" && (
-                        <VoiceTab
-                          data={formData.voice}
-                          onChange={(data) => handleFormDataChange('voice', data)}
-                        />
+                      {activeTab === "messaging" && (
+                        <div className="space-y-6 sm:space-y-8">
+                          <SMSTab data={formData.sms} onChange={(data) => handleFormDataChange('sms', data)} />
+                          <EmailTab data={formData.email} assistantName={formData.name} onChange={(data) => handleFormDataChange('email', data)} />
+                        </div>
                       )}
-                      {activeTab === "sms" && (
-                        <SMSTab
-                          data={formData.sms}
-                          onChange={(data) => handleFormDataChange('sms', data)}
-                        />
-                      )}
-                      {activeTab === "analysis" && (
-                        <AnalysisTab
-                          data={formData.analysis}
-                          onChange={(data) => handleFormDataChange('analysis', data)}
-                        />
-                      )}
-                      {activeTab === "advanced" && (
-                        <AdvancedTab
-                          data={formData.advanced}
-                          onChange={(data) => handleFormDataChange('advanced', data)}
-                        />
-                      )}
-                      {activeTab === "email" && (
-                        <EmailTab
-                          data={formData.email}
-                          assistantName={formData.name}
-                          onChange={(data) => handleFormDataChange('email', data)}
-                        />
-                      )}
-                      {activeTab === "n8n" && (
-                        <N8nTab
-                          data={formData.n8n}
-                          onChange={(data) => handleFormDataChange('n8n', data)}
-                        />
+                      {activeTab === "context" && (
+                        <div className="space-y-6 sm:space-y-8">
+                          <AnalysisTab data={formData.analysis} onChange={(data) => handleFormDataChange('analysis', data)} />
+                          <AdvancedTab data={formData.advanced} onChange={(data) => handleFormDataChange('advanced', data)} />
+                        </div>
                       )}
                     </motion.div>
                   </AnimatePresence>
                 )}
               </div>
+
+              {/* Footer Actions */}
+              <div className="border-t border-border/40 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm p-4 px-4 sm:px-8">
+                <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto sm:overflow-visible pb-2 sm:pb-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate("/assistants")}
+                      disabled={isSaving || isLoading}
+                      className="h-9 text-xs sm:text-sm"
+                    >
+                      Previous
+                    </Button>
+                    {isEditing && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-9 text-xs sm:text-sm text-destructive hover:bg-destructive/10">
+                            <Trash2 className="h-4 w-4 mr-1.5 sm:mr-2" />Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="w-[90vw] max-w-lg">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Assistant</AlertDialogTitle>
+                            <AlertDialogDescription>This action cannot be undone. This assistant and its configuration will be permanently removed.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    <Button
+                      variant="secondary"
+                      onClick={handleSave}
+                      disabled={isSaving || isLoading}
+                      className="h-9 sm:h-10 text-xs sm:text-sm bg-emerald-500/10 text-emerald-600 border-emerald-500/20 flex-1 sm:flex-none"
+                    >
+                      Draft
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={isSaving || isLoading}
+                      className="h-9 sm:h-10 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 text-white min-w-[120px] sm:min-w-[140px] flex-1 sm:flex-none"
+                    >
+                      {isSaving ? "Saving..." : (isEditing ? "Update" : "Activate")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Preview Sidebar (Desktop Only) */}
+            <div className="hidden lg:flex w-[400px] xl:w-[500px] bg-white dark:bg-zinc-900/10 flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 xl:p-8"><FlowPreview formData={formData} /></div>
             </div>
           </div>
         </div>

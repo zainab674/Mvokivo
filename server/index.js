@@ -57,6 +57,7 @@ connectDB();
 // Route Mounting
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/v1', minutesPricingRoutes); // Mount minutes-pricing routes (includes /admin/ paths internally)
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/calendar', calendarRoutes);

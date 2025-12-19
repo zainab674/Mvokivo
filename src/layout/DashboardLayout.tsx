@@ -8,6 +8,7 @@ import { useTheme } from "@/components/ThemeProvider";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { SupportAccessBanner } from "@/components/admin/SupportAccessBanner";
+import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -46,25 +47,29 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
+
   return (
     <div className="min-h-screen flex bg-background text-foreground overflow-hidden">
       {/* Sidebar Navigation */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
-        {/* Background Gradients/Effects */}
+      <div className={cn(
+        "flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative",
+        "bg-background"
+      )}>
+        {/* Background Gradients/Effects - Toned down for pure black theme */}
         <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[100px]" />
+          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-white/[0.02] rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-white/[0.01] rounded-full blur-[100px]" />
         </div>
 
-        {/* Top Header */}
+        {/* Top Header - Always shown to provide mobile menu */}
         <DashboardHeader />
 
         {/* Support Access Banner - Global */}
         {isImpersonating && activeSupportSession && (
-          <div className="px-6 py-2 z-40">
+          <div className="px-4 md:px-6 py-2 z-40">
             <SupportAccessBanner
               session={activeSupportSession}
               targetUser={{
@@ -92,7 +97,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               }}
               className="w-full min-h-full"
             >
-              <main className="w-full p-6 pb-20">
+              <main className="w-full p-4 md:p-6 pb-20">
                 {children}
               </main>
             </motion.div>

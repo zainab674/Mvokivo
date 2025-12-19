@@ -16,174 +16,249 @@ import {
     LogOut,
     Sparkles,
     Mail,
-    Rocket
+    Rocket,
+    ChevronDown,
+    LayoutDashboard,
+    Zap,
+    ExternalLink,
+    Server,
+    Key,
+    UserCircle,
+    Info,
+    CreditCard
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+
+interface SidebarContentProps {
+    collapsed: boolean;
+    user: any;
+    signOut: () => void;
+    websiteSettings: any;
+    location: any;
+    isAdmin: boolean;
+    onClose?: () => void;
+}
+
+export function SidebarContent({
+    collapsed,
+    user,
+    signOut,
+    websiteSettings,
+    location,
+    isAdmin,
+    onClose
+}: SidebarContentProps) {
+    const navItems = [
+        { icon: <LayoutDashboard size={18} />, label: "Dashboard", to: "/dashboard" },
+        { icon: <Bot size={18} />, label: "Agents", to: "/assistants" },
+        { icon: <MessageSquare size={18} />, label: "Chats", to: "/conversations" },
+        { icon: <Users size={18} />, label: "Contacts", to: "/contacts" },
+    ];
+
+    const campaignItems = [
+        { icon: <Rocket size={18} />, label: "Call Campaigns", to: "/campaigns" },
+        { icon: <Megaphone size={18} />, label: "Email Campaigns", to: "/email-campaigns" },
+    ];
+
+    const managementItems = [
+        { icon: <Mail size={18} />, label: "Emails", to: "/emails" },
+        { icon: <CreditCard size={18} />, label: "Billing", to: "/billing" },
+        { icon: <Settings size={18} />, label: "Settings", to: "/settings" },
+    ];
+
+    if (isAdmin) {
+        managementItems.push({ icon: <Shield size={18} />, label: "Admin Panel", to: "/admin" });
+    }
+
+    const bottomItems = [
+        { icon: <UserCircle size={18} />, label: "Profile", to: "/profile" },
+    ];
+
+    return (
+        <div className="flex flex-col h-full">
+            {/* Logo/Brand Area */}
+            <div className="p-4 border-b border-[#1e1e20]">
+                {collapsed ? (
+                    <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 mx-auto">
+                        <Sparkles className="h-5 w-5 text-white" />
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between p-2 rounded-xl hover:bg-zinc-800/50 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+                                <Bot className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="flex flex-col">
+                                <h1 className="text-[20px] text-zinc-200 font-medium tracking-tight">
+                                    {websiteSettings?.website_name || "Vokivo"}
+                                </h1>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Navigation Items */}
+            <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 custom-scrollbar">
+                <div className="space-y-6">
+                    <div className="space-y-1">
+                        <TooltipProvider delayDuration={0}>
+                            {navItems.map((item) => {
+                                const isActive = location.pathname === item.to;
+                                return (
+                                    <Link
+                                        key={item.label}
+                                        to={item.to}
+                                        onClick={onClose}
+                                        className={cn(
+                                            "flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 group relative",
+                                            isActive
+                                                ? "bg-zinc-800 text-white"
+                                                : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            {item.icon}
+                                            {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                                        </div>
+                                    </Link>
+                                );
+                            })}
+                        </TooltipProvider>
+                    </div>
+
+                    {!collapsed && (
+                        <>
+                            <div className="space-y-1">
+                                <span className="px-3 text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">Campaigns</span>
+                                {campaignItems.map((item) => (
+                                    <Link
+                                        key={item.label}
+                                        to={item.to}
+                                        onClick={onClose}
+                                        className={cn(
+                                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                                            location.pathname === item.to ? "text-white bg-zinc-800/50" : "text-zinc-500 hover:bg-zinc-800/30 hover:text-zinc-300"
+                                        )}
+                                    >
+                                        {item.icon}
+                                        <span className="text-sm font-medium">{item.label}</span>
+                                    </Link>
+                                ))}
+                            </div>
+
+                            <div className="space-y-1">
+                                <span className="px-3 text-[10px] font-semibold text-zinc-600 uppercase tracking-widest">Management</span>
+                                {managementItems.map((item) => (
+                                    <Link
+                                        key={item.label}
+                                        to={item.to}
+                                        onClick={onClose}
+                                        className={cn(
+                                            "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200",
+                                            location.pathname === item.to ? "text-white bg-zinc-800/50" : "text-zinc-500 hover:bg-zinc-800/30 hover:text-zinc-300"
+                                        )}
+                                    >
+                                        {item.icon}
+                                        <span className="text-sm font-medium">{item.label}</span>
+                                    </Link>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {!collapsed && (
+                    <div className="pt-4 border-t border-[#1e1e20] space-y-1">
+                        {bottomItems.map((item) => (
+                            <Link
+                                key={item.label}
+                                to={item.to}
+                                onClick={onClose}
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300 transition-all"
+                            >
+                                {item.icon}
+                                <span className="text-sm font-medium">{item.label}</span>
+                            </Link>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* User Profile at Bottom */}
+            <div className="p-4 border-t border-[#1e1e20]">
+                {collapsed ? (
+                    <Avatar className="h-9 w-9 border border-zinc-800 mx-auto">
+                        <AvatarFallback className="bg-zinc-800 text-zinc-400 text-xs">
+                            {user?.fullName?.charAt(0) || 'U'}
+                        </AvatarFallback>
+                    </Avatar>
+                ) : (
+                    <div className="flex items-center justify-between group">
+                        <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9 border border-zinc-800">
+                                <AvatarFallback className="bg-zinc-800 text-zinc-400 text-xs">
+                                    {user?.fullName?.charAt(0) || 'U'}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                                <span className="text-xs font-semibold text-zinc-200 truncate max-w-[120px]">
+                                    {user?.fullName || "User Name"}
+                                </span>
+                                <span className="text-[10px] text-zinc-500 truncate max-w-[120px]">
+                                    {user?.email || "user@email.com"}
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => {
+                                signOut();
+                                if (onClose) onClose();
+                            }}
+                            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                        >
+                            <LogOut size={16} />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export default function Sidebar() {
     const location = useLocation();
-    const navigate = useNavigate();
     const [collapsed, setCollapsed] = useState(false);
     const { user, signOut } = useAuth();
     const { websiteSettings } = useWebsiteSettings();
 
     const isAdmin = user?.role === 'admin';
 
-    const navItems = [
-        { icon: <BarChart3 size={20} />, label: "Dashboard", to: "/dashboard" },
-        { icon: <Bot size={20} />, label: "Assistants", to: "/assistants" },
-        { icon: <MessageSquare size={20} />, label: "Conversations", to: "/conversations" },
-        { icon: <Users size={20} />, label: "Contacts", to: "/contacts" },
-        { icon: <Rocket size={20} />, label: "Call Campaigns", to: "/campaigns" },
-        { icon: <Mail size={20} />, label: "Emails", to: "/emails" },
-        { icon: <Megaphone size={20} />, label: "Email Campaign", to: "/email-campaigns" },
-    ];
-
-    if (isAdmin) {
-        navItems.push({ icon: <Shield size={20} />, label: "Admin", to: "/admin" });
-    }
-
     return (
         <aside
             className={cn(
-                "relative h-screen flex flex-col border-r border-border bg-background/80 backdrop-blur-xl transition-all duration-300 z-50",
+                "hidden lg:flex relative h-screen flex-col border-r border-[#1e1e20] bg-[#121214] transition-all duration-300 z-50",
                 collapsed ? "w-20" : "w-64"
             )}
         >
-            {/* Logo/Brand Area */}
-            <div className="h-16 flex items-center justify-center border-b border-border p-4">
-                {collapsed ? (
-                    <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                        <span className="text-white font-bold text-xl"></span>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2">
-                        {websiteSettings?.logo ? (
-                            <img src={websiteSettings?.logo} alt={websiteSettings?.website_name} className="w-8 h-8 object-contain" />
-                        ) :
-                            <div className="h-8 w-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                                <Sparkles className="h-4 w-4 text-white" />
-                            </div>
-                        }
-                        <span className="font-bold text-lg text-foreground tracking-tight">
-                            {websiteSettings?.website_name || "Vokivo"}
-                        </span>
-                    </div>
-                )}
-            </div>
-
-            {/* Navigation Items */}
-            <div className="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar">
-                <TooltipProvider delayDuration={0}>
-                    {navItems.map((item) => {
-                        const isActive = location.pathname === item.to;
-                        return (
-                            <div key={item.to} className="w-full">
-                                {collapsed ? (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Link
-                                                to={item.to}
-                                                className={cn(
-                                                    "flex items-center justify-center w-full h-12 rounded-xl transition-all duration-200 group relative",
-                                                    isActive
-                                                        ? "bg-gradient-to-br from-indigo-500/20 to-purple-600/20 text-indigo-400"
-                                                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                                                )}
-                                            >
-                                                {isActive && (
-                                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-500 rounded-r-full" />
-                                                )}
-                                                {item.icon}
-                                            </Link>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right" className="font-medium bg-zinc-900 border-zinc-800 text-zinc-100">
-                                            {item.label}
-                                        </TooltipContent>
-                                    </Tooltip>
-                                ) : (
-                                    <Link
-                                        to={item.to}
-                                        className={cn(
-                                            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden",
-                                            isActive
-                                                ? "bg-gradient-to-r from-indigo-500/10 to-purple-500/10 text-indigo-400 font-medium border border-indigo-500/10"
-                                                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                                        )}
-                                    >
-                                        {isActive && (
-                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-purple-600" />
-                                        )}
-                                        <span className={cn("transition-colors", isActive ? "text-indigo-400" : "group-hover:text-foreground")}>
-                                            {item.icon}
-                                        </span>
-                                        <span>{item.label}</span>
-                                    </Link>
-                                )}
-                            </div>
-                        );
-                    })}
-                </TooltipProvider>
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="p-3 border-t border-border space-y-2">
-                <TooltipProvider delayDuration={0}>
-                    {/* Settings Link */}
-                    {collapsed ? (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Link
-                                    to="/settings"
-                                    className="flex items-center justify-center w-full h-12 rounded-xl text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all"
-                                >
-                                    <Settings size={20} />
-                                </Link>
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="bg-popover border-border text-popover-foreground">Settings</TooltipContent>
-                        </Tooltip>
-                    ) : (
-                        <Link
-                            to="/settings"
-                            className="flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all"
-                        >
-                            <Settings size={20} />
-                            <span>Settings</span>
-                        </Link>
-                    )}
-
-                    {/* Sign Out */}
-                    {collapsed ? (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => signOut()}
-                                    className="flex items-center justify-center w-full h-12 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
-                                >
-                                    <LogOut size={20} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right" className="bg-popover border-border text-popover-foreground">Sign Out</TooltipContent>
-                        </Tooltip>
-                    ) : (
-                        <button
-                            onClick={() => signOut()}
-                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all text-left"
-                        >
-                            <LogOut size={20} />
-                            <span>Sign Out</span>
-                        </button>
-                    )}
-                </TooltipProvider>
-            </div>
+            <SidebarContent
+                collapsed={collapsed}
+                user={user}
+                signOut={signOut}
+                websiteSettings={websiteSettings}
+                location={location}
+                isAdmin={isAdmin}
+            />
 
             {/* Collapse Toggle */}
             <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="absolute -right-3 top-20 bg-zinc-900 border border-zinc-800 text-zinc-400 p-1 rounded-full shadow-xl hover:text-white hover:border-zinc-700 transition-all z-50"
+                className="absolute -right-3 top-20 bg-[#121214] border border-[#1e1e20] text-zinc-400 p-1 rounded-full shadow-xl hover:text-white hover:border-zinc-700 transition-all z-50"
             >
                 {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
             </button>

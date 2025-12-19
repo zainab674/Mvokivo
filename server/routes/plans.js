@@ -56,6 +56,8 @@ router.get('/', async (req, res) => {
             key: p.plan_key,
             name: p.name,
             price: Number(p.price),
+            minutes: p.minutes !== undefined && p.minutes !== null ? Number(p.minutes) : undefined,
+            payAsYouGo: p.pay_as_you_go ?? false,
             features: p.features || [],
             whitelabelEnabled: p.whitelabel_enabled
         }));
@@ -76,7 +78,7 @@ router.get('/', async (req, res) => {
  */
 router.post('/', authenticateToken, validateAdminAccess, async (req, res) => {
     try {
-        const { plan_key, name, price, features, whitelabel_enabled, tenant } = req.body;
+        const { plan_key, name, price, minutes, pay_as_you_go, features, whitelabel_enabled, tenant } = req.body;
 
         if (!plan_key || !name || price === undefined) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -102,6 +104,8 @@ router.post('/', authenticateToken, validateAdminAccess, async (req, res) => {
             plan_key,
             name,
             price,
+            minutes: minutes !== undefined && minutes !== null ? Number(minutes) : undefined,
+            pay_as_you_go: pay_as_you_go ?? false,
             features: features || [],
             whitelabel_enabled: whitelabel_enabled || false,
             tenant: targetTenant,
@@ -142,6 +146,8 @@ router.put('/:key', authenticateToken, validateAdminAccess, async (req, res) => 
         // Apply updates
         if (updates.name) plan.name = updates.name;
         if (updates.price !== undefined) plan.price = updates.price;
+        if (updates.minutes !== undefined) plan.minutes = updates.minutes !== null ? Number(updates.minutes) : undefined;
+        if (updates.pay_as_you_go !== undefined) plan.pay_as_you_go = updates.pay_as_you_go;
         if (updates.features) plan.features = updates.features;
         if (updates.whitelabel_enabled !== undefined) plan.whitelabel_enabled = updates.whitelabel_enabled;
         if (updates.is_active !== undefined) plan.is_active = updates.is_active;

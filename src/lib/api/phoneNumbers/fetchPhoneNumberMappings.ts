@@ -13,16 +13,21 @@ export interface PhoneNumberMappingsResponse {
 /**
  * Fetch phone number to assistant mappings
  */
-export const fetchPhoneNumberMappings = async (userId: string): Promise<PhoneNumberMappingsResponse> => {
+export const fetchPhoneNumberMappings = async (userId: string, accessToken: string): Promise<PhoneNumberMappingsResponse> => {
   try {
     if (!userId) {
       throw new Error('User ID is required to fetch mappings');
+    }
+
+    if (!accessToken) {
+      throw new Error('Access token is required to fetch mappings');
     }
 
     const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/mappings`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
         'x-user-id': userId
       }
     });

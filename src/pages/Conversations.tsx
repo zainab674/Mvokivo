@@ -1,9 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import DashboardLayout from "@/layout/DashboardLayout";
 import { ThemeContainer, ThemeSection, ThemeCard } from "@/components/theme";
-import { ConversationsList } from "@/components/conversations/ConversationsList";
 import { MessageThread } from "@/components/conversations/MessageThread";
-import { ContactInfoPanel } from "@/components/conversations/ContactInfoPanel";
 import { Conversation } from "@/components/conversations/types";
 import { getConversationsProgressive, ContactSummary } from "@/lib/api/conversations/fetchConversations";
 import ConversationsToolbar from "@/components/conversations/ConversationsToolbar";
@@ -13,6 +11,7 @@ import { useRouteChangeData } from "@/hooks/useRouteChange";
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 import { formatPhoneNumber } from "@/utils/formatUtils";
+import { Search, MoreHorizontal } from "lucide-react";
 
 export default function Conversations() {
   const { user, loading: isAuthLoading } = useAuth();
@@ -365,17 +364,25 @@ export default function Conversations() {
     filteredCount
   } = useConversationsFilter(conversations);
 
-  // Helper function to get display name
   const getDisplayName = (item: Conversation | ContactSummary): string => {
+    let name = '';
     if (item.displayName && item.displayName !== formatPhoneNumber(item.phoneNumber)) {
       // If displayName contains both name and phone (format: "Name - Phone"), extract just the name
       if (item.displayName.includes(' - ')) {
-        return item.displayName.split(' - ')[0];
+        name = item.displayName.split(' - ')[0];
+      } else {
+        name = item.displayName;
       }
-      return item.displayName;
+    } else {
+      name = formatPhoneNumber(item.phoneNumber);
     }
-    return formatPhoneNumber(item.phoneNumber);
+
+    if (name.toLowerCase() === 'unknown' || name === '') {
+      return 'Web Call';
+    }
+    return name;
   };
+
 
   // Create a combined list for the UI (contacts + loaded conversations)
   const displayItems = useMemo(() => {
@@ -384,8 +391,26 @@ export default function Conversations() {
     const unique = combined.filter((item, index, self) =>
       index === self.findIndex(t => t.phoneNumber === item.phoneNumber)
     );
-    return unique;
-  }, [contacts, conversations]);
+
+    // Apply message category filter
+    let filtered = unique;
+    if (messageFilter === 'calls') {
+      filtered = filtered.filter(item => item.totalCalls > 0);
+    } else if (messageFilter === 'sms') {
+      filtered = filtered.filter(item => item.totalSMS > 0);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.displayName?.toLowerCase().includes(query) ||
+        item.phoneNumber?.includes(query)
+      );
+    }
+
+    return filtered;
+  }, [contacts, conversations, searchQuery, messageFilter]);
 
   // Auto-select first conversation on initial load only
   useEffect(() => {
@@ -415,10 +440,14 @@ export default function Conversations() {
 
   // Reset selected conversation if it's no longer in filtered results
   useEffect(() => {
-    if (selectedConversation && !filteredConversations.find(c => c.id === selectedConversation.id)) {
-      setSelectedConversation(filteredConversations.length > 0 ? filteredConversations[0] : null);
+    if (selectedConversation && !displayItems.find(c => c.id === selectedConversation.id)) {
+      if (displayItems.length > 0) {
+        handleSelectConversation(displayItems[0]);
+      } else {
+        setSelectedConversation(null);
+      }
     }
-  }, [filteredConversations, selectedConversation]);
+  }, [displayItems.length, selectedConversation?.id]);
 
   const handleSelectConversation = async (conversation: Conversation | ContactSummary) => {
     console.log('🎯 Manual conversation selection:', conversation.id);
@@ -437,7 +466,11 @@ export default function Conversations() {
 
     const fullConversation = await loadConversationDetails(contact.phoneNumber);
     if (fullConversation) {
-      setSelectedConversation(fullConversation);
+      setSelectedConversation({
+        ...fullConversation,
+        avatarUrl: contact.avatarUrl,
+        isOnline: contact.isOnline
+      });
     }
 
     // Clear new message flags for the selected conversation
@@ -509,184 +542,123 @@ export default function Conversations() {
     );
   }
 
+
   return (
     <DashboardLayout>
-      <div className="h-screen flex flex-col bg-background">
-        {/* Top Header Bar */}
-        <div className="flex-shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground mb-1">
-                  Conversations
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  {displayItems.length} {displayItems.length === 1 ? 'conversation' : 'conversations'}
-                </p>
-              </div>
+      <div className={`chat-premium-container ${selectedConversation ? 'sidebar-hidden' : ''}`}>
+        {/* Left Sidebar - Chat List */}
+        <div className="chat-sidebar">
+          <div className="chat-sidebar-header">
+            <h1 className="chat-sidebar-title">Chats</h1>
+            <div className="flex items-center gap-2">
+              <button className="chat-search-trigger p-2 hover:bg-white/5 rounded-full transition-colors">
+                <Search className="w-5 h-5" />
+              </button>
+              <button className="chat-search-trigger p-2 hover:bg-white/5 rounded-full transition-colors">
+                <MoreHorizontal className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
 
-              {/* Toolbar - Compact Horizontal Layout */}
-              <div className="flex items-center gap-3">
-                <ConversationsToolbar
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  resolutionFilter={resolutionFilter}
-                  onResolutionChange={setResolutionFilter}
-                  dateRange={dateRange}
-                  onDateRangeChange={setDateRange}
-                />
+          {/* Sidebar Search Bar */}
+          <div className="chat-sidebar-search">
+            <div className="search-input-wrapper">
+              <Search className="w-4 h-4 text-white/20" />
+              <input
+                type="text"
+                className="sidebar-search-input"
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Sidebar Category Filters */}
+          <div className="chat-filters custom-scrollbar">
+            <div
+              className={`filter-tab ${messageFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setMessageFilter('all')}
+            >
+              All
+            </div>
+            <div
+              className={`filter-tab ${messageFilter === 'calls' ? 'active' : ''}`}
+              onClick={() => setMessageFilter('calls')}
+            >
+              Calls
+            </div>
+            <div
+              className={`filter-tab ${messageFilter === 'sms' ? 'active' : ''}`}
+              onClick={() => setMessageFilter('sms')}
+            >
+              SMS
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {/* Conversations List Section */}
+            <div className="chat-list-section">
+              <div className="chat-list-section-header">
+                <span>Recent Conversations</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
+              {displayItems.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleSelectConversation(item)}
+                  className={`chat-item ${selectedConversation?.id === item.id ? 'active' : ''}`}
+                >
+                  <div className="chat-item-avatar">
+                    {(item as any).avatarUrl ? (
+                      <img src={(item as any).avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-bold">{getDisplayName(item).charAt(0).toUpperCase()}</span>
+                    )}
+                    {(item as any).hasNewMessages && <div className="status-indicator status-unread" />}
+                    {(item as any).isOnline && <div className="status-indicator status-online" />}
+                  </div>
+                  <div className="chat-item-info">
+                    <div className="chat-item-name">{getDisplayName(item)}</div>
+
+                  </div>
+                </div>
+              ))}
+
+              {displayItems.length === 0 && (
+                <div className="p-8 text-center opacity-30">
+                  <p className="text-sm">No conversations found</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {displayItems.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center text-zinc-400">
-                <div className="w-20 h-20 mx-auto mb-6 bg-secondary/50 rounded-2xl flex items-center justify-center border border-border">
-                  <svg className="w-10 h-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">No Conversations Found</h3>
-                <p className="mb-6 text-muted-foreground">
-                  {contacts.length === 0
-                    ? "No contacts have been recorded yet. Contacts will appear here when calls are made."
-                    : "No contacts match your current filters. Try adjusting your search or date range."
-                  }
-                </p>
-                {contacts.length === 0 && (
-                  <button
-                    onClick={() => loadContacts()}
-                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                  >
-                    Refresh
-                  </button>
-                )}
-              </div>
-            </div>
+        {/* Right Area - Conversation View */}
+        <div className="chat-main">
+          {selectedConversation ? (
+            <MessageThread
+              key={selectedConversation.id}
+              conversation={selectedConversation}
+              messageFilter={messageFilter}
+              onMessageFilterChange={setMessageFilter}
+              onBack={() => {
+                setSelectedConversation(null);
+                hasManualSelectionRef.current = false;
+              }}
+            />
           ) : (
-            <div className="flex-1 flex flex-col min-h-0">
-              {/* Conversations Cards - Horizontal Scrollable */}
-              <div className="flex-shrink-0 border-b border-border bg-background/50 backdrop-blur-sm">
-                <div className="px-6 py-4">
-                  <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                    {displayItems.map((conversation) => (
-                      <div
-                        key={conversation.id}
-                        onClick={() => handleSelectConversation(conversation)}
-                        className={`
-                          flex-shrink-0 w-72 p-4 rounded-xl cursor-pointer transition-all duration-200 border-2
-                          ${selectedConversation?.id === conversation.id
-                            ? 'bg-primary/10 border-primary/50 shadow-lg shadow-primary/10'
-                            : 'bg-card border-border hover:bg-accent/50 hover:border-border'
-                          }
-                          ${conversation.hasNewMessages && selectedConversation?.id !== conversation.id
-                            ? 'ring-2 ring-blue-500/30'
-                            : ''
-                          }
-                        `}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`
-                            w-12 h-12 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0
-                            ${selectedConversation?.id === conversation.id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-secondary text-secondary-foreground'
-                            }
-                          `}>
-                            {getDisplayName(conversation).charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <h3 className={`
-                                text-sm font-semibold truncate
-                                ${selectedConversation?.id === conversation.id ? 'text-foreground' : 'text-foreground'}
-                              `}>
-                                {getDisplayName(conversation)}
-                              </h3>
-                              {conversation.hasNewMessages && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 ml-2 animate-pulse" />
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              {conversation.totalCalls} calls • {conversation.totalDuration}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className={`
-                                text-xs px-2 py-0.5 rounded-full
-                                ${selectedConversation?.id === conversation.id
-                                  ? 'bg-primary/20 text-primary'
-                                  : 'bg-secondary text-muted-foreground'
-                                }
-                              `}>
-                                {conversation.lastActivityTime}
-                              </span>
-                              {conversation.lastCallOutcome && (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">
-                                  {conversation.lastCallOutcome}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+              <div className="w-24 h-24 mb-6 relative">
+                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl animate-pulse" />
+                <svg className="w-full h-full text-blue-500 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
               </div>
-
-              {/* Main Content - Split View */}
-              <div className="flex-1 flex min-h-0">
-                {/* Message Thread - Takes 70% width */}
-                <div className="flex-1 flex flex-col min-h-0 border-r border-border bg-background/50">
-                  {isLoadingConversation ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className="text-center text-zinc-400">
-                        <div className="animate-spin rounded-full h-10 w-10 border-2 border-indigo-500 border-t-transparent mx-auto mb-4"></div>
-                        <div className="text-lg font-medium text-foreground mb-2">
-                          Loading conversation...
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Fetching messages and call details
-                        </p>
-                      </div>
-                    </div>
-                  ) : selectedConversation ? (
-                    <MessageThread
-                      key={selectedConversation.id}
-                      conversation={selectedConversation}
-                      messageFilter={messageFilter}
-                      onMessageFilterChange={setMessageFilter}
-                    />
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className="text-center text-zinc-400">
-                        <div className="w-16 h-16 mx-auto mb-4 bg-secondary/50 rounded-2xl flex items-center justify-center border border-border">
-                          <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                        </div>
-                        <div className="text-lg font-medium text-foreground mb-2">
-                          Select a conversation
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Choose a conversation card above to view messages
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Contact Info Panel - Takes 30% width, only visible when conversation selected */}
-                {selectedConversation && (
-                  <div className="w-[400px] flex-shrink-0 bg-background/80 backdrop-blur-sm overflow-y-auto">
-                    <ContactInfoPanel conversation={selectedConversation} />
-                  </div>
-                )}
-              </div>
+              <h2 className="text-2xl font-bold mb-2">Select a Chat</h2>
+              <p className="text-sm">Choose a conversation from the sidebar to start</p>
             </div>
           )}
         </div>
