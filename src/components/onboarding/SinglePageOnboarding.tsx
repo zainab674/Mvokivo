@@ -12,14 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { BUSINESS_USE_CASE_TEMPLATES, BusinessUseCase } from "@/types/businessUseCase";
 import { getPlanConfigs, PLAN_CONFIGS } from "@/lib/plan-config";
 import { extractTenantFromHostname } from "@/lib/tenant-utils";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Target, Settings, CreditCard, ArrowRight, Star, Check } from "lucide-react";
+import { Building2, Target, CreditCard, ArrowRight, Star, Check } from "lucide-react";
 
 const schema = z.object({
     companyName: z.string().min(1, "Company name is required"),
@@ -529,51 +528,13 @@ export function SinglePageOnboarding() {
                             >
                                 <div className="flex items-center gap-3 mb-6">
                                     <div className="p-3 bg-white/20 rounded-full">
-                                        <Settings className="h-6 w-6 text-white" />
+                                        <Target className="h-6 w-6 text-white" />
                                     </div>
-                                    <h2 className="text-2xl font-bold text-white">Preferences & Goals</h2>
+                                    <h2 className="text-2xl font-bold text-white">Your Goals</h2>
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Theme Toggle */}
-                                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                                        <div>
-                                            <Label className="text-white font-medium">Glass UI Style</Label>
-                                            <p className="text-sm text-white/60">Enable modern glassmorphism effects</p>
-                                        </div>
-                                        <FormField
-                                            control={form.control}
-                                            name="theme"
-                                            render={({ field }) => (
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value === "glass"}
-                                                        onCheckedChange={(checked) => field.onChange(checked ? "glass" : "minimal")}
-                                                    />
-                                                </FormControl>
-                                            )}
-                                        />
-                                    </div>
 
-                                    {/* Notifications Toggle */}
-                                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
-                                        <div>
-                                            <Label className="text-white font-medium">Email Notifications</Label>
-                                            <p className="text-sm text-white/60">Get updates about your account</p>
-                                        </div>
-                                        <FormField
-                                            control={form.control}
-                                            name="notifications"
-                                            render={({ field }) => (
-                                                <FormControl>
-                                                    <Switch
-                                                        checked={field.value}
-                                                        onCheckedChange={field.onChange}
-                                                    />
-                                                </FormControl>
-                                            )}
-                                        />
-                                    </div>
 
                                     {/* Goals */}
                                     <div className="p-4 bg-white/5 rounded-xl">

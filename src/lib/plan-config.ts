@@ -23,6 +23,50 @@ export const DEFAULT_PLAN_CONFIGS: Record<string, PlanConfig> = {
         price: 0,
         features: ["Basic features"],
         whitelabelEnabled: false
+    },
+    starter: {
+        key: "starter",
+        name: "Starter",
+        price: 99,
+        features: [
+            "2 AI Voice Agents",
+            "1,000 API Calls / month",
+            "Standard Voice Quality",
+            "Email Support",
+            "Basic Analytics"
+        ],
+        whitelabelEnabled: false
+    },
+    professional: {
+        key: "professional",
+        name: "Professional",
+        price: 299,
+        features: [
+            "10 AI Voice Agents",
+            "Unlimited API Calls",
+            "Premium HD Voices",
+            "Priority 24/7 Support",
+            "Advanced Analytics & ROI Tracking",
+            "Team Collaboration Tools",
+            "Custom Integrations (Beta)"
+        ],
+        whitelabelEnabled: true
+    },
+    enterprise: {
+        key: "enterprise",
+        name: "Enterprise",
+        price: 999,
+        features: [
+            "Unlimited Voice Agents",
+            "Dedicated Infrastructure",
+            "Exclusive Voice Phasing AI",
+            "Dedicated Success Manager",
+            "Custom Feature Development",
+            "Enterprise-Grade Security",
+            "Whitelabeling Included",
+            "Full API Access"
+        ],
+        whitelabelEnabled: true
     }
 };
 

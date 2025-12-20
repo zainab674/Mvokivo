@@ -32,9 +32,9 @@ export const Hero = () => {
                         <span className="text-xs font-semibold uppercase tracking-wider">Presenting AI Voice Assistants</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 leading-[1.1]">
+                    <h1 className="text-xl md:text-3xl lg:text-5xl font-bold mb-6 leading-[1.1]">
                         AI Voice Agents for <br />
-                        <span className="text-white/90">Calls, Bookings & Lead Conversion</span>
+                        <span className="text-white/90 text-md">Calls, Bookings & Lead Conversion</span>
                     </h1>
 
 

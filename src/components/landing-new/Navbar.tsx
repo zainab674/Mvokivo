@@ -21,15 +21,7 @@ export const Navbar = () => {
             </Link>
 
             <div className="hidden md:flex items-center gap-8 text-white/90 font-medium text-sm">
-                <a href="#" className="flex items-center gap-1 hover:text-white transition-colors">
-                    Our Services <ChevronDown className="w-4 h-4" />
-                </a>
-                <a href="#" className="flex items-center gap-1 hover:text-white transition-colors">
-                    Features <ChevronDown className="w-4 h-4" />
-                </a>
-                <a href="#" className="hover:text-white transition-colors">How it works</a>
-                <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-                <a href="#" className="hover:text-white transition-colors">Blog</a>
+
             </div>
 
             <Button

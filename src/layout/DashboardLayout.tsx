@@ -97,7 +97,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               }}
               className="w-full min-h-full"
             >
-              <main className="w-full p-4 md:p-6 pb-20">
+              <main className="w-full p-0 md:p-6 pb-20">
                 {children}
               </main>
             </motion.div>

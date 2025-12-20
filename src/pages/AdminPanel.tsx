@@ -34,14 +34,6 @@ interface UserStats {
   plan: string | null;
 }
 
-interface MinutePricingConfig {
-  id: string;
-  price_per_minute: number | string;
-  minimum_purchase: number | string;
-  currency: string;
-  is_active: boolean;
-  tenant: string;
-}
 
 
 const AdminPanel = () => {
@@ -74,10 +66,6 @@ const AdminPanel = () => {
   const [deletingPlanKey, setDeletingPlanKey] = useState<string | null>(null);
   const [isDeletePlanOpen, setIsDeletePlanOpen] = useState(false);
 
-  // Minute Pricing state
-  const [minutePricing, setMinutePricing] = useState<MinutePricingConfig | null>(null);
-  const [loadingMinutePricing, setLoadingMinutePricing] = useState(false);
-  const [savingMinutePricing, setSavingMinutePricing] = useState(false);
 
   // Check if current admin is a whitelabel admin based on hostname
   const [isWhitelabelAdmin, setIsWhitelabelAdmin] = useState<boolean>(false);
@@ -186,7 +174,6 @@ const AdminPanel = () => {
     }
     fetchUsers();
     fetchPlanConfigs();
-    fetchMinutePricing();
   }, [isAdmin, user?.id]);
 
   // Fetch plan configurations from database
@@ -208,86 +195,6 @@ const AdminPanel = () => {
     }
   };
 
-  // Fetch minute pricing
-  const fetchMinutePricing = async () => {
-    try {
-      setLoadingMinutePricing(true);
-      const token = getAccessToken();
-      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-
-      const response = await fetch(`${apiUrl}/api/v1/admin/minutes-pricing`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch minute pricing');
-      }
-
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        setMinutePricing(result.data as any);
-      } else {
-        // Set default if not found
-        setMinutePricing({
-          id: '',
-          price_per_minute: 0.01,
-          minimum_purchase: 0,
-          currency: 'USD',
-          is_active: true,
-          tenant: 'main'
-        } as any);
-      }
-    } catch (error) {
-      console.error('Error fetching minute pricing:', error);
-    } finally {
-      setLoadingMinutePricing(false);
-    }
-  };
-
-  const handleSaveMinutePricing = async () => {
-    if (!minutePricing) return;
-
-    try {
-      setSavingMinutePricing(true);
-      const token = getAccessToken();
-      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-
-      const payload = {
-        price_per_minute: parseFloat(minutePricing.price_per_minute.toString()),
-        minimum_purchase: parseInt(minutePricing.minimum_purchase.toString()),
-        currency: minutePricing.currency
-      };
-
-      const response = await fetch(`${apiUrl}/api/v1/admin/minutes-pricing`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save minute pricing');
-      }
-
-      const result = await response.json();
-      if (result.success && result.data) {
-        setMinutePricing(result.data as any);
-      }
-
-      toast.success('Minute pricing updated successfully');
-    } catch (error: any) {
-      console.error('Error saving minute pricing:', error);
-      toast.error(error.message || 'Failed to save minute pricing');
-    } finally {
-      setSavingMinutePricing(false);
-    }
-  };
 
   // Open edit plan dialog
   const openEditPlanDialog = async (planKey: string | null) => {
@@ -994,61 +901,6 @@ const AdminPanel = () => {
                   </CardContent>
                 </ThemeCard>
 
-                {/* Minute Pricing Configuration */}
-                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
-                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
-                    <div>
-                      <CardTitle className="text-xl sm:text-2xl font-bold">Minute Pricing</CardTitle>
-                      <CardDescription className="text-sm sm:text-base mt-1">
-                        Configure pay-as-you-go minute pricing for users
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4 sm:p-6">
-                    {loadingMinutePricing ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          <p className="text-xs text-muted-foreground">Syncing rates...</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 items-end">
-                        <div className="space-y-2">
-                          <Label htmlFor="price-per-minute" className="text-xs font-black uppercase text-muted-foreground tracking-widest pl-1">Price per Min (USD)</Label>
-                          <Input
-                            id="price-per-minute"
-                            type="number"
-                            step="0.0001"
-                            min="0"
-                            value={minutePricing?.price_per_minute ?? 0.01}
-                            onChange={(e) => setMinutePricing(prev => (prev ? { ...prev, price_per_minute: e.target.value } : { id: '', currency: 'USD', is_active: true, tenant: '', price_per_minute: e.target.value, minimum_purchase: 0 } as MinutePricingConfig))}
-                            className="h-11 rounded-xl bg-muted/20 border-border/40 focus:bg-background transition-all font-bold"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="min-purchase" className="text-xs font-black uppercase text-muted-foreground tracking-widest pl-1">Min Purchase (Mins)</Label>
-                          <Input
-                            id="min-purchase"
-                            type="number"
-                            step="1"
-                            min="0"
-                            value={minutePricing?.minimum_purchase ?? 0}
-                            onChange={(e) => setMinutePricing(prev => (prev ? { ...prev, minimum_purchase: e.target.value } : { id: '', currency: 'USD', is_active: true, tenant: '', price_per_minute: 0.01, minimum_purchase: e.target.value } as MinutePricingConfig))}
-                            className="h-11 rounded-xl bg-muted/20 border-border/40 focus:bg-background transition-all font-bold"
-                          />
-                        </div>
-                        <Button
-                          onClick={handleSaveMinutePricing}
-                          disabled={savingMinutePricing}
-                          className="h-11 rounded-xl font-bold shadow-lg shadow-primary/20 w-full sm:w-auto mt-2 sm:mt-0"
-                        >
-                          {savingMinutePricing ? <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Saving...</> : 'Apply Pricing'}
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </ThemeCard>
 
                 {/* User Plans & Minutes */}
                 <ThemeCard className="overflow-hidden shadow-xl border-border/20">

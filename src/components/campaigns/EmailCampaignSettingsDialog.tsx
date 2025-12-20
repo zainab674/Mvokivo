@@ -196,7 +196,7 @@ export function EmailCampaignSettingsDialog({ open, onOpenChange, onSave }: Emai
                                             {accounts.length === 0 && (
                                                 <div className="p-4 text-center">
                                                     <p className="text-xs text-muted-foreground mb-2">No email accounts connected.</p>
-                                                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/dashboard/settings'}>Go to Settings</Button>
+                                                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/settings'}>Go to Settings</Button>
                                                 </div>
                                             )}
                                         </SelectContent>

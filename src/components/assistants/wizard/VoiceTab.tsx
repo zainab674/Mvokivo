@@ -76,13 +76,13 @@ export const VoiceTab: React.FC<VoiceTabProps> = ({ data, onChange }) => {
         <CardHeader>
           <CardTitle className="text-lg font-medium">Voice Characteristics</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-8">
+        <CardContent className="space-y-6 sm:space-y-8">
           {/* Voice Selection - Only show Voice dropdown */}
           <div className="max-w-md">
             <div className="space-y-3">
-              <Label className="text-[16px] font-semibold tracking-[0.2px]">Voice</Label>
+              <Label className="text-base font-semibold tracking-tight">Voice</Label>
               <Select value={data.voice} onValueChange={(value) => onChange({ voice: value })}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -95,24 +95,22 @@ export const VoiceTab: React.FC<VoiceTabProps> = ({ data, onChange }) => {
               </Select>
             </div>
           </div>
-
-
         </CardContent>
       </Card>
 
       {/* Card 2 - Additional Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-[20px] font-medium tracking-[0.2px]">Additional Configuration</CardTitle>
+          <CardTitle className="text-lg sm:text-xl font-medium tracking-tight">Additional Configuration</CardTitle>
           <CardDescription>Configure additional settings for the voice of your assistant.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-8">
+        <CardContent className="space-y-6 sm:space-y-8">
           {/* Config Adapter Section */}
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <Label className="text-[16px] font-semibold tracking-[0.2px]">Background Sound</Label>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <Label className="text-base font-semibold tracking-tight">Background Sound</Label>
               <Select value={data.backgroundSound || "off"} onValueChange={(value) => onChange({ backgroundSound: value })}>
-                <SelectTrigger className="w-[120px]">
+                <SelectTrigger className="w-full sm:w-[180px] h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

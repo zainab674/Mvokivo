@@ -165,7 +165,7 @@ export const FullScreenSignup = () => {
                     id="name"
                     type="text"
                     placeholder="Name"
-                    className="w-full pl-12 pr-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
+                    className="w-full pl-12 pr-4 py-3 text-black bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                   />
                   {errors.name && (
                     <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.name.message}</p>
@@ -174,7 +174,7 @@ export const FullScreenSignup = () => {
 
                 {/* Email address */}
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
+                  <div className="absolute text-black left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#7c3aed] transition-colors">
                     <Mail className="w-5 h-5" />
                   </div>
                   <input
@@ -182,7 +182,7 @@ export const FullScreenSignup = () => {
                     id="email"
                     type="email"
                     placeholder="Email address"
-                    className="w-full pl-12 pr-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
+                    className="w-full pl-12 pr-4 py-3 text-black bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                   />
                   {errors.email && (
                     <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.email.message}</p>
@@ -201,13 +201,13 @@ export const FullScreenSignup = () => {
                   >
                     <SelectTrigger className="w-24 h-12 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20">
                       <SelectValue>
-                        <span className="text-base">{selectedCountry?.flag}</span>
+                        <span className="text-black">{selectedCountry?.flag}</span>
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="bg-white">
                       {countryCodes.map((country, index) => (
                         <SelectItem key={`${country.code}-${index}`} value={country.code}>
-                          <span className="flex items-center gap-2">
+                          <span className="flex items-center text-black gap-2">
                             <span>{country.flag}</span>
                             <span className="font-medium">{country.code}</span>
                           </span>
@@ -221,7 +221,7 @@ export const FullScreenSignup = () => {
                       id="phone"
                       type="tel"
                       placeholder="Phone number"
-                      className="w-full px-4 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
+                      className="w-full px-4 py-3 text-black bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                     />
                     {errors.phone && (
                       <p className="text-[10px] text-red-500 mt-1 pl-2">{errors.phone.message}</p>
@@ -239,7 +239,7 @@ export const FullScreenSignup = () => {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Password"
-                    className="w-full pl-12 pr-12 py-3 bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
+                    className="w-full pl-12 pr-12 py-3 text-black bg-[#f0f2f5] border-none rounded-xl focus:ring-2 focus:ring-[#7c3aed]/20 outline-none transition-all placeholder:text-gray-400"
                   />
                   <button
                     type="button"

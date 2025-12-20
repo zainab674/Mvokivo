@@ -52,9 +52,9 @@ const CreateAssistant = () => {
   };
 
   const tabs = [
-    { id: "details", label: "Agent Details", icon: Settings },
-    { id: "messaging", label: "Call Messaging Details", icon: MessageSquare },
-    { id: "context", label: "Agent Context", icon: BarChart3 },
+    { id: "details", label: "Agent Details", mobileLabel: "Details", icon: Settings },
+    { id: "messaging", label: "Call Messaging Details", mobileLabel: "Messaging", icon: MessageSquare },
+    { id: "context", label: "Agent Context", mobileLabel: "Context", icon: BarChart3 },
   ];
 
   const searchParams = new URLSearchParams(location.search);
@@ -459,58 +459,62 @@ const CreateAssistant = () => {
 
   return (
     <DashboardLayout>
-      <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
+      <ThemeContainer variant="base" className="min-h-screen no-hover-scaling p-0">
         <div className="flex flex-col h-screen overflow-hidden">
           {/* Header */}
           <div className="border-b border-border/40 bg-background/80 backdrop-blur-sm sticky top-0 z-50">
             <div className="max-w-[1920px] mx-auto px-4 sm:px-6 py-3 sm:py-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-start gap-3">
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     onClick={() => navigate("/assistants")}
-                    className="text-muted-foreground hover:text-foreground h-9 px-2 sm:px-3"
+                    className="text-muted-foreground hover:text-foreground h-10 w-10 shrink-0 rounded-full -ml-2"
                   >
-                    <ArrowLeft className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Back</span>
+                    <ArrowLeft className="h-5 w-5" />
                   </Button>
-                  <div className="h-6 w-px bg-border hidden sm:block" />
-                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                    {isEditing ? <Edit3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary/60 shrink-0" /> : <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary/60 shrink-0" />}
+
+                  <div className="flex-1 min-w-0 pt-0.5">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {isEditing ? <Edit3 className="h-4 w-4 text-primary/60 shrink-0" /> : <Sparkles className="h-4 w-4 text-primary/60 shrink-0" />}
+                      <span className="text-xs font-semibold text-primary/60 uppercase tracking-wider">Assistant</span>
+                    </div>
                     <Input
                       value={formData.name}
                       onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      className="border-0 bg-transparent text-lg sm:text-xl font-semibold px-0 h-auto focus-visible:ring-0 truncate"
-                      placeholder="Assistant Name"
+                      className="border-0 bg-transparent text-xl sm:text-2xl font-bold px-0 h-auto focus-visible:ring-0 truncate p-0 placeholder:text-muted-foreground/50"
+                      placeholder="My Assistant"
                       disabled={isLoading}
                     />
+                    <div className="mt-2 flex items-center">
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/40 text-[10px] font-mono text-muted-foreground border border-border/20">
+                        <span className="opacity-50">ID:</span>
+                        <span className="select-all">{formData.id}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between sm:justify-end gap-3 px-1 sm:px-0">
-                  <span className="text-[10px] sm:text-xs text-muted-foreground font-mono bg-muted/30 px-2 py-1 rounded truncate max-w-[150px] sm:max-w-none">
-                    ID: {formData.id}
-                  </span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Tab Navigation */}
-          <div className="bg-background border-b border-border/40 overflow-x-auto custom-scrollbar">
+          <div className="bg-background border-b border-border/40 overflow-x-auto custom-scrollbar no-scrollbar">
             <div className="max-w-[1920px] mx-auto px-4 sm:px-6">
-              <div className="flex items-center gap-4 sm:gap-8 h-12 min-w-max">
+              <div className="flex items-center gap-2 sm:gap-8 h-12">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => handleTabClick(tab.id)}
                     className={cn(
-                      "h-full px-2 text-xs sm:text-sm font-medium transition-all relative flex items-center gap-2",
+                      "h-full px-3 sm:px-2 text-xs sm:text-sm font-medium transition-all relative flex items-center gap-1.5 sm:gap-2 whitespace-nowrap",
                       activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    <tab.icon className="h-3.5 w-3.5 sm:hidden" />
-                    {tab.label}
+                    <tab.icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="sm:hidden">{tab.mobileLabel}</span>
                     {activeTab === tab.id && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
                   </button>
                 ))}
@@ -521,7 +525,7 @@ const CreateAssistant = () => {
           {/* Main Content Area */}
           <div className="flex flex-1 overflow-hidden bg-[#fbfcfd] dark:bg-zinc-950/40">
             <div className="flex-1 flex flex-col min-w-0 border-r border-border/40">
-              <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+              <div className="flex-1 overflow-y-auto p-0 sm:p-8">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-24">
                     <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-primary" />
@@ -560,23 +564,24 @@ const CreateAssistant = () => {
                 )}
               </div>
 
+
               {/* Footer Actions */}
               <div className="border-t border-border/40 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm p-4 px-4 sm:px-8">
-                <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto sm:overflow-visible pb-2 sm:pb-0">
+                <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => navigate("/assistants")}
                       disabled={isSaving || isLoading}
-                      className="h-9 text-xs sm:text-sm"
+                      className="h-9 text-xs sm:text-sm flex-1 sm:flex-none"
                     >
                       Previous
                     </Button>
                     {isEditing && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-9 text-xs sm:text-sm text-destructive hover:bg-destructive/10">
+                          <Button variant="ghost" size="sm" className="h-9 text-xs sm:text-sm text-destructive hover:bg-destructive/10 flex-1 sm:flex-none">
                             <Trash2 className="h-4 w-4 mr-1.5 sm:mr-2" />Delete
                           </Button>
                         </AlertDialogTrigger>
@@ -605,7 +610,7 @@ const CreateAssistant = () => {
                     <Button
                       onClick={handleSave}
                       disabled={isSaving || isLoading}
-                      className="h-9 sm:h-10 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 text-white min-w-[120px] sm:min-w-[140px] flex-1 sm:flex-none"
+                      className="h-9 sm:h-10 text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-600 text-white min-w-[100px] sm:min-w-[140px] flex-1 sm:flex-none"
                     >
                       {isSaving ? "Saving..." : (isEditing ? "Update" : "Activate")}
                     </Button>
