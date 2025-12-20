@@ -1,6 +1,6 @@
 import { getAccessToken } from "@/lib/auth";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface EmailThread {
     id: string;
@@ -25,7 +25,7 @@ export async function fetchEmailThreads(searchQuery: string = "") {
     const token = getAccessToken();
     const headers: any = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const res = await fetch(`${API_URL}/api/v1/emails/threads?search=${searchQuery}`, {
+    const res = await fetch(`${BACKEND_URL}/api/v1/emails/threads?search=${searchQuery}`, {
         headers
     });
 
@@ -37,7 +37,7 @@ export async function fetchEmailMessages(threadId: string) {
     const token = getAccessToken();
     const headers: any = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const res = await fetch(`${API_URL}/api/v1/emails/${threadId}`, { headers });
+    const res = await fetch(`${BACKEND_URL}/api/v1/emails/${threadId}`, { headers });
 
     if (!res.ok) throw new Error("Failed to fetch email messages");
     return await res.json();
@@ -47,7 +47,7 @@ export async function syncEmails() {
     const token = getAccessToken();
     const headers: any = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const res = await fetch(`${API_URL}/api/v1/emails/sync`, {
+    const res = await fetch(`${BACKEND_URL}/api/v1/emails/sync`, {
         method: 'POST',
         headers
     });

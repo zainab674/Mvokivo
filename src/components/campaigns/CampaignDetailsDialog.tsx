@@ -10,6 +10,7 @@ import { startCampaign } from "@/lib/api/campaigns/startCampaign";
 import { pauseCampaign } from "@/lib/api/campaigns/pauseCampaign";
 import { resumeCampaign } from "@/lib/api/campaigns/resumeCampaign";
 import { stopCampaign } from "@/lib/api/campaigns/stopCampaign";
+import { BACKEND_URL } from "@/lib/api-config";
 
 interface CampaignDetailsDialogProps {
   open: boolean;
@@ -104,7 +105,7 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
           if (newStatus.campaign?.assistant_id) {
             try {
               const token = localStorage.getItem('token');
-              const response = await fetch(`/api/v1/assistants/${newStatus.campaign.assistant_id}`, {
+              const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${newStatus.campaign.assistant_id}`, {
                 headers: {
                   'Authorization': `Bearer ${token}`
                 }

@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import BusinessUseCaseSettings from "./BusinessUseCaseSettings";
 import WhitelabelSettings from "./WhitelabelSettings";
 import { useAuth } from '@/contexts/SupportAccessAuthContext';
+
 import { getPlanConfigs } from '@/lib/plan-config';
+import { BACKEND_URL } from '@/lib/api-config';
 
 const tabVariants = {
   initial: { opacity: 0, y: 10 },
@@ -39,7 +41,7 @@ export function WorkspaceSettings({ initialSubTab }: WorkspaceSettingsProps) {
 
         // Fetch user profile from API to get latest plan/role/tenant info
         console.log('[Whitelabel Check] Fetching profile...');
-        const response = await fetch('/api/v1/user/profile', {
+        const response = await fetch(`${BACKEND_URL}/api/v1/user/profile`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 

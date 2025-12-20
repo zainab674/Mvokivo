@@ -22,6 +22,7 @@ import {
   ThemedDialogHeader,
 } from "@/components/ui/themed-dialog";
 import { fetchAssistants } from "@/lib/api/assistants/fetchAssistants";
+import { BACKEND_URL } from "@/lib/api-config";
 
 interface Assistant {
   id: string;
@@ -226,7 +227,7 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
     }
 
     try {
-      const response = await fetch(`/api/v1/assistants/${assistantId}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${assistantId}`, {
         method: 'DELETE',
         headers: {
           'x-user-id': user.id

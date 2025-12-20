@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface UpdateContactRequest {
   id: string;
@@ -53,7 +54,7 @@ export const updateContact = async (data: UpdateContactRequest): Promise<UpdateC
     if (data.status) body.status = data.status;
     if (data.do_not_call !== undefined) body.do_not_call = data.do_not_call;
 
-    const response = await fetch(`/api/v1/contacts/${data.id}`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/contacts/${data.id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,

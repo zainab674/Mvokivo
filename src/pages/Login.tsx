@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
+import { BACKEND_URL } from "@/lib/api-config";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -96,7 +97,7 @@ export default function Login() {
       return;
     }
     try {
-      const response = await fetch('/api/v1/auth/forgot-password', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

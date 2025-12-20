@@ -1,5 +1,6 @@
 
 import { useState, useMemo, useEffect } from "react";
+import { BACKEND_URL } from "@/lib/api-config";
 import { useBusinessUseCase } from "@/components/BusinessUseCaseProvider";
 import DashboardLayout from "@/layout/DashboardLayout";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
@@ -81,7 +82,7 @@ export default function Index() {
         return;
       }
 
-      const response = await fetch('/api/v1/call-history', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/call-history`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

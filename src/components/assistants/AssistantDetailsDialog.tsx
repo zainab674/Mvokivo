@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Phone, Users, TrendingUp, Settings, Play, Edit2, Calendar } from "lucide-react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
+import { BACKEND_URL } from "@/lib/api-config";
 import {
   ThemedDialog,
   ThemedDialogContent,
@@ -94,7 +95,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
       }
 
       // Fetch all mappings for user and filter by assistant ID
-      const response = await fetch('/api/v1/twilio/user/mappings', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/twilio/user/mappings`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'x-user-id': user.id

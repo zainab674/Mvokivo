@@ -10,30 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SupportAccessDialog } from '@/components/admin/SupportAccessDialog';
 
-interface User {
-    id: string;
-    name: string | null;
-    contact: {
-        email: string | null;
-        phone: string | null;
-        countryCode: string | null;
-    } | null;
-    email: string | null;
-    phone: string | null;
-    countryCode: string | null;
-    role: string | null;
-    is_active: boolean | null;
-    created_on: string | null;
-    updated_at: string | null;
-    company: string | null;
-    industry: string | null;
-    plan?: string | null;
-    minutes_limit?: number | null;
-    minutes_used?: number | null;
-    is_whitelabel?: boolean;
-    slug_name?: string | null;
-    tenant?: string | null;
-}
+import { AdminUser } from '@/lib/adminService';
 
 interface UserStats {
     totalAssistants: number;
@@ -44,14 +21,14 @@ interface UserStats {
 }
 
 interface ModernUserTableProps {
-    users: User[];
+    users: AdminUser[];
     allUserStats: Record<string, UserStats>;
-    onViewUser: (user: User) => void;
-    onEditUser: (user: User) => void;
-    onDeleteUser: (user: User) => void;
+    onViewUser: (user: AdminUser) => void;
+    onEditUser: (user: AdminUser) => void;
+    onDeleteUser: (user: AdminUser) => void;
     onSupportAccess: (sessionData: any) => void;
     formatMinutes: (minutes: number | null | undefined, plan: string | null | undefined) => string;
-    getRemainingMinutes: (user: User) => string;
+    getRemainingMinutes: (user: AdminUser) => string;
 }
 
 export const ModernUserTable: React.FC<ModernUserTableProps> = ({

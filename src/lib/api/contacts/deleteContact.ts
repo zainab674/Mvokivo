@@ -1,4 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface DeleteContactRequest {
   id: string;
@@ -17,7 +18,7 @@ export const deleteContact = async (data: DeleteContactRequest): Promise<DeleteC
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/contacts/${data.id}`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/contacts/${data.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,

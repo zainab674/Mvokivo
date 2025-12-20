@@ -1,3 +1,5 @@
+import { BACKEND_URL } from './api-config';
+
 /**
  * Utility functions for handling user context during impersonation
  */
@@ -56,7 +58,7 @@ export async function getCurrentUserIdAsync(): Promise<string> {
   }
 
   try {
-    const response = await fetch('/api/v1/auth/me', {
+    const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

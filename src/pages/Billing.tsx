@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { CreditCard, Download, Calendar, Zap, Phone, MessageSquare, Users, Loader2, Clock } from "lucide-react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { PlanChangeDialog } from "@/components/settings/billing/PlanChangeDialog";
+import { BACKEND_URL } from "@/lib/api-config";
 
 interface UsageItem {
   name: string;
@@ -57,15 +58,13 @@ export default function Billing() {
         return;
       }
 
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
       // 1. Fetch Usage & Plan Info
-      const usagePromise = fetch(`${backendUrl}/api/v1/billing/usage`, {
+      const usagePromise = fetch(`${BACKEND_URL}/api/v1/billing/usage`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       // 2. Fetch Invoices
-      const invoicesPromise = fetch(`${backendUrl}/api/v1/billing/invoices?limit=20`, {
+      const invoicesPromise = fetch(`${BACKEND_URL}/api/v1/billing/invoices?limit=20`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

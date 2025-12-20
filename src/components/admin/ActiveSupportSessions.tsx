@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Clock, Shield, Eye, X, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/SupportAccessAuthContext';
+import { BACKEND_URL } from '@/lib/api-config';
 
 interface SupportSession {
   id: string;
@@ -50,7 +51,7 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
         return;
       }
 
-      const response = await fetch('/api/v1/support-access/support-sessions/active', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/active`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -78,7 +79,7 @@ export const ActiveSupportSessions: React.FC<ActiveSupportSessionsProps> = ({
         return;
       }
 
-      const response = await fetch(`/api/v1/support-access/support-sessions/${sessionId}/end`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/${sessionId}/end`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

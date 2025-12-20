@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
@@ -81,8 +82,7 @@ export default function AuthCallback() {
         if (token) {
           // Handle token-based confirmation (email verification)
           try {
-            const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-            const response = await fetch(`${apiUrl}/api/v1/user/verify-email?token=${token}`, {
+            const response = await fetch(`${BACKEND_URL}/api/v1/user/verify-email?token=${token}`, {
               method: 'GET',
               redirect: 'follow'
             });

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Shield, Clock, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/SupportAccessAuthContext';
+import { BACKEND_URL } from '@/lib/api-config';
 
 interface SupportAccessDialogProps {
   userId: string;
@@ -44,7 +45,7 @@ export const SupportAccessDialog: React.FC<SupportAccessDialogProps> = ({
         return;
       }
 
-      const response = await fetch('/api/v1/support-access/support-sessions', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -25,6 +25,7 @@ import { ActiveSupportSessions } from '@/components/admin/ActiveSupportSessions'
 import { DashboardStats } from '@/components/admin/DashboardStats';
 import { SimpleBarChart, DonutChart, LineChart } from '@/components/admin/Charts';
 import { ModernUserTable } from '@/components/admin/ModernUserTable';
+import { BACKEND_URL } from "@/lib/api-config";
 
 interface UserStats {
   totalAssistants: number;
@@ -90,14 +91,14 @@ const AdminPanel = () => {
     return `${minutes.toLocaleString()} min`;
   };
 
-  const getRemainingMinutes = (user: User) => {
+  const getRemainingMinutes = (user: AdminUser) => {
     if (user.minutes_limit === 0 || user.minutes_limit === null || user.minutes_limit === undefined) return 'Unlimited';
     const used = user.minutes_used || 0;
     const remaining = Math.max(0, user.minutes_limit - used);
     return `${remaining.toLocaleString()} min`;
   };
 
-  const getUsageStatus = (user: User) => {
+  const getUsageStatus = (user: AdminUser) => {
     if (user.minutes_limit === 0 || user.minutes_limit === null || user.minutes_limit === undefined) return 'Unlimited';
 
     const used = user.minutes_used || 0;
@@ -255,7 +256,7 @@ const AdminPanel = () => {
     try {
       setLoadingPlanConfigs(true);
       const token = getAccessToken();
-      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      // const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
       const payload = {
         plan_key: planKey,
@@ -269,8 +270,8 @@ const AdminPanel = () => {
 
       const isUpdate = !!editingPlanKey;
       const url = isUpdate
-        ? `${apiUrl}/api/v1/plans/${planKey}`
-        : `${apiUrl}/api/v1/plans`;
+        ? `${BACKEND_URL}/api/v1/plans/${planKey}`
+        : `${BACKEND_URL}/api/v1/plans`;
 
       const response = await fetch(url, {
         method: isUpdate ? 'PUT' : 'POST',
@@ -310,9 +311,8 @@ const AdminPanel = () => {
     try {
       setLoadingPlanConfigs(true);
       const token = getAccessToken();
-      const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-      const response = await fetch(`${apiUrl}/api/v1/plans/${deletingPlanKey}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/plans/${deletingPlanKey}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -387,9 +387,8 @@ const AdminPanel = () => {
     try {
       setLoading(true);
       const token = getAccessToken();
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-      const response = await fetch(`${backendUrl}/api/v1/admin/users`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -419,15 +418,15 @@ const AdminPanel = () => {
     }
   };
 
-  const fetchAllUserStats = async (users: User[]) => {
+  const fetchAllUserStats = async (users: AdminUser[]) => {
     try {
       const token = getAccessToken();
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      // const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'; // Removed as per instruction
 
       // Get user IDs
       const userIds = users.map(u => u.id).join(',');
 
-      const response = await fetch(`${backendUrl}/api/v1/admin/users/stats?userIds=${userIds}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users/stats?userIds=${userIds}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -466,9 +465,8 @@ const AdminPanel = () => {
       console.log('🔍 Fetching stats for user:', userId);
 
       const token = getAccessToken();
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
-      const response = await fetch(`${backendUrl}/api/v1/admin/users/${userId}/stats`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/users/${userId}/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -567,7 +565,7 @@ const AdminPanel = () => {
         return;
       }
 
-      const response = await fetch(`/api/v1/support-access/support-sessions/${contextActiveSupportSession.id}/end`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/support-access/support-sessions/${contextActiveSupportSession.id}/end`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -599,7 +597,7 @@ const AdminPanel = () => {
     // You could also start impersonation here if needed
   };
 
-  const openEditDialog = (user: User) => {
+  const openEditDialog = (user: AdminUser) => {
     setSelectedUser(user);
     setEditUserData({
       name: user.name,
@@ -611,12 +609,12 @@ const AdminPanel = () => {
     setIsEditUserOpen(true);
   };
 
-  const openViewDialog = (user: User) => {
+  const openViewDialog = (user: AdminUser) => {
     setSelectedUser(user);
     setIsViewUserOpen(true);
   };
 
-  const openDeleteDialog = (user: User) => {
+  const openDeleteDialog = (user: AdminUser) => {
     setSelectedUser(user);
     setIsDeleteUserOpen(true);
   };

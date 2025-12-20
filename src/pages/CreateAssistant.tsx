@@ -27,6 +27,7 @@ import { N8nTab } from "@/components/assistants/wizard/N8nTab";
 import { EmailTab } from "@/components/assistants/wizard/EmailTab";
 import { AssistantFormData } from "@/components/assistants/wizard/types";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
+import { BACKEND_URL } from "@/lib/api-config";
 import { FlowPreview } from "@/components/assistants/wizard/FlowPreview";
 import { AdvancedTab } from "@/components/assistants/wizard/AdvancedTab";
 
@@ -211,7 +212,7 @@ const CreateAssistant = () => {
         const token = await getAccessToken();
         if (!token) throw new Error("Authentication required");
 
-        const response = await fetch(`/api/v1/assistants/${id}`, {
+        const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -424,7 +425,7 @@ const CreateAssistant = () => {
       if (!token) throw new Error("Authentication required");
       const payload = await mapFormToAssistantPayload();
 
-      const response = await fetch(isEditing ? `/api/v1/assistants/${id}` : '/api/v1/assistants', {
+      const response = await fetch(isEditing ? `${BACKEND_URL}/api/v1/assistants/${id}` : `${BACKEND_URL}/api/v1/assistants`, {
         method: isEditing ? 'PUT' : 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -444,7 +445,7 @@ const CreateAssistant = () => {
     try {
       if (!isEditing || !id) return;
       const token = await getAccessToken();
-      const response = await fetch(`/api/v1/assistants/${id}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

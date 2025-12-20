@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { SupportAccessService } from '@/lib/supportAccessService';
 import { TwilioCredentialsService } from '@/lib/twilio-credentials';
+import { BACKEND_URL } from '@/lib/api-config';
 
 interface User {
   id: string;
@@ -22,6 +23,8 @@ interface User {
   tenant?: string | null;
   slug_name?: string | null;
   is_active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface SupportAccessSession {
@@ -73,7 +76,7 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? 'https://backend.vokivo.com' : '');
+
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -112,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         company: apiUser.company || apiUser.tenant, // Assuming company or tenant
         industry: apiUser.industry,
         role: apiUser.role || 'user',
-        isActive: apiUser.is_active !== undefined ? apiUser.is_active : true,
+        is_active: apiUser.is_active !== undefined ? apiUser.is_active : true,
         createdAt: apiUser.created_at || apiUser.created_on,
         updatedAt: apiUser.updated_at,
         onboardingCompleted: apiUser.onboarding_completed,
@@ -120,7 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         trialEndsAt: apiUser.trial_ends_at,
         tenant: apiUser.tenant || null,
         slug_name: apiUser.slug_name || null,
-        is_active: apiUser.is_active
+
       };
 
       setUser(mappedUser);
@@ -344,7 +347,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         phone: targetUser.contact?.phone,
         countryCode: targetUser.contact?.countryCode,
         role: targetUser.role,
-        isActive: targetUser.is_active,
+        is_active: targetUser.is_active,
         company: targetUser.company || targetUser.tenant,
         industry: targetUser.industry,
         createdAt: targetUser.created_on || targetUser.created_at,
@@ -400,7 +403,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: targetUserData.email,
         fullName: targetUserData.name || targetUserData.email,
         role: targetUserData.role,
-        isActive: targetUserData.is_active,
+        is_active: targetUserData.is_active,
         createdAt: targetUserData.created_on,
       };
 

@@ -1,5 +1,6 @@
 
 import { getAccessToken } from '@/lib/auth';
+import { BACKEND_URL } from "@/lib/api-config";
 import { format } from 'date-fns';
 import { Call, CallAnalysis } from "@/components/calls/types";
 import { findCallInCache, addCallToCache, generateSpecificMockCall } from "../mockData/mockCallCache";
@@ -19,7 +20,7 @@ export const fetchCallById = async (id: string) => {
     const token = await getAccessToken();
     if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`/api/v1/call-history/${id}`, {
+    const response = await fetch(`${BACKEND_URL}/api/v1/call-history/${id}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,

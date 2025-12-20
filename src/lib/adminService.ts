@@ -22,7 +22,7 @@ export interface AdminUser {
   tenant?: string | null;
 }
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? 'https://backend.vokivo.com' : 'http://localhost:4000');
+import { BACKEND_URL } from "@/lib/api-config";
 
 export class AdminService {
   /**

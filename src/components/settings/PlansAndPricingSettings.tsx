@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { getPlanConfig, getPlanConfigs, type PlanConfig } from "@/lib/plan-config";
+import { BACKEND_URL } from "@/lib/api-config";
 import {
   Check,
   Zap,
@@ -82,7 +83,7 @@ export function PlansAndPricingSettings() {
           return;
         }
 
-        const response = await fetch('/api/v1/billing/usage', {
+        const response = await fetch(`${BACKEND_URL}/api/v1/billing/usage`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -149,7 +150,7 @@ export function PlansAndPricingSettings() {
       if (!token) throw new Error("Not authenticated");
 
       // Update user plan via API
-      const response = await fetch('/api/v1/user/profile', {
+      const response = await fetch(`${BACKEND_URL}/api/v1/user/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

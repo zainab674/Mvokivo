@@ -13,11 +13,12 @@ import {
   useLocalParticipant,
   useRoomContext,
 } from "@livekit/components-react";
-import { DataPacket_Kind } from "livekit-client";
+import { DataPacket_Kind, Track } from "livekit-client";
 import "@livekit/components-styles";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createLivekitToken } from "@/lib/api/apiService";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export default function VoiceAgent() {
   const navigate = useNavigate();
@@ -69,7 +70,7 @@ export default function VoiceAgent() {
           return;
         }
 
-        const response = await fetch(`/api/v1/assistants/${assistantId}`, {
+        const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${assistantId}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

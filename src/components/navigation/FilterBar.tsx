@@ -6,6 +6,7 @@ import TimeRangeSelector from "@/components/dashboard/TimeRangeSelector";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
+import { BACKEND_URL } from "@/lib/api-config";
 
 interface FilterBarProps {
   onRangeChange: (range: { from: Date; to: Date }) => void;
@@ -31,7 +32,7 @@ export default function FilterBar({
       if (!user?.id) return null;
 
       try {
-        const response = await fetch('/api/auth/me', {
+        const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
           headers: {
             'Authorization': `Bearer ${await getAccessToken()}`
           }

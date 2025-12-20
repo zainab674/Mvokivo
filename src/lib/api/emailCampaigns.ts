@@ -1,6 +1,6 @@
 import { getAccessToken } from "@/lib/auth";
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+import { BACKEND_URL } from "@/lib/api-config";
 
 export interface EmailCampaign {
     _id: string;
@@ -24,7 +24,7 @@ export async function fetchEmailCampaigns() {
     const token = getAccessToken();
     const headers: any = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const res = await fetch(`${API_URL}/api/v1/email-campaigns`, { headers });
+    const res = await fetch(`${BACKEND_URL}/api/v1/email-campaigns`, { headers });
     const data = await res.json();
     return data;
 }
@@ -34,7 +34,7 @@ export async function createEmailCampaign(formData: FormData) {
     const headers: any = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`${API_URL}/api/v1/email-campaigns`, {
+    const res = await fetch(`${BACKEND_URL}/api/v1/email-campaigns`, {
         method: 'POST',
         headers: headers,
         body: formData
@@ -54,7 +54,7 @@ export async function startEmailCampaign(campaignId: string) {
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    const res = await fetch(`${API_URL}/api/v1/email-campaigns/${campaignId}/start`, {
+    const res = await fetch(`${BACKEND_URL}/api/v1/email-campaigns/${campaignId}/start`, {
         method: 'POST',
         headers: headers
     });
