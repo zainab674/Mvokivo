@@ -6,16 +6,25 @@ import { useLocation } from 'react-router-dom';
  * This ensures that when navigating to a new page, the user starts at the top
  */
 export default function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
 
   useEffect(() => {
-    // Scroll to top when route changes
+    // If there is a hash, scroll to the element
+    if (hash) {
+      const element = document.querySelector(hash);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+    }
+
+    // Otherwise scroll to top when route changes
     window.scrollTo({
       top: 0,
       left: 0,
-      behavior: 'instant' // Use 'instant' for immediate scroll, or 'smooth' for animated
+      behavior: 'instant'
     });
-  }, [pathname]);
+  }, [pathname, hash]);
 
   return null;
 }

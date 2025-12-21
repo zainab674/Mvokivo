@@ -4,7 +4,7 @@ import { MousePointer2, Zap, BarChart3, Globe } from "lucide-react";
 
 export const DetailedFeatures = () => {
     return (
-        <div className="py-24 bg-white">
+        <div id="features" className="py-24 bg-white">
             <div className="container mx-auto px-6 md:px-12 lg:px-24">
                 {/* Header */}
                 <div className="text-center max-w-3xl mx-auto mb-20">

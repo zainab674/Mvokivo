@@ -269,32 +269,32 @@ export function ApiIntegrations() {
     const isConnected = integration.status === "connected";
 
     const ActionButton = () => {
-      const className = "text-[#374151] font-semibold hover:bg-gray-100 rounded-lg px-4 h-9";
+      const className = "text-[#374151] font-semibold  rounded-lg px-4 h-9";
       return <Button variant="ghost" className={className} onClick={() => handleIntegrationClick(integration)}>View details</Button>;
     };
 
     return (
-      <Card className="bg-gray-500 rounded-[2rem] p-8 border-none shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300 flex flex-col h-full group relative">
-        <div className="flex items-start justify-between mb-6">
+      <Card className="bg-gray-500 rounded-3xl p-6 border-none shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300 flex flex-col h-full group relative">
+        <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-4">
             <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm"
+              className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
               style={{ backgroundColor: `${integration.brandColor}12` }}
             >
-              <IconComponent className="w-7 h-7" style={{ color: integration.brandColor }} />
+              <IconComponent className="w-6 h-6" style={{ color: integration.brandColor }} />
             </div>
             <div className="flex items-center gap-2">
-              <h3 className="text-xl font-bold text-[#1f2937] leading-none mb-0">{integration.name}</h3>
+              <h3 className="text-lg font-bold text-[#1f2937] leading-none mb-0">{integration.name}</h3>
               {isConnected && (
-                <div className="flex items-center justify-center w-5 h-5 bg-[#10b981] rounded-full">
-                  <Check className="w-3 h-3 text-white" strokeWidth={4} />
+                <div className="flex items-center justify-center w-4 h-4 bg-[#10b981] rounded-full">
+                  <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        <p className="text-white text-[15px] leading-relaxed mb-8 flex-grow">
+        <p className="text-white text-sm leading-relaxed mb-6 flex-grow">
           {integration.description}
         </p>
 
@@ -416,7 +416,7 @@ export function ApiIntegrations() {
             <div className="h-px bg-gray-100 w-full mt-6"></div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
             {filteredIntegrations.map((integration) => (
               <IntegrationCard key={integration.id} integration={integration} />
             ))}

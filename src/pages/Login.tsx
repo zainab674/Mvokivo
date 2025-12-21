@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Eye, EyeOff, Mail, Lock, Building2, ArrowRight, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ThemeToggle } from "@/components/ThemeToggle";
+
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
 import { BACKEND_URL } from "@/lib/api-config";

@@ -133,10 +133,10 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
 
   return (
     <ThemedDialog open={isOpen} onOpenChange={onClose}>
-      <ThemedDialogContent className="max-w-5xl max-h-[90vh] overflow-hidden p-0 bg-gradient-to-br from-background via-background to-muted/20 border-2 border-primary/20 shadow-2xl">
-        <div className="flex flex-col h-full">
+      <ThemedDialogContent className="flex flex-col max-w-5xl h-[80vh] overflow-hidden p-0 bg-gradient-to-br from-background via-background to-muted/20 border-2 border-primary/20 shadow-2xl">
+        <div className="flex flex-col h-full min-h-0">
           {/* Header with Gradient Accent */}
-          <div className="relative px-6 py-5 border-b border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent">
+          <div className="relative px-6 py-5 border-b border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-transparent flex-shrink-0">
             <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-50" />
             <div className="relative flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -175,7 +175,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                 <Button
                   onClick={handleStartCall}
                   size="sm"
-                  className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25"
+                  className="gap-2 text-black bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25"
                 >
                   <Play className="h-4 w-4" />
                   Start Call
@@ -185,9 +185,9 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 overflow-y-auto p-6 bg-background/50">
+          <div className="flex-1 overflow-y-auto p-6 bg-background/50 min-h-0">
             {/* Stats Row with Enhanced Styling */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="group relative p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="p-2 bg-primary/20 rounded-lg group-hover:bg-primary/30 transition-colors">
@@ -199,17 +199,7 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                   {(assistant.userCount || 0).toLocaleString()}
                 </p>
               </div>
-              <div className="group relative p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-primary/20 rounded-lg group-hover:bg-primary/30 transition-colors">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                  </div>
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Interactions</span>
-                </div>
-                <p className="text-3xl font-bold text-foreground">
-                  {(assistant.interactionCount || 0).toLocaleString()}
-                </p>
-              </div>
+
               <div className="group relative p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="p-2 bg-primary/20 rounded-lg group-hover:bg-primary/30 transition-colors">

@@ -20,7 +20,7 @@ type ThemeProviderState = {
 };
 
 const initialState: ThemeProviderState = {
-  theme: "system",
+  theme: "dark",
   uiStyle: "glass",
   setTheme: () => null,
   setUIStyle: () => null,
@@ -30,16 +30,14 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "dark",
   defaultUIStyle = "glass",
   storageKey = "vite-ui-theme",
   uiStyleStorageKey = "vite-ui-style",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-  );
-  
+  const [theme, setTheme] = useState<Theme>("dark");
+
   const [uiStyle, setUIStyle] = useState<UIStyle>(
     () => (localStorage.getItem(uiStyleStorageKey) as UIStyle) || defaultUIStyle
   );
@@ -48,19 +46,14 @@ export function ThemeProvider({
     const root = window.document.documentElement;
     root.classList.remove("light", "dark", "glass-ui", "minimal-ui");
 
-    // Apply color theme
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
+    // Always add dark class
+    root.classList.add("dark");
 
     // Apply UI style
     root.classList.add(`${uiStyle}-ui`);
   }, [theme, uiStyle]);
+
+
 
   const value = {
     theme,

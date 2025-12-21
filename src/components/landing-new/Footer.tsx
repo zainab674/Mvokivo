@@ -6,70 +6,26 @@ import { Link } from "react-router-dom";
 export const Footer = () => {
     const columns = [
         {
-            title: "Our Services",
+            title: "Product",
             items: [
-                "AI Voice Agents",
-                "AI Auto Dialer",
-                "Outbound Campaigns",
-                "Inbound Call Handling",
-                "Email Automation",
-                "Lead Qualification",
-                "Appointment Booking"
-            ]
-        },
-        {
-            title: "Features",
-            items: [
-                "Smart Caller ID",
-                "Conversation Intelligence",
-                "Call Recording & Transcripts",
-                "Live Call Monitoring",
-                "Spam & DNC Protection",
-                "Lead Routing",
-                "Analytics Dashboard"
-            ]
-        },
-        {
-            title: "Solutions",
-            items: [
-                "Sales Teams",
-                "Real Estate",
-                "Telemarketing",
-                "Customer Support",
-                "Healthcare",
-                "Education",
-                "Enterprises"
-            ]
-        },
-        {
-            title: "Integrations",
-            items: [
-                "Twilio",
-                "Cal.com",
-                "Google Calendar",
-                "Outlook Calendar",
-                "HubSpot",
-                "Salesforce",
-                "Zapier"
-            ]
-        },
-        {
-            title: "Resources",
-            items: [
-                "Documentation",
-                "API Reference",
-                "Use Cases",
-                "Guides"
+                { name: "Features", to: "/#features" },
+                { name: "Pricing", to: "/pricing" },
             ]
         },
         {
             title: "Company",
             items: [
-                "About VOKIVO",
-                "Pricing",
-                "Partners",
-                "Careers",
-                "Contact"
+                { name: "About Us", to: "/#about" },
+                { name: "FAQ", to: "/#faq" },
+            ]
+        },
+
+        {
+            title: "Legal",
+            items: [
+                { name: "Privacy Policy", to: "/privacy" },
+                { name: "Terms & Conditions", to: "/terms" },
+                { name: "Cookie Policy", to: "/privacy" },
             ]
         }
     ];
@@ -81,7 +37,7 @@ export const Footer = () => {
             </div>
 
             <div className="container mx-auto px-6 md:px-12 lg:px-24">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-8 mb-20">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 mb-20">
                     <div className="col-span-2 lg:col-span-1">
                         <div className="flex items-center gap-2 mb-6">
                             <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
@@ -122,11 +78,9 @@ export const Footer = () => {
                             <ul className="flex flex-col gap-2">
                                 {column.items.map((item, i) => (
                                     <li key={i}>
-                                        {item === "Pricing" ? (
-                                            <Link to="/pricing" className="text-purple-100 text-sm hover:text-white transition-colors">{item}</Link>
-                                        ) : (
-                                            <a href="#" className="text-purple-100 text-sm hover:text-white transition-colors">{item}</a>
-                                        )}
+                                        <Link to={item.to} className="text-purple-100 text-sm hover:text-white transition-colors">
+                                            {item.name}
+                                        </Link>
                                     </li>
                                 ))}
                             </ul>
