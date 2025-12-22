@@ -67,6 +67,15 @@ const AdminPanel = () => {
   const [deletingPlanKey, setDeletingPlanKey] = useState<string | null>(null);
   const [isDeletePlanOpen, setIsDeletePlanOpen] = useState(false);
 
+  // Lemon Squeezy Config State
+  const [lsConfig, setLsConfig] = useState({
+    api_key: '',
+    store_id: '',
+    webhook_secret: ''
+  });
+  const [loadingLsConfig, setLoadingLsConfig] = useState(false);
+  const [savingLsConfig, setSavingLsConfig] = useState(false);
+
 
   // Check if current admin is a whitelabel admin based on hostname
   const [isWhitelabelAdmin, setIsWhitelabelAdmin] = useState<boolean>(false);
@@ -175,7 +184,57 @@ const AdminPanel = () => {
     }
     fetchUsers();
     fetchPlanConfigs();
+    fetchLemonSqueezyConfig();
   }, [isAdmin, user?.id]);
+
+  const fetchLemonSqueezyConfig = async () => {
+    try {
+      setLoadingLsConfig(true);
+      const token = getAccessToken();
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/lemonsqueezy`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          setLsConfig(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching LS config:', error);
+      toast.error('Failed to load Lemon Squeezy config');
+    } finally {
+      setLoadingLsConfig(false);
+    }
+  };
+
+  const handleSaveLemonSqueezyConfig = async () => {
+    try {
+      setSavingLsConfig(true);
+      const token = getAccessToken();
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/lemonsqueezy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(lsConfig)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save configuration');
+      }
+
+      toast.success('Lemon Squeezy configuration saved successfully');
+    } catch (error) {
+      console.error('Error saving LS config:', error);
+      toast.error('Failed to save configuration');
+    } finally {
+      setSavingLsConfig(false);
+    }
+  };
 
   // Fetch plan configurations from database
   const fetchPlanConfigs = async () => {
@@ -211,7 +270,8 @@ const AdminPanel = () => {
           minutes: plan.minutes,
           payAsYouGo: plan.payAsYouGo ?? false,
           features: [...plan.features],
-          whitelabelEnabled: plan.whitelabelEnabled ?? false
+          whitelabelEnabled: plan.whitelabelEnabled ?? false,
+          variantId: plan.variantId
         });
       }
     } else {
@@ -224,7 +284,8 @@ const AdminPanel = () => {
         minutes: undefined,
         payAsYouGo: false,
         features: [],
-        whitelabelEnabled: false
+        whitelabelEnabled: false,
+        variantId: ''
       });
     }
 
@@ -265,7 +326,8 @@ const AdminPanel = () => {
         minutes: editPlanData.minutes !== undefined && editPlanData.minutes !== null ? Number(editPlanData.minutes) : undefined,
         pay_as_you_go: editPlanData.payAsYouGo ?? false,
         features: (editPlanData.features || []).filter(f => f.trim()),
-        whitelabel_enabled: editPlanData.whitelabelEnabled
+        whitelabel_enabled: editPlanData.whitelabelEnabled,
+        variant_id: editPlanData.variantId
       };
 
       const isUpdate = !!editingPlanKey;
@@ -728,6 +790,10 @@ const AdminPanel = () => {
                   <CreditCard className="h-4 w-4" />
                   Plans & Pricing
                 </TabsTrigger>
+                <TabsTrigger value="lemonsqueezy" className="flex-1 lg:flex-none flex items-center gap-2 text-sm sm:text-base py-2 sm:py-0">
+                  <CreditCard className="h-4 w-4" />
+                  Lemon Squeezy
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="users" className="mt-0 space-y-6">
@@ -998,6 +1064,93 @@ const AdminPanel = () => {
                           </TableBody>
                         </Table>
                       </div>
+                    )}
+                  </CardContent>
+                </ThemeCard>
+              </TabsContent>
+
+              <TabsContent value="lemonsqueezy" className="mt-0 space-y-8">
+                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
+                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
+                    <CardTitle className="text-xl sm:text-2xl font-bold">Lemon Squeezy Configuration</CardTitle>
+                    <CardDescription className="text-sm sm:text-base mt-1">
+                      Configure your payment gateway settings from Lemon Squeezy.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6 space-y-6">
+                    {loadingLsConfig ? (
+                      <div className="flex items-center justify-center py-20">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+                          <p className="text-sm text-muted-foreground font-medium">Loading config...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="ls-api-key">LEMON_SQUEEZY_API_KEY</Label>
+                            <div className="relative">
+                              <Input
+                                id="ls-api-key"
+                                type="password"
+                                value={lsConfig.api_key}
+                                onChange={(e) => setLsConfig({ ...lsConfig, api_key: e.target.value })}
+                                placeholder="Enter your Lemon Squeezy API Key"
+                                className="pr-10"
+                              />
+                              <Shield className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Used to authenticate API requests to Lemon Squeezy.
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="ls-store-id">LEMON_SQUEEZY_STORE_ID</Label>
+                            <Input
+                              id="ls-store-id"
+                              value={lsConfig.store_id}
+                              onChange={(e) => setLsConfig({ ...lsConfig, store_id: e.target.value })}
+                              placeholder="e.g. 119851"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Your Store ID found in Lemon Squeezy Settings `Stores`.
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="ls-webhook-secret">LEMONSQUEEZY_WEBHOOK_SECRET</Label>
+                            <div className="relative">
+                              <Input
+                                id="ls-webhook-secret"
+                                type="password"
+                                value={lsConfig.webhook_secret}
+                                onChange={(e) => setLsConfig({ ...lsConfig, webhook_secret: e.target.value })}
+                                placeholder="Enter Webhook Signing Secret"
+                                className="pr-10"
+                              />
+                              <Shield className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Secret used to verify webhooks from Lemon Squeezy (Settings `Webhooks`).
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-4">
+                          <Button onClick={handleSaveLemonSqueezyConfig} disabled={savingLsConfig} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                            {savingLsConfig ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              'Save Configuration'
+                            )}
+                          </Button>
+                        </div>
+                      </>
                     )}
                   </CardContent>
                 </ThemeCard>
@@ -1409,6 +1562,19 @@ const AdminPanel = () => {
                       checked={!!editPlanData.payAsYouGo}
                       onCheckedChange={(checked) => setEditPlanData({ ...editPlanData, payAsYouGo: checked })}
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-variant-id">Lemon Squeezy Variant ID</Label>
+                    <Input
+                      id="edit-variant-id"
+                      value={editPlanData.variantId || ''}
+                      onChange={(e) => setEditPlanData({ ...editPlanData, variantId: e.target.value })}
+                      placeholder="e.g., 123456"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The Variant ID from Lemon Squeezy for this plan's checkout.
+                    </p>
                   </div>
 
                   <div className="space-y-2">

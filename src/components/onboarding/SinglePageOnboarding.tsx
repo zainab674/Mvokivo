@@ -280,10 +280,61 @@ export function SinglePageOnboarding() {
                     : "Your account has been set up successfully. Let's get started!",
             });
 
-            if (isNewUser) {
-                setTimeout(() => navigate("/login"), 1000);
+            // 4. DETERMINE REDIRECT
+            // Check if the selected plan is a paid plan and has a variant ID
+            const selectedPlan = plans.find(p => p.key === values.plan);
+            // Default behaviour: Use what we have in cache/state if plans list doesn't have details
+            // We need to re-fetch plan details if `plans` state is insufficient or used for display only. 
+            // However, `plans` state in this component was mapped from planConfigs.
+            // Let's rely on fetching the full config again to be safe ensuring we get variantId.
+
+            // Re-fetch to get the variant ID directly
+            const tenant = extractTenantFromHostname();
+            const tenantSlug = tenant === "main" ? null : tenant;
+            const allPlanConfigs = await getPlanConfigs(tenantSlug);
+            const planConfig = allPlanConfigs[values.plan];
+
+            if (planConfig && planConfig.price > 0 && planConfig.variantId) {
+                // Redirect to Lemon Squeezy Checkout
+                toast({
+                    title: "Redirecting to Payment",
+                    description: "Please complete your subscription payment.",
+                });
+
+                // Use backend to create checkout session
+                const checkoutResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/checkouts`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({
+                        planKey: values.plan,
+                        variantId: planConfig.variantId
+                    })
+                });
+
+                if (!checkoutResponse.ok) {
+                    const error = await checkoutResponse.json();
+                    throw new Error(error.error || "Failed to create checkout session");
+                }
+
+                const checkoutResult = await checkoutResponse.json();
+
+                if (checkoutResult.url) {
+                    // Redirect
+                    setTimeout(() => {
+                        window.location.href = checkoutResult.url;
+                    }, 1000);
+                } else {
+                    throw new Error("No checkout URL returned");
+                }
             } else {
-                navigate("/dashboard");
+                if (isNewUser) {
+                    setTimeout(() => navigate("/login"), 1000);
+                } else {
+                    navigate("/dashboard");
+                }
             }
 
         } catch (error: any) {

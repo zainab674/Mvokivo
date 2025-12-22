@@ -1,5 +1,6 @@
 
 import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import Sidebar from "@/components/navigation/Sidebar";
 import { AnimatePresence, motion } from "framer-motion";
@@ -26,6 +27,22 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     setUIStyle("glass");
   }, [setUIStyle]);
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('payment') === 'success') {
+      toast({
+        title: "Payment Successful",
+        description: "Your subscription has been updated. If you don't see changes immediately, please refresh the page in a moment.",
+        variant: "default",
+      });
+      // Clear param
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, [location.search, toast]);
 
   const handleEndSupportSession = async () => {
     await endSupportAccess();

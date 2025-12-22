@@ -35,6 +35,9 @@ import { twilioAdminRouter } from './twilio-admin.js';
 import { twilioSmsRouter } from './twilio-sms.js';
 import { csvManagementRouter } from './csv-management.js';
 import { livekitRoomRouter } from './livekit-room.js';
+import lemonSqueezyWebhookRouter from './routes/lemonsqueezy-webhook.js';
+import lemonSqueezyCheckoutRouter from './routes/lemonsqueezy-checkout.js';
+import lemonSqueezyConfigRouter from './routes/lemonsqueezy-config.js';
 
 dotenv.config();
 
@@ -59,6 +62,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/v1', minutesPricingRoutes); // Mount minutes-pricing routes (includes /admin/ paths internally)
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/admin/lemonsqueezy', lemonSqueezyConfigRouter);
 app.use('/api/billing', billingRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/call-history', callHistoryRoutes);
@@ -100,6 +104,8 @@ app.use('/api/v1/email-campaigns', emailCampaignsRouter);
 app.use('/api/v1/integrations', integrationRouter);
 app.use('/api/v1/calls', callEmailRouter);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/webhooks/lemonsqueezy', lemonSqueezyWebhookRouter);
+app.use('/api/v1/checkouts', lemonSqueezyCheckoutRouter);
 
 app.get('/api/v1/test', (req, res) => {
     res.json({ success: true, message: 'API is working' });
@@ -109,9 +115,24 @@ app.get('/', (req, res) => {
     res.send('API is running...');
 });
 
+import ngrok from '@ngrok/ngrok';
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 
     // Start Email Worker
     emailWorker.start();
+
+    // Start Ngrok Tunnel
+    (async () => {
+        try {
+            console.log("Attempting to start ngrok tunnel...");
+            const listener = await ngrok.forward({ addr: PORT, authtoken_from_env: true });
+            console.log(`\n🚀 Ngrok Tunnel Active: ${listener.url()}`);
+            console.log(`   -> Webhook URL: ${listener.url()}/api/v1/webhooks/lemonsqueezy\n`);
+        } catch (e) {
+            console.error("\n⚠️  Ngrok failed to start:", e.message);
+            console.log("   (Make sure you have NGROK_AUTHTOKEN in your .env if required)\n");
+        }
+    })();
 });

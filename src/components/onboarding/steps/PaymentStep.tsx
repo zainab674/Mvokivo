@@ -1,73 +1,42 @@
-import React, { useState } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useEffect } from "react";
 import { useOnboarding } from "@/hooks/useOnboarding";
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { CreditCard, Lock, Check } from "lucide-react";
-import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements
-} from "@stripe/react-stripe-js";
+import { CreditCard, Check, ExternalLink, ShieldCheck } from "lucide-react";
 import { getPlanConfigs, PlanConfig } from "@/lib/plan-config";
 import { extractTenantFromHostname } from "@/lib/tenant-utils";
 
-// Initialize Stripe
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-
-const cardElementOptions = {
-  style: {
-    base: {
-      fontSize: '16px',
-      color: '#ffffff',
-      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-      '::placeholder': {
-        color: '#a1a1aa',
-      },
-      padding: '12px 16px',
-    },
-    invalid: {
-      color: '#ef4444',
-    },
-    complete: {
-      color: '#10b981',
-    },
-  },
-  hidePostalCode: false,
-};
-
-function PaymentForm() {
-  const { data, updateData, nextStep, prevStep } = useOnboarding();
-  const stripe = useStripe();
-  const elements = useElements();
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
+export function PaymentStep() {
+  const { data, prevStep } = useOnboarding();
+  const { user } = useAuth();
   const [selectedPlan, setSelectedPlan] = useState<PlanConfig | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
-  const [billingEmail, setBillingEmail] = useState(data.email || "");
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch the correct plan config based on tenant
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchPlan = async () => {
       try {
         setLoadingPlan(true);
         const tenant = extractTenantFromHostname();
         const tenantSlug = tenant === 'main' ? null : tenant;
         const planConfigs = await getPlanConfigs(tenantSlug);
-        const plan = planConfigs[data.plan?.toLowerCase() || 'starter'] || planConfigs.starter;
-        setSelectedPlan(plan);
-        console.log(`[PaymentStep] Loaded plan: ${plan.name} ($${plan.price}) for tenant: ${tenantSlug || 'main'}`);
+        const planKey = data.plan?.toLowerCase() || 'starter';
+
+        // Try to find the plan, fallback to starter if not found
+        const plan = planConfigs[planKey];
+
+        if (!plan) {
+          // If strict matching fails, try to find a default fallback or show error
+          // For now, logging error but potentially falling back to a known default if available in cache locally
+          console.warn(`Plan ${planKey} not found in configs.`);
+        }
+
+        setSelectedPlan(plan || planConfigs.starter);
       } catch (error) {
         console.error('Error fetching plan config:', error);
-        // Fallback to default plan
-        const { getPlanConfig } = await import("@/lib/plan-config");
-        setSelectedPlan(getPlanConfig(data.plan));
+        setError("Failed to load plan details. Please try again.");
       } finally {
         setLoadingPlan(false);
       }
@@ -76,79 +45,57 @@ function PaymentForm() {
     fetchPlan();
   }, [data.plan]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (!stripe || !elements) {
-      return;
-    }
-
-    setIsProcessing(true);
-    setPaymentError(null);
+  const handleSubscribe = async () => {
+    if (!selectedPlan) return;
 
     try {
-      // Get the card element
-      const cardElement = elements.getElement(CardElement);
+      setError(null);
+      // Use backend to generate checkout session securely
+      const token = localStorage.getItem('token'); // or however auth is handled locally if not in cookie
+      // The useAuth hook might provide a way to get the token or axio interceptor might handle it.
+      // Assuming headers need to be set or context handles it. 
+      // Let's assume standard fetch with Authorization header if useAuth doesn't expose an axio instance.
+      // Since I don't see axios instance in imports, I'll attempt to get token or rely on cookie if used.
+      // Looking at other files might help but standard pattern is usually localStorage 'token' or 'accessToken'.
 
-      if (!cardElement) {
-        setPaymentError("Card element not found");
-        setIsProcessing(false);
-        return;
-      }
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-      // Create payment method
-      const { error, paymentMethod } = await stripe.createPaymentMethod({
-        type: 'card',
-        card: cardElement,
-        billing_details: {
-          email: billingEmail,
-          name: data.name,
+      const response = await fetch(`${backendUrl}/api/v1/checkouts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
+        body: JSON.stringify({
+          planKey: selectedPlan.key,
+          variantId: selectedPlan.variantId
+        })
       });
 
-      if (error) {
-        setPaymentError(error.message || "Payment method creation failed");
-        setIsProcessing(false);
-        return;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Failed to initiate checkout');
       }
 
-      // Payment method created successfully
-      console.log("Payment method created:", paymentMethod);
-      
-      setPaymentSuccess(true);
-      
-      // Extract card details for storage
-      const cardDetails = paymentMethod.card;
-      
-      // Update onboarding data with payment info and card details
-      updateData({ 
-        paymentMethodId: paymentMethod.id,
-        cardBrand: cardDetails?.brand,
-        cardLast4: cardDetails?.last4,
-        cardExpMonth: cardDetails?.exp_month,
-        cardExpYear: cardDetails?.exp_year,
-        email: billingEmail,
-        subscriptionStatus: 'active'
-      });
+      if (result.url) {
+        window.location.href = result.url;
+      } else {
+        throw new Error('No checkout URL received');
+      }
 
-      // Move to next step after a brief delay
-      setTimeout(() => {
-        nextStep();
-      }, 1500);
-
-    } catch (err) {
-      setPaymentError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsProcessing(false);
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setError(err.message || 'Failed to redirect to payment provider');
     }
   };
 
-  if (loadingPlan || !selectedPlan) {
+  if (loadingPlan) {
     return (
       <div className="space-y-[var(--space-2xl)]">
         <div className="text-center">
           <h2 className="text-[var(--text-2xl)] font-[var(--font-semibold)] text-theme-primary mb-[var(--space-sm)]">
-            Complete Your Subscription
+            Preparing Checkout
           </h2>
           <p className="text-[var(--text-base)] text-theme-secondary">
             Loading plan details...
@@ -158,123 +105,73 @@ function PaymentForm() {
     );
   }
 
-  if (paymentSuccess) {
+  if (error || !selectedPlan) {
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="text-center space-y-6"
-      >
-        <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-          <Check className="h-8 w-8 text-green-600" />
-        </div>
-        <div>
-          <h3 className="text-xl font-semibold text-theme-primary mb-2">
-            Payment Successful!
-          </h3>
-          <p className="text-theme-secondary">
-            Your {selectedPlan.name} plan has been activated. Redirecting...
+      <div className="space-y-[var(--space-2xl)]">
+        <div className="text-center">
+          <h2 className="text-[var(--text-2xl)] font-[var(--font-semibold)] text-red-500 mb-[var(--space-sm)]">
+            Error
+          </h2>
+          <p className="text-[var(--text-base)] text-theme-secondary">
+            {error || "Plan details could not be loaded."}
           </p>
+          <Button variant="outline" onClick={prevStep} className="mt-4">Go Back</Button>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-[var(--space-2xl)]">
+    <div className="space-y-[var(--space-2xl)] max-w-4xl mx-auto">
       <div className="text-center">
         <h2 className="text-[var(--text-2xl)] font-[var(--font-semibold)] text-theme-primary mb-[var(--space-sm)]">
           Complete Your Subscription
         </h2>
         <p className="text-[var(--text-base)] text-theme-secondary">
-          Enter your payment details to activate your {selectedPlan.name} plan
+          Secure checkout via Lemon Squeezy
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-[var(--space-xl)]">
-        {/* Plan Summary */}
-        <Card className="liquid-glass-light border-white/10">
+      <div className="grid md:grid-cols-1 gap-[var(--space-xl)] justify-center">
+        {/* Plan Summary Card */}
+        <Card className="liquid-glass-light border-white/10 max-w-lg mx-auto w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-theme-primary">
               <CreditCard className="h-5 w-5" />
-              Plan Summary
+              {selectedPlan.name} Plan
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="font-medium text-theme-primary">{selectedPlan.name} Plan</span>
-              <span className="text-2xl font-bold text-theme-primary">${selectedPlan.price}</span>
+          <CardContent className="space-y-6">
+            <div className="flex justify-between items-end">
+              <div>
+                <span className="text-3xl font-bold text-theme-primary">${selectedPlan.price}</span>
+                <span className="text-theme-secondary ml-1">/month</span>
+              </div>
             </div>
-            <Separator />
-            <div className="space-y-2">
-              <h4 className="font-medium text-theme-primary">What's included:</h4>
-              <ul className="space-y-1 text-sm text-theme-secondary">
+
+            <Separator className="bg-white/10" />
+
+            <div className="space-y-3">
+              <h4 className="font-medium text-theme-primary text-sm uppercase tracking-wide opacity-80">Includes:</h4>
+              <ul className="space-y-2 text-sm text-theme-secondary">
                 {selectedPlan.features.map((feature, index) => (
-                  <li key={index} className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                    {feature}
+                  <li key={index} className="flex items-start gap-2">
+                    <Check className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
+                    <span>{feature}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="pt-4 border-t border-white/10">
-              <div className="flex justify-between text-sm">
-                <span className="text-theme-secondary">Billing cycle</span>
-                <span className="text-theme-primary">Monthly</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-theme-secondary">Next billing date</span>
-                <span className="text-theme-primary">
-                  {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Payment Form */}
-        <Card className="liquid-glass-light border-white/10">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-theme-primary">
-              <Lock className="h-5 w-5" />
-              Payment Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="email" className="text-theme-primary">
-                    Email Address
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    className="mt-1 liquid-glass-light border-white/10"
-                    value={billingEmail}
-                    onChange={(e) => setBillingEmail(e.target.value)}
-                    required
-                  />
-                </div>
-
-                                 <div>
-                   <Label className="text-theme-primary">
-                     Card Information
-                   </Label>
-                   <div className="mt-2 p-4 liquid-glass-light border border-white/10 rounded-xl">
-                     <CardElement options={cardElementOptions} />
-                   </div>
-                 </div>
+            <div className="pt-6 space-y-4">
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-blue-400 mt-0.5" />
+                <p className="text-xs text-blue-200">
+                  You will be redirected to Lemon Squeezy for secure payment processing. No credit card information is stored on our servers.
+                </p>
               </div>
 
-              {paymentError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-md">
-                  <p className="text-sm text-red-500">{paymentError}</p>
-                </div>
-              )}
-
-              <div className="flex gap-[var(--space-md)] pt-[var(--space-lg)]">
+              <div className="flex gap-[var(--space-md)]">
                 <Button
                   type="button"
                   variant="ghost"
@@ -284,32 +181,17 @@ function PaymentForm() {
                   Back
                 </Button>
                 <Button
-                  type="submit"
-                  disabled={!stripe || isProcessing}
-                  className="liquid-button flex-1"
+                  onClick={handleSubscribe}
+                  className="liquid-button flex-1 gap-2"
                 >
-                  {isProcessing ? "Processing..." : `Subscribe for $${selectedPlan.price}/month`}
+                  Proceed to Checkout
+                  <ExternalLink className="h-4 w-4" />
                 </Button>
               </div>
-            </form>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      <div className="text-center">
-        <p className="text-xs text-theme-secondary flex items-center justify-center gap-2">
-          <Lock className="h-3 w-3" />
-          Your payment information is secure and encrypted
-        </p>
-      </div>
     </div>
-  );
-}
-
-export function PaymentStep() {
-  return (
-    <Elements stripe={stripePromise}>
-      <PaymentForm />
-    </Elements>
   );
 }

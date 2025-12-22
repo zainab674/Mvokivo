@@ -13,6 +13,7 @@ export interface PlanConfig {
     payAsYouGo?: boolean;
     features: string[];
     whitelabelEnabled?: boolean;
+    variantId?: string;
 }
 
 // Minimal fallback plans
@@ -126,7 +127,8 @@ async function fetchPlanConfigsFromDB(tenant?: string | null): Promise<Record<st
                 minutes: plan.minutes !== undefined ? Number(plan.minutes) : undefined,
                 payAsYouGo: plan.payAsYouGo ?? false,
                 features: Array.isArray(plan.features) ? plan.features : [],
-                whitelabelEnabled: plan.whitelabelEnabled
+                whitelabelEnabled: plan.whitelabelEnabled,
+                variantId: plan.variantId
             };
         });
 

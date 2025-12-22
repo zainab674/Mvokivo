@@ -65,6 +65,7 @@ const planConfigSchema = new mongoose.Schema({
     pay_as_you_go: { type: Boolean, default: false }, // If true, user must buy minutes separately
     features: { type: [String], default: [] },
     whitelabel_enabled: { type: Boolean, default: false },
+    variant_id: String, // Lemon Squeezy Variant ID
     tenant: String, // Can be null for global plans
     display_order: { type: Number, default: 0 },
     is_active: { type: Boolean, default: true }
@@ -669,3 +670,14 @@ const workspaceInvitationSchema = new mongoose.Schema({
 });
 
 export const WorkspaceInvitation = mongoose.model('WorkspaceInvitation', workspaceInvitationSchema);
+
+const lemonSqueezyConfigSchema = new mongoose.Schema({
+    tenant: { type: String, default: 'main' }, // 'main' or specific tenant
+    api_key: String,
+    store_id: String,
+    webhook_secret: String,
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
+});
+
+export const LemonSqueezyConfig = mongoose.model('LemonSqueezyConfig', lemonSqueezyConfigSchema);

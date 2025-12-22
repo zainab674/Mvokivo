@@ -59,7 +59,8 @@ router.get('/', async (req, res) => {
             minutes: p.minutes !== undefined && p.minutes !== null ? Number(p.minutes) : undefined,
             payAsYouGo: p.pay_as_you_go ?? false,
             features: p.features || [],
-            whitelabelEnabled: p.whitelabel_enabled
+            whitelabelEnabled: p.whitelabel_enabled,
+            variantId: p.variant_id
         }));
 
         res.json({
@@ -78,7 +79,7 @@ router.get('/', async (req, res) => {
  */
 router.post('/', authenticateToken, validateAdminAccess, async (req, res) => {
     try {
-        const { plan_key, name, price, minutes, pay_as_you_go, features, whitelabel_enabled, tenant } = req.body;
+        const { plan_key, name, price, minutes, pay_as_you_go, features, whitelabel_enabled, tenant, variant_id } = req.body;
 
         if (!plan_key || !name || price === undefined) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -108,6 +109,7 @@ router.post('/', authenticateToken, validateAdminAccess, async (req, res) => {
             pay_as_you_go: pay_as_you_go ?? false,
             features: features || [],
             whitelabel_enabled: whitelabel_enabled || false,
+            variant_id,
             tenant: targetTenant,
             is_active: true,
             display_order: 0 // Default
@@ -150,6 +152,7 @@ router.put('/:key', authenticateToken, validateAdminAccess, async (req, res) => 
         if (updates.pay_as_you_go !== undefined) plan.pay_as_you_go = updates.pay_as_you_go;
         if (updates.features) plan.features = updates.features;
         if (updates.whitelabel_enabled !== undefined) plan.whitelabel_enabled = updates.whitelabel_enabled;
+        if (updates.variant_id !== undefined) plan.variant_id = updates.variant_id;
         if (updates.is_active !== undefined) plan.is_active = updates.is_active;
 
         await plan.save();
