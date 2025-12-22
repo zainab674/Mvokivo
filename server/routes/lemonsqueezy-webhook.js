@@ -19,7 +19,20 @@ router.post('/', async (req, res) => {
         // Signature validation
         if (secret && signature) {
             const hmac = crypto.createHmac('sha256', secret);
-            const digest = hmac.update(JSON.stringify(req.body)).digest('hex');
+            // Use rawBody (buffer) for verification to ensure exact match
+            // Fallback to stringify if rawBody is missing (though less reliable)
+            const bodyToSign = req.rawBody || JSON.stringify(req.body);
+            const digest = hmac.update(bodyToSign).digest('hex');
+
+            console.log('Webhook Debug:');
+            console.log('- Secret used:', secret ? `${secret.substring(0, 5)}...` : 'None');
+            console.log('- Signature received:', signature);
+            console.log('- Signature calculated:', digest);
+            console.log('- Body source:', req.rawBody ? 'rawBody (Buffer)' : 'JSON.stringify(req.body)');
+            if (!req.rawBody) {
+                console.warn('WARNING: req.rawBody is missing. Verification may fail due to formatting differences.');
+            }
+
             if (digest !== signature) {
                 console.error('Invalid Lemon Squeezy signature');
                 return res.status(401).send('Invalid signature');
@@ -35,7 +48,9 @@ router.post('/', async (req, res) => {
 
         if (eventName === 'order_created' || eventName === 'subscription_created') {
             const userId = customData.user_id;
-            const variantId = data.attributes.variant_id;
+            // Handle variant_id location difference between orders and subscriptions
+            const variantId = data.attributes.variant_id ||
+                (data.attributes.first_order_item && data.attributes.first_order_item.variant_id);
 
             if (!userId) {
                 console.warn('No user_id in custom_data for Lemon Squeezy webhook');
@@ -57,8 +72,8 @@ router.post('/', async (req, res) => {
             const updateData = {
                 plan: planKey,
                 is_active: true, // Reactivate if was inactive
-                subscription_id: data.id, // Store subscription ID if we had a field for it
-                // Maybe store more data?
+                subscription_id: data.id,
+                minutes_limit: planConfig.minutes || 0 // Assign minutes from plan
             };
 
             // If we have a 'subscription_id' field or similar in schema, update it. 

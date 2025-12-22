@@ -46,7 +46,11 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
+    }
+}));
 
 // Request logging middleware
 app.use((req, res, next) => {

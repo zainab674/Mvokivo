@@ -123,28 +123,33 @@ router.post('/onboarding', authenticateToken, async (req, res) => {
         });
 
         if (planConfig) {
-          // Assign minutes based on plan configuration
-          if (planConfig.minutes !== undefined && planConfig.minutes !== null) {
-            updates.minutes_limit = Number(planConfig.minutes);
-            console.log(`Assigned ${planConfig.minutes} minutes to user ${userId} based on plan ${plan}`);
-          } else if (planConfig.pay_as_you_go) {
-            // Pay as you go plan - no minutes included
-            updates.minutes_limit = 0;
-            console.log(`User ${userId} on pay-as-you-go plan ${plan} - no minutes included`);
+          // Check if plan is successfully resolved
+          const isFree = planConfig.price === 0;
+
+          if (isFree) {
+            // Assign minutes immediately for free plans
+            if (planConfig.minutes !== undefined && planConfig.minutes !== null) {
+              updates.minutes_limit = Number(planConfig.minutes);
+              console.log(`Assigned ${planConfig.minutes} minutes to user ${userId} for FREE plan ${plan}`);
+            } else if (planConfig.pay_as_you_go) {
+              updates.minutes_limit = 0;
+            } else {
+              updates.minutes_limit = 0;
+            }
           } else {
-            // Unlimited or unspecified
-            updates.minutes_limit = 0;
-            console.log(`User ${userId} on plan ${plan} with unlimited/unspecified minutes`);
+            // Paid plan: Do NOT assign minutes yet. Wait for webhook.
+            console.log(`User ${userId} selected PAID plan ${plan}. Waiting for payment webhook to assign minutes.`);
+            // We do not set updates.minutes_limit here, so it remains 0 (for new users) or current value (for existing).
           }
         } else {
           console.warn(`Plan configuration not found for plan: ${plan}, tenant: ${planTenant}`);
           // Default to 0 minutes if plan not found
-          updates.minutes_limit = 0;
+          if (!updates.minutes_limit) updates.minutes_limit = 1;
         }
       } catch (error) {
         console.error('Error fetching plan configuration:', error);
         // Continue with onboarding even if plan fetch fails
-        updates.minutes_limit = 0;
+        updates.minutes_limit = 1;
       }
     }
 
