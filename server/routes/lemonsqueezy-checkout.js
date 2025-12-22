@@ -79,7 +79,7 @@ router.post('/', authenticateToken, async (req, res) => {
                         }
                     },
                     product_options: {
-                        redirect_url: `${process.env.FRONTEND_URL || 'http://localhost:8080'}/login?payment=success`
+                        redirect_url: `${process.env.VITE_SITE_URL || 'http://localhost:8080'}/login?payment=success`
                     }
                 },
                 relationships: {
