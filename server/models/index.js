@@ -210,9 +210,12 @@ const calendarEventTypeSchema = new mongoose.Schema({
 export const CalendarEventType = mongoose.model('CalendarEventType', calendarEventTypeSchema);
 
 const assistantSchema = new mongoose.Schema({
+    id: { type: String, unique: true },
     user_id: { type: String, required: true },
     name: { type: String, required: true },
     prompt: String,
+    nodes: mongoose.Schema.Types.Mixed,
+    edges: mongoose.Schema.Types.Mixed,
     first_message: String,
     calendar: String,
     cal_api_key: String,

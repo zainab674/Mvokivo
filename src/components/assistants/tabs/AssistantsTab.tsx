@@ -193,7 +193,7 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const { toast } = useToast();
 
   const loadAssistantsForUser = async () => {
@@ -227,9 +227,15 @@ export function AssistantsTab({ tabChangeTrigger = 0 }: AssistantsTabProps) {
     }
 
     try {
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error('No access token available');
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${assistantId}`, {
         method: 'DELETE',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'x-user-id': user.id
         }
       });

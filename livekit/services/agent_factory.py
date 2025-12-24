@@ -14,7 +14,7 @@ from livekit.agents import Agent
 from services.unified_agent import UnifiedAgent
 from integrations.calendar_api import CalComCalendar
 from config.settings import validate_model_names
-from utils.instruction_builder import build_analysis_instructions, build_call_management_instructions
+from utils.instruction_builder import build_analysis_instructions, build_call_management_instructions, build_workflow_instructions
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,12 @@ class AgentFactory:
         if analysis_instructions:
             instructions += "\n\n" + analysis_instructions
             logger.info(f"ANALYSIS_INSTRUCTIONS_ADDED | length={len(analysis_instructions)}")
+
+        # Add workflow (node-based) instructions if available
+        workflow_instructions = build_workflow_instructions(config)
+        if workflow_instructions:
+            instructions += "\n\n" + workflow_instructions
+            logger.info(f"WORKFLOW_INSTRUCTIONS_ADDED | length={len(workflow_instructions)}")
 
         # Add first message handling
         first_message = config.get("first_message", "")

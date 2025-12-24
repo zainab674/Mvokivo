@@ -117,6 +117,113 @@ def build_call_management_instructions(config: Dict[str, Any]) -> str:
     return "\n".join(instructions) if instructions else ""
 
 
+def build_workflow_instructions(config: Dict[str, Any]) -> str:
+    """Build conversation flow instructions from visual nodes and edges."""
+    nodes = config.get("nodes", [])
+    edges = config.get("edges", [])
+    
+    if not nodes:
+        return ""
+    
+    # Pre-process nodes into a more accessible format, handling React Flow 'data' nesting
+    processed_nodes = []
+    for node in nodes:
+        # React Flow stores custom data in the 'data' field
+        data = node.get("data", {})
+        
+        # Flatten node structure
+        p_node = {
+            "id": node.get("id"),
+            "type": node.get("type", "task"),
+            "title": data.get("title") or node.get("title") or node.get("id"),
+            "input_prompt": data.get("input_prompt") or data.get("prompt") or node.get("input_prompt") or "",
+            "first_dialogue": data.get("first_dialogue") or data.get("dialogue") or node.get("first_dialogue") or "",
+            "transitions": []
+        }
+        
+        # Determine if it's a start node by type or by having no incoming edges later
+        # But we'll use the type 'start' or 'input' as a primary indicator
+        if p_node["type"] in ["start", "input", "startNode"]:
+            p_node["is_start"] = True
+        else:
+            p_node["is_start"] = False
+            
+        processed_nodes.append(p_node)
+
+    # Build map for quick lookup
+    node_map = {node["id"]: node for node in processed_nodes}
+
+    # Process edges to build transitions
+    for edge in edges:
+        source_id = edge.get("source")
+        target_id = edge.get("target")
+        # Support various label formats from React Flow edges
+        edge_data = edge.get("data", {})
+        label = (
+            edge.get("label") or 
+            edge_data.get("description") or 
+            edge_data.get("label") or 
+            edge_data.get("condition_description") or
+            "transition"
+        )
+        
+        if source_id in node_map and target_id in node_map:
+            node_map[source_id]["transitions"].append({
+                "condition": label,
+                "to": target_id,
+                "target_title": node_map[target_id]["title"]
+            })
+
+    instructions = ["\nCONVERSATION WORKFLOW (STATE MACHINE):"]
+    instructions.append("You MUST strictly follow this conversation flow. You are always in exactly ONE state at a time.")
+    
+    # Identify the actual start node
+    start_node = next((n for n in processed_nodes if n.get("is_start")), None)
+    if not start_node and processed_nodes:
+        # Fallback to the first node if no start node identified
+        start_node = processed_nodes[0]
+        
+    if start_node:
+        instructions.append(f"\n1. START_STATE: You begin in state '[{start_node['id']}]' ({start_node['title']}).")
+        if start_node['first_dialogue']:
+             instructions.append(f"   - Opening Dialogue: \"{start_node['first_dialogue']}\"")
+        if start_node['input_prompt']:
+             instructions.append(f"   - Opening Instruction: {start_node['input_prompt']}")
+
+    instructions.append("\n2. STATES DEFINITIONS:")
+    for node in processed_nodes:
+        node_id = node["id"]
+        title = node["title"]
+        prompt = node["input_prompt"]
+        dialogue = node["first_dialogue"]
+        node_type = node["type"].upper()
+        
+        instructions.append(f"\n[{node_id}] - {title}:")
+        if prompt:
+            instructions.append(f"   - CORE INSTRUCTION: {prompt}")
+        if dialogue:
+            instructions.append(f"   - ENTRY DIALOGUE (optional context): \"{dialogue}\"")
+        
+        # Transitions
+        if node["transitions"]:
+            instructions.append("   - TRANSITIONS (Conditions to move to other states):")
+            for trans in node["transitions"]:
+                instructions.append(f"     * IF {trans['condition']} -> TRANSITION TO '[{trans['to']}]' ({trans['target_title']})")
+        elif node_type in ["END", "TERMINATE"]:
+            instructions.append("   - ACTION: POLITELY END THE CALL")
+        elif node_type == "TRANSFER":
+            instructions.append("   - ACTION: INITIATE CALL TRANSFER")
+
+    instructions.append("\n3. RULES FOR EXECUTION:")
+    instructions.append("- Always keep track of your CURRENT STATE ID.")
+    instructions.append("- Monitor the user's input for the TRANSITION CONDITIONS listed for your current state.")
+    instructions.append("- When a transition condition is met, move to the target state and IMMEDIATELY adopt its 'CORE INSTRUCTION'.")
+    instructions.append("- Do NOT jump between states unless an edge (transition) exists.")
+    instructions.append("- Start by acting according to the START_STATE.")
+    
+    return "\n".join(instructions)
+
+
 def build_agent_instructions(config: Dict[str, Any]) -> str:
     """Build comprehensive agent instructions from configuration."""
     instructions = []

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Sparkles, Trash2, Edit3, Settings, Mic, MessageSquare, BarChart3, Sliders, Webhook, CheckCircle2, Mail } from "lucide-react";
+import { ArrowLeft, Sparkles, Trash2, Edit3, Settings, Mic, MessageSquare, BarChart3, Sliders, Webhook, CheckCircle2, Mail, Workflow as WorkflowIcon } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { BACKEND_URL } from "@/lib/api-config";
 import { FlowPreview } from "@/components/assistants/wizard/FlowPreview";
 import { AdvancedTab } from "@/components/assistants/wizard/AdvancedTab";
+import { WorkflowTab } from "@/components/assistants/wizard/WorkflowTab";
 
 const tabVariants = {
   initial: { opacity: 0, y: 10 },
@@ -56,6 +57,7 @@ const CreateAssistant = () => {
     { id: "details", label: "Agent Details", mobileLabel: "Details", icon: Settings },
     { id: "messaging", label: "Call Messaging Details", mobileLabel: "Messaging", icon: MessageSquare },
     { id: "context", label: "Agent Context", mobileLabel: "Context", icon: BarChart3 },
+    { id: "flow", label: "Conversation Flow", mobileLabel: "Flow", icon: WorkflowIcon },
   ];
 
   const searchParams = new URLSearchParams(location.search);
@@ -193,7 +195,9 @@ const CreateAssistant = () => {
     n8n: {
       webhookUrl: "",
       webhookFields: []
-    }
+    },
+    nodes: [],
+    edges: []
   });
 
   const handleFormDataChange = (section: keyof AssistantFormData, data: any) => {
@@ -309,7 +313,7 @@ const CreateAssistant = () => {
               audioRecordingFormat: "wav",
               videoRecordingEnabled: data.video_recording || false,
               endCallMessage: data.end_call_message || "",
-              endCallPhrPhrases: Array.isArray(data.end_call_phrases) ? data.end_call_phrases.filter((item: any) => typeof item === 'string') : [],
+              endCallPhrases: Array.isArray(data.end_call_phrases) ? data.end_call_phrases.filter((item: any) => typeof item === 'string') : [],
               maxCallDuration: data.max_call_duration || 30,
               idleMessages: Array.isArray(data.idle_messages) ? data.idle_messages.filter((item: any) => typeof item === 'string') : [],
               idleMessageMaxSpokenCount: data.max_idle_messages || 3,
@@ -337,7 +341,9 @@ const CreateAssistant = () => {
             n8n: {
               webhookUrl: (data as any).n8n_webhook_url || "",
               webhookFields: Array.isArray((data as any).n8n_webhook_fields) ? (data as any).n8n_webhook_fields : []
-            }
+            },
+            nodes: Array.isArray(data.nodes) ? data.nodes : [],
+            edges: Array.isArray(data.edges) ? data.edges : []
           });
         }
       } catch (error) {
@@ -349,6 +355,7 @@ const CreateAssistant = () => {
     };
     void loadExistingAssistant();
   }, [isEditing, id, toast, getAccessToken]);
+
 
   const mapFormToAssistantPayload = async () => {
     return {
@@ -414,6 +421,20 @@ const CreateAssistant = () => {
       post_call_email_from: formData.email.fromEmail || null,
       n8n_webhook_url: formData.n8n.webhookUrl || null,
       n8n_webhook_fields: formData.n8n.webhookFields?.length ? formData.n8n.webhookFields : null,
+      nodes: formData.nodes?.length ? formData.nodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          connected_to: formData.edges?.filter(e => e.source === node.id).map(e => e.target) || [],
+          connected_from: formData.edges?.filter(e => e.target === node.id).map(e => e.source) || [],
+          transitions: formData.edges?.filter(e => e.source === node.id).map(e => ({
+            condition_description: e.data?.description || '',
+            to: e.target,
+            tool_name: ''
+          })) || []
+        }
+      })) : null,
+      edges: formData.edges?.length ? formData.edges : null,
     };
   };
 
@@ -558,6 +579,15 @@ const CreateAssistant = () => {
                         <div className="space-y-6 sm:space-y-8">
                           <AnalysisTab data={formData.analysis} onChange={(data) => handleFormDataChange('analysis', data)} />
                           <AdvancedTab data={formData.advanced} onChange={(data) => handleFormDataChange('advanced', data)} />
+                        </div>
+                      )}
+                      {activeTab === "flow" && (
+                        <div className="space-y-6 sm:space-y-8 h-full">
+                          <WorkflowTab
+                            nodes={formData.nodes}
+                            edges={formData.edges}
+                            onChange={(data) => setFormData(prev => ({ ...prev, nodes: data.nodes, edges: data.edges }))}
+                          />
                         </div>
                       )}
                     </motion.div>

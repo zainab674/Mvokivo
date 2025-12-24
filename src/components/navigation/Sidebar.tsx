@@ -25,8 +25,11 @@ import {
     Key,
     UserCircle,
     Info,
-    CreditCard
+    CreditCard,
+    Workflow
 } from "lucide-react";
+
+
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
@@ -57,6 +60,7 @@ export function SidebarContent({
         { icon: <LayoutDashboard size={18} />, label: "Dashboard", to: "/dashboard" },
         { icon: <Bot size={18} />, label: "Agents", to: "/assistants" },
         { icon: <MessageSquare size={18} />, label: "Chats", to: "/conversations" },
+
         { icon: <Users size={18} />, label: "Contacts", to: "/contacts" },
     ];
 

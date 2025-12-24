@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Navbar } from "@/components/landing-new/Navbar";
-import { Hero } from "@/components/landing-new/Hero";
+import { VapiHero } from "@/components/landing-new/VapiHero";
 import { DetailedFeatures } from "@/components/landing-new/DetailedFeatures";
 import { TabbedFeatures } from "@/components/landing-new/TabbedFeatures";
 import { ActionSection } from "@/components/landing-new/ActionSection";
@@ -12,9 +12,9 @@ import { Footer } from "@/components/landing-new/Footer";
 
 const LandingPage = () => {
   return (
-    <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden font-sans selection:bg-purple-200 selection:text-purple-900">
+    <div className="min-h-screen bg-[#050505] text-white overflow-x-hidden font-sans selection:bg-blue-500/30 selection:text-white">
       <Navbar />
-      <Hero />
+      <VapiHero />
       <DetailedFeatures />
       <TabbedFeatures />
       <ActionSection />

@@ -5,7 +5,8 @@ import { ThemeContainer } from "@/components/theme";
 import { AssistantsTab } from "@/components/assistants/tabs/AssistantsTab";
 import { PhoneNumbersTab } from "@/components/assistants/tabs/PhoneNumbersTab";
 import { KnowledgeBaseTab } from "@/components/assistants/tabs/KnowledgeBaseTab";
-import { Bot, Phone, Database } from "lucide-react";
+import { Bot, Phone, Database, Workflow } from "lucide-react";
+
 
 const tabVariants = {
   initial: { opacity: 0, y: 10 },
@@ -29,6 +30,7 @@ export default function Assistants() {
     { id: "phone-numbers", label: "Phone Numbers", icon: Phone },
     { id: "knowledge-base", label: "Knowledge Base", icon: Database }
   ];
+
 
 
   return (
@@ -94,6 +96,7 @@ export default function Assistants() {
                     {activeTab === "assistants" && <AssistantsTab tabChangeTrigger={tabChangeTrigger} />}
                     {activeTab === "phone-numbers" && <PhoneNumbersTab tabChangeTrigger={tabChangeTrigger} />}
                     {activeTab === "knowledge-base" && <KnowledgeBaseTab tabChangeTrigger={tabChangeTrigger} />}
+
                   </motion.div>
                 </AnimatePresence>
               </div>

@@ -113,10 +113,16 @@ class MongoDBClient:
                     assistant = await self._db.assistants.find_one({"id": assistant_id})
             
             if assistant:
-                # Convert ObjectId to string and remove it to be JSON serializable
+                # Store the MongoDB _id as a string in a separate field if needed,
+                # but do NOT overwrite an existing 'id' field which might contain 'asst_...'
                 if "_id" in assistant:
-                    assistant["id"] = str(assistant["_id"])
+                    assistant_id_str = str(assistant["_id"])
+                    if not assistant.get("id"):
+                        assistant["id"] = assistant_id_str
+                    # Always provide _id_str as a fallback for internal use
+                    assistant["_id_str"] = assistant_id_str
                     del assistant["_id"]
+                
                 self.logger.info(f"Assistant fetched from MongoDB: {assistant_id}")
                 return assistant
             else:
@@ -183,33 +189,13 @@ class MongoDBClient:
     ) -> bool:
         """
         Save call history to MongoDB.
-        
-        Args:
-            call_id: Unique call identifier
-            assistant_id: Assistant ID
-            phone_number: Phone number
-            call_duration: Duration in seconds
-            call_status: Call status
-            transcription: Call transcript
-            participant_identity: Participant identity
-            call_sid: Twilio call SID
-            start_time: Call start time (ISO format)
-            end_time: Call end time (ISO format)
-            call_summary: AI-generated summary
-            call_success: Whether call was successful
-            structured_data: Extracted structured data
-            call_outcome: Call outcome classification
-            outcome_confidence: Confidence score
-            outcome_reasoning: Reasoning for outcome
-            
-        Returns:
-            True if saved successfully, False otherwise
         """
         if not self.is_available():
             self.logger.warning("MongoDB client not available")
             return False
         
         try:
+            # Map Python camelCase or start_time to Mongoose snake_case/started_at
             call_data = {
                 "call_id": call_id,
                 "assistant_id": assistant_id,
@@ -219,12 +205,12 @@ class MongoDBClient:
                 "transcription": transcription,
                 "participant_identity": participant_identity,
                 "call_sid": call_sid,
-                "start_time": start_time,
-                "end_time": end_time,
-                "call_summary": call_summary,
+                "started_at": start_time,
+                "ended_at": end_time,
+                "summary": call_summary,
+                "sentiment": call_outcome, # Mapping outcome to sentiment as a placeholder if helpful
                 "call_success": call_success,
                 "structured_data": structured_data,
-                "call_outcome": call_outcome,
                 "outcome_confidence": outcome_confidence,
                 "outcome_reasoning": outcome_reasoning,
                 "created_at": start_time or end_time

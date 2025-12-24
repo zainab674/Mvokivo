@@ -24,14 +24,15 @@ const featureItems = [
 
 export const FeaturesGrid = () => {
     return (
-        <div className="py-24 bg-white">
+        <div id="features" className="py-24 bg-[#050505] relative border-t border-white/5">
             <div className="container mx-auto px-6 md:px-12 lg:px-24">
-                <div className="text-center mb-20">
-                    <div className="inline-block px-4 py-1.5 bg-purple-50 text-purple-600 rounded-full text-xs font-bold uppercase tracking-widest mb-4">
+                <div className="text-center mb-28">
+                    <div className="inline-block px-4 py-1.5 bg-pink-500/10 text-pink-500 rounded-full text-[10px] font-mono font-bold uppercase tracking-[0.3em] mb-6 border border-pink-500/20">
                         Platform Features
                     </div>
-                    <h2 className="text-4xl md:text-5xl font-bold text-gray-900">
-                        AI voice features your <br /> <span className="text-purple-600">business will love</span>
+                    <h2 className="text-5xl md:text-7xl font-bold text-white mb-8 tracking-tighter leading-[0.9]">
+                        PRO-GRADE <br />
+                        <span className="text-white/20">AI TOOLKIT</span>
                     </h2>
                 </div>
 
@@ -39,12 +40,12 @@ export const FeaturesGrid = () => {
                     {featureItems.map((item, index) => (
                         <div
                             key={index}
-                            className="group bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-purple-200 transition-all cursor-default flex items-center gap-4"
+                            className="group bg-[#0a0b12] p-8 rounded-[2rem] border border-white/5 hover:border-pink-500/30 transition-all cursor-default flex items-center gap-6 shadow-2xl"
                         >
-                            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                            <div className="w-14 h-14 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-500 group-hover:bg-pink-500 group-hover:text-white transition-all shadow-[0_0_20px_rgba(236,72,153,0.1)] group-hover:shadow-[0_0_30px_rgba(236,72,153,0.3)]">
                                 <item.icon className="w-6 h-6" />
                             </div>
-                            <span className="font-bold text-gray-800 text-lg group-hover:text-purple-700 transition-all">{item.label}</span>
+                            <span className="font-bold text-white/70 text-lg group-hover:text-white transition-all tracking-tight uppercase font-mono text-sm leading-tight">{item.label}</span>
                         </div>
                     ))}
                 </div>

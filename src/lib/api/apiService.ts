@@ -4,6 +4,9 @@ import { fetchCalls } from "./calls/fetchCalls";
 import { fetchCallById } from "./calls/fetchCallById";
 import { fetchMockCalls } from "./calls/fetchMockCalls";
 import { createLivekitToken } from "./calls/createLivekitToken";
+import * as multiPrompting from "./multiPrompting";
+
 
 // Export the API functions
-export { fetchCalls, fetchCallById, fetchMockCalls, createLivekitToken };
+export { fetchCalls, fetchCallById, fetchMockCalls, createLivekitToken, multiPrompting };
+

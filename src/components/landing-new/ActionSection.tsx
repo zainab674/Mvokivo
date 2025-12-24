@@ -3,52 +3,59 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
 export const ActionSection = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
     return (
-        <div className="py-24 bg-white overflow-hidden">
+        <div className="py-32 bg-[#050505] overflow-hidden relative border-t border-white/5">
             <div className="container mx-auto px-6 md:px-12 lg:px-24">
-                <div className="grid md:grid-cols-2 gap-16 items-center">
+                <div className="grid md:grid-cols-2 gap-24 items-center">
                     <div>
-                        <div className="flex items-center gap-2 mb-4 text-purple-600">
-                            <div className="w-2 h-2 bg-purple-600 rounded-full animate-ping"></div>
-                            <span className="font-semibold text-sm uppercase tracking-wider">
-                                VOKIVO in Action
+                        <div className="flex items-center gap-3 mb-6 text-pink-500 font-mono text-[10px] tracking-[0.3em] uppercase">
+                            <div className="w-2 h-2 bg-pink-500 rounded-full animate-ping"></div>
+                            <span>
+                                Neural Deployment
                             </span>
                         </div>
-                        <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-                            See VOKIVO’s AI voice <br /> assistants <span className="text-purple-600">in action</span>
+                        <h2 className="text-5xl md:text-7xl font-bold text-white mb-8 tracking-tighter leading-[0.9]">
+                            SEE NEURAL <br />
+                            <span className="text-white/20 text-[4rem]">VOICE IN ACTION</span>
                         </h2>
-                        <p className="text-gray-600 text-lg mb-10 leading-relaxed">
-                            With VOKIVO’s AI voice agents connected to your phone numbers, calendars, and email,
-                            your business can automatically call leads, qualify them, book appointments,
-                            and manage follow-ups — all without manual effort. Book a demo to see how VOKIVO
-                            turns conversations into real customers.
+                        <p className="text-white/40 text-lg mb-10 leading-relaxed font-light">
+                            Deploy neural agents across your entire communication stack. Automate dialers, synchronize calendars, and scale follow-ups with zero human latency.
                         </p>
                         <Button
                             onClick={() => navigate(user ? "/dashboard" : "/signup")}
-                            className="bg-gray-900 text-white hover:bg-black rounded-full h-14 px-10 text-lg font-bold"
+                            className="bg-white text-black hover:bg-pink-500 hover:text-white rounded-full h-14 px-12 text-sm font-bold font-mono tracking-widest transition-all"
                         >
-                            Book A Demo ↗
+                            GET STARTED NOW ↗
                         </Button>
                     </div>
 
 
-                    <div className="relative">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[80%] bg-purple-100 rounded-3xl -rotate-6"></div>
-                        <img
-                            src="/dashboard_mockup.png"
-                            alt="Dashboard Preview"
-                            className="relative z-10 w-full h-auto rounded-2xl shadow-2xl border border-gray-100"
-                        />
-                        <img
-                            src="/female_holding_phone.png"
-                            alt="AI Character"
-                            className="absolute bottom-[-10%] right-[-10%] z-20 w-[60%] h-auto drop-shadow-2xl"
-                        />
+                    <div className="relative group">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[80%] bg-pink-500/10 rounded-[3rem] -rotate-6 blur-2xl group-hover:rotate-0 transition-transform duration-700"></div>
+                        <div className="relative z-10 p-2 bg-[#0a0b12] rounded-[3rem] border border-white/5 shadow-2xl overflow-hidden">
+                            <img
+                                src="/dashboard_mockup.png"
+                                alt="Dashboard Preview"
+                                className="w-full h-auto rounded-[2.5rem] opacity-80"
+                            />
+                        </div>
+                        <motion.div
+                            animate={{ y: [0, -10, 0] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                            className="absolute -bottom-10 -right-10 z-20 w-[65%] drop-shadow-[0_20px_50px_rgba(236,72,153,0.3)]"
+                        >
+                            <img
+                                src="/female_holding_phone.png"
+                                alt="AI Character"
+                                className="w-full h-auto brightness-90 relative"
+                            />
+                        </motion.div>
                     </div>
                 </div>
             </div>

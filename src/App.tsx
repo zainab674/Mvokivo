@@ -38,6 +38,7 @@ import Emails from "./pages/Emails";
 import EmailCampaigns from "./pages/EmailCampaigns";
 import ScrollToTop from "./components/ScrollToTop";
 
+
 // Create a client with better error handling and retry limits
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -142,6 +143,9 @@ function AnimatedRoutes() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/integrations" element={<Integrations />} />
         <Route path="/billing" element={<Billing />} />
+
+
+
       </Route>
       {/* Landing page for unauthenticated users */}
       <Route path="/" element={<LandingPage />} />

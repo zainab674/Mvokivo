@@ -12,15 +12,20 @@ router.get('/', authenticateToken, async (req, res) => {
         const { limit = 100 } = req.query;
 
         // First find all assistants belonging to the user
-        const assistants = await Assistant.find({ user_id: userId }).select('id');
-        const assistantIds = assistants.map(a => a.id);
+        const assistants = await Assistant.find({ user_id: userId }).select('id _id');
+
+        // Collect all possible IDs (the custom 'id' field and the hex '_id')
+        const assistantIds = [];
+        assistants.forEach(a => {
+            if (a.id) assistantIds.push(a.id);
+            assistantIds.push(a._id.toString());
+        });
 
         if (assistantIds.length === 0) {
-            return res.json([]);
+            return res.json({ calls: [], total: 0 });
         }
 
         // Find all call history for these assistants
-        // Convert sort to object for Mongoose
         let query = { assistant_id: { $in: assistantIds } };
 
         // Filter by phone number if provided
@@ -28,7 +33,8 @@ router.get('/', authenticateToken, async (req, res) => {
             query.phone_number = req.query.phoneNumber;
         }
 
-        let dbQuery = CallHistory.find(query).sort({ started_at: -1 });
+        // Use created_at for sorting to be compatible with both Mongoose defaults and Python agent data
+        let dbQuery = CallHistory.find(query).sort({ created_at: -1 });
 
         if (limit) {
             dbQuery = dbQuery.limit(parseInt(limit));

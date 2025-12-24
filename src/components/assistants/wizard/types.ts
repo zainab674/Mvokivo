@@ -176,4 +176,6 @@ export interface AssistantFormData {
   advanced: AdvancedData;
   email: EmailData;
   n8n: N8nData;
+  nodes?: any[];
+  edges?: any[];
 }

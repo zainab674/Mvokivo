@@ -104,7 +104,7 @@ export function CampaignDetailsDialog({ open, onOpenChange, campaignId, campaign
           // Get assistant phone number only if status changed
           if (newStatus.campaign?.assistant_id) {
             try {
-              const token = localStorage.getItem('token');
+              const token = localStorage.getItem('auth_token');
               const response = await fetch(`${BACKEND_URL}/api/v1/assistants/${newStatus.campaign.assistant_id}`, {
                 headers: {
                   'Authorization': `Bearer ${token}`
