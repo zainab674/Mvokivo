@@ -102,7 +102,7 @@ export function SinglePageOnboarding() {
                 const planConfigs = await getPlanConfigs(tenantSlug);
 
                 const plansList = Object.values(planConfigs)
-                    .filter(plan => plan.key !== "free")
+
                     .map(plan => ({
                         key: plan.key,
                         name: plan.name,
@@ -113,7 +113,7 @@ export function SinglePageOnboarding() {
                 setPlans(plansList);
             } catch (error) {
                 const fallback = Object.values(PLAN_CONFIGS)
-                    .filter(plan => plan.key !== "free")
+
                     .map(plan => ({
                         key: plan.key,
                         name: plan.name,
