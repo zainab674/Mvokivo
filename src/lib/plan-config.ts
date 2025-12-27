@@ -8,66 +8,143 @@ import { extractTenantFromHostname } from './tenant-utils';
 export interface PlanConfig {
     key: string;
     name: string;
-    price: number;
+    price: number | string;
     minutes?: number;
-    payAsYouGo?: boolean;
+    extraMinutePrice?: number | string;
+    agents?: number | string;
     features: string[];
     whitelabelEnabled?: boolean;
     variantId?: string;
+    description?: string;
+    target?: string;
+    maxAssistants?: number;
+    maxEmailCampaigns?: number;
+    maxCallCampaigns?: number;
+    payAsYouGo?: boolean;
 }
 
 // Minimal fallback plans
 export const DEFAULT_PLAN_CONFIGS: Record<string, PlanConfig> = {
     free: {
         key: "free",
-        name: "Free",
+        name: "Free Plan",
         price: 0,
-        features: ["Basic features"],
-        whitelabelEnabled: false
+        minutes: 15,
+        agents: 1,
+        features: [
+            "✅ 15 voice minutes free",
+            "1 AI voice agent",
+            "1 Email campaign",
+            "1 Call campaign",
+            "Standard voices",
+            "Basic conversational workflow",
+            "No credit card required"
+        ],
+        description: "Try & test users",
+        target: "Try & test users",
+        whitelabelEnabled: false,
+        maxAssistants: 1,
+        maxEmailCampaigns: 1,
+        maxCallCampaigns: 1
     },
     starter: {
         key: "starter",
-        name: "Starter",
-        price: 99,
+        name: "Starter Plan",
+        price: 29,
+        minutes: 240,
+        extraMinutePrice: 0.12,
+        agents: 1,
         features: [
-            "2 AI Voice Agents",
-            "1,000 API Calls / month",
-            "Standard Voice Quality",
-            "Email Support",
-            "Basic Analytics"
+            "Included minutes: 240",
+            "Cost per minute: $0.12 (12 cents)",
+            "1 AI voice agent",
+            "1 Email campaign",
+            "1 Call campaign",
+            "Standard voices only",
+            "Basic call campaigns",
+            "Simple conversational workflows",
         ],
-        whitelabelEnabled: false
+        description: "Small teams & early users",
+        target: "Small teams & early users",
+        whitelabelEnabled: false,
+        maxAssistants: 1,
+        maxEmailCampaigns: 1,
+        maxCallCampaigns: 1
     },
-    professional: {
-        key: "professional",
-        name: "Professional",
-        price: 299,
+    growth: {
+        key: "growth",
+        name: "Growth Plan",
+        price: 79,
+        minutes: 830,
+        extraMinutePrice: 0.095,
+        agents: 3,
         features: [
-            "10 AI Voice Agents",
-            "Unlimited API Calls",
-            "Premium HD Voices",
-            "Priority 24/7 Support",
-            "Advanced Analytics & ROI Tracking",
-            "Team Collaboration Tools",
-            "Custom Integrations (Beta)"
+            "Included minutes: 830",
+            "Cost per minute: $0.095 (9.5 cents)",
+            "Up to 3 AI voice agents",
+            "Up to 5 Email campaigns",
+            "Up to 5 Call campaigns",
+            "✅ Premium voices enabled",
+            "Advanced call campaigns",
+            "Email campaigns + automation",
+            "SMS bot creation",
+            "Multi-step conversational workflows",
         ],
-        whitelabelEnabled: true
+        description: "Premium voices start here",
+        target: "Startups & sales teams",
+        whitelabelEnabled: false,
+        maxAssistants: 3,
+        maxEmailCampaigns: 5,
+        maxCallCampaigns: 5
+    },
+    pro: {
+        key: "pro",
+        name: "Pro Plan",
+        price: 149,
+        minutes: 1860,
+        extraMinutePrice: 0.08,
+        agents: 10,
+        features: [
+            "Included minutes: 1,860",
+            "Cost per minute: $0.08 (8 cents)",
+            "Up to 10 AI voice agents",
+            "Up to 20 Email campaigns",
+            "Up to 20 Call campaigns",
+            "✅ Premium voices",
+            "Bulk call campaigns",
+            "Advanced conversational logic",
+            "Email + SMS automation",
+            "Webhooks & integrations",
+            "Priority support",
+        ],
+        description: "Call centers & SaaS businesses",
+        target: "Call centers & SaaS businesses",
+        whitelabelEnabled: true,
+        maxAssistants: 10,
+        maxEmailCampaigns: 20,
+        maxCallCampaigns: 20
     },
     enterprise: {
         key: "enterprise",
-        name: "Enterprise",
-        price: 999,
+        name: "Enterprise Plan",
+        price: "Custom",
         features: [
-            "Unlimited Voice Agents",
-            "Dedicated Infrastructure",
-            "Exclusive Voice Phasing AI",
-            "Dedicated Success Manager",
-            "Custom Feature Development",
-            "Enterprise-Grade Security",
-            "Whitelabeling Included",
-            "Full API Access"
+            "Custom / high-volume minutes",
+            "Unlimited AI voice agents",
+            "Unlimited Email & Call campaigns",
+            "✅ Premium + custom voices",
+            "Advanced call & SMS campaigns",
+            "Custom conversational workflows",
+            "Dedicated infrastructure",
+            "SLA & onboarding support",
+            "✅ White-label included"
         ],
-        whitelabelEnabled: true
+        description: "Enterprises & agencies",
+        target: "Enterprises & agencies",
+        whitelabelEnabled: true,
+        maxAssistants: 0, // Unlimited
+        maxEmailCampaigns: 0,
+        maxCallCampaigns: 0
     }
 };
 
@@ -123,12 +200,19 @@ async function fetchPlanConfigsFromDB(tenant?: string | null): Promise<Record<st
             mergedPlans[plan.key] = {
                 key: plan.key,
                 name: plan.name || "Unknown Plan",
-                price: isNaN(Number(plan.price)) ? 0 : Number(plan.price),
+                price: isNaN(Number(plan.price)) ? plan.price : Number(plan.price),
                 minutes: plan.minutes !== undefined ? Number(plan.minutes) : undefined,
-                payAsYouGo: plan.payAsYouGo ?? false,
+                extraMinutePrice: plan.extraMinutePrice !== undefined ? Number(plan.extraMinutePrice) : undefined,
+                agents: plan.agents,
                 features: Array.isArray(plan.features) ? plan.features : [],
                 whitelabelEnabled: plan.whitelabelEnabled,
-                variantId: plan.variantId
+                variantId: plan.variantId,
+                description: plan.description,
+                target: plan.target,
+                maxAssistants: plan.maxAssistants,
+                maxEmailCampaigns: plan.maxEmailCampaigns,
+                maxCallCampaigns: plan.maxCallCampaigns,
+                payAsYouGo: plan.payAsYouGo
             };
         });
 

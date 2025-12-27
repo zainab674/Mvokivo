@@ -67,6 +67,9 @@ const planConfigSchema = new mongoose.Schema({
     whitelabel_enabled: { type: Boolean, default: false },
     variant_id: String, // Lemon Squeezy Variant ID
     tenant: String, // Can be null for global plans
+    max_assistants: { type: Number }, // 0 or null = unlimited
+    max_email_campaigns: { type: Number },
+    max_call_campaigns: { type: Number },
     display_order: { type: Number, default: 0 },
     is_active: { type: Boolean, default: true }
 });
@@ -110,6 +113,8 @@ const phoneNumberSchema = new mongoose.Schema({
     number: { type: String, required: true, unique: true },
     label: String,
     inbound_assistant_id: String,
+    outbound_trunk_id: String,
+    outbound_trunk_name: String,
     trunk_sid: String,
     webhook_status: String,
     status: { type: String, default: 'active' },

@@ -45,7 +45,7 @@ export const FAQ = () => {
                                 How fast is the deployment cycle?
                             </AccordionTrigger>
                             <AccordionContent className="text-white/40 text-lg leading-relaxed pt-6 font-light">
-                                Architectural setup is instantaneous. Authenticate your CRM, configure your neural agent's logic, and map your communication cluster. The platform orchestrates the rest.
+                                Architectural setup is instantaneous. configure your neural agent's logic, and map your communication cluster. The platform orchestrates the rest.
                             </AccordionContent>
                         </AccordionItem>
 

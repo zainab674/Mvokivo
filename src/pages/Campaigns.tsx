@@ -21,48 +21,11 @@ import { getCampaignStatus } from "@/lib/api/campaigns/getCampaignStatus";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { exportAllCampaignsData } from "@/lib/api/campaigns/exportCampaignData";
 import { exportAllCampaignDataToExcel } from "@/lib/utils/excelExport";
-
-// Campaign interface imported from API
-
-const mockCampaigns: Campaign[] = [
-  {
-    id: '1',
-    name: 'Q4 Sales Outreach',
-    status: 'active',
-    dailyCap: 100,
-    agent: 'Sarah Johnson',
-    list: 'Sales Prospects',
-    dials: 847,
-    pickups: 234,
-    doNotCall: 12,
-    outcomes: {
-      interested: 45,
-      notInterested: 156,
-      callback: 33
-    },
-    totalUsage: 1250
-  },
-  {
-    id: '2',
-    name: 'Customer Support Follow-up',
-    status: 'paused',
-    dailyCap: 50,
-    agent: 'Mike Chen',
-    list: 'Support Tickets',
-    dials: 156,
-    pickups: 89,
-    doNotCall: 3,
-    outcomes: {
-      interested: 67,
-      notInterested: 18,
-      callback: 4
-    },
-    totalUsage: 320
-  }
-];
+import { useToast } from "@/hooks/use-toast";
 
 export default function Campaigns() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [termsOpen, setTermsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -75,20 +38,19 @@ export default function Campaigns() {
   const [exporting, setExporting] = useState(false);
 
   // Load campaigns from database
+  const loadCampaigns = async () => {
+    if (!user?.id) return;
+    try {
+      const response = await fetchCampaigns();
+      setCampaigns(response.campaigns);
+    } catch (error) {
+      console.error('Error loading campaigns:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadCampaigns = async () => {
-      if (!user?.id) return;
-
-      try {
-        const response = await fetchCampaigns();
-        setCampaigns(response.campaigns);
-      } catch (error) {
-        console.error('Error loading campaigns:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCampaigns();
   }, [user?.id]);
 
@@ -122,17 +84,23 @@ export default function Campaigns() {
       const result = await saveCampaign(saveData);
 
       if (result.success) {
-        // Reload campaigns from database
-        const response = await fetchCampaigns();
-        setCampaigns(response.campaigns);
+        toast({ title: "Campaign created successfully!" });
+        loadCampaigns();
         setSettingsOpen(false);
       } else {
-        console.error('Error saving campaign:', result.error);
-        alert('Error saving campaign: ' + result.error);
+        toast({
+          title: "Save failed",
+          description: result.error || "Failed to save campaign",
+          variant: "destructive"
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating campaign:', error);
-      alert('Error creating campaign: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: "Creation failed",
+        description: error.message || "Unknown error occurred",
+        variant: "destructive"
+      });
     }
   };
 
@@ -141,45 +109,51 @@ export default function Campaigns() {
     if (!campaign) return;
 
     try {
+      let result;
       if (campaign.execution_status === 'running') {
-        // Pause the campaign
-        const result = await pauseCampaign({ campaignId: id });
+        result = await pauseCampaign({ campaignId: id });
         if (result.success) {
-          setCampaigns(prev => prev.map(c =>
-            c.id === id
-              ? { ...c, execution_status: 'paused' as const }
-              : c
-          ));
+          toast({ title: "Campaign paused" });
+          loadCampaigns();
         } else {
-          console.error('Error pausing campaign:', result.error);
+          toast({
+            title: "Pause failed",
+            description: result.error || "Failed to pause campaign",
+            variant: "destructive"
+          });
         }
       } else if (campaign.execution_status === 'paused') {
-        // Resume the campaign
-        const result = await resumeCampaign({ campaignId: id });
+        result = await resumeCampaign({ campaignId: id });
         if (result.success) {
-          setCampaigns(prev => prev.map(c =>
-            c.id === id
-              ? { ...c, execution_status: 'running' as const }
-              : c
-          ));
+          toast({ title: "Campaign resumed" });
+          loadCampaigns();
         } else {
-          console.error('Error resuming campaign:', result.error);
+          toast({
+            title: "Resume failed",
+            description: result.error || "Failed to resume campaign",
+            variant: "destructive"
+          });
         }
       } else if (campaign.execution_status === 'idle') {
-        // Start the campaign
-        const result = await startCampaign({ campaignId: id });
+        result = await startCampaign({ campaignId: id });
         if (result.success) {
-          setCampaigns(prev => prev.map(c =>
-            c.id === id
-              ? { ...c, execution_status: 'running' as const }
-              : c
-          ));
+          toast({ title: "Campaign started" });
+          loadCampaigns();
         } else {
-          console.error('Error starting campaign:', result.error);
+          toast({
+            title: "Start failed",
+            description: result.error || "Failed to start campaign",
+            variant: "destructive"
+          });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error toggling campaign status:', error);
+      toast({
+        title: "Status update error",
+        description: error.message || "Unknown error occurred",
+        variant: "destructive"
+      });
     }
   };
 
@@ -197,18 +171,25 @@ export default function Campaigns() {
       const result = await deleteCampaignAPI({ campaignId: selectedCampaignId });
 
       if (result.success) {
-        // Remove from local state
+        toast({ title: "Campaign deleted" });
         setCampaigns(prev => prev.filter(campaign => campaign.id !== selectedCampaignId));
         setDeleteOpen(false);
         setSelectedCampaignId('');
         setSelectedCampaignName('');
       } else {
-        console.error('Error deleting campaign:', result.error);
-        alert('Error deleting campaign: ' + result.error);
+        toast({
+          title: "Delete failed",
+          description: result.error || "Failed to delete campaign",
+          variant: "destructive"
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting campaign:', error);
-      alert('Error deleting campaign: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: "Delete error",
+        description: error.message || "Unknown error occurred",
+        variant: "destructive"
+      });
     } finally {
       setDeleting(false);
     }
@@ -227,12 +208,19 @@ export default function Campaigns() {
       if (result.success && result.calls && result.stats) {
         exportAllCampaignDataToExcel(result.calls, result.stats, 'All_Campaigns');
       } else {
-        console.error('Error exporting campaigns:', result.error);
-        alert('Error exporting campaigns: ' + result.error);
+        toast({
+          title: "Export failed",
+          description: result.error || "Failed to export data",
+          variant: "destructive"
+        });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error exporting campaigns:', error);
-      alert('Error exporting campaigns: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      toast({
+        title: "Export error",
+        description: error.message || "Unknown error occurred",
+        variant: "destructive"
+      });
     } finally {
       setExporting(false);
     }

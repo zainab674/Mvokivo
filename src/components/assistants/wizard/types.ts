@@ -72,6 +72,8 @@ export interface StructuredDataField {
   type: string;
   description: string;
   required?: boolean;
+  origin?: string;
+  isUniversal?: boolean;
 }
 
 export interface AnalysisData {

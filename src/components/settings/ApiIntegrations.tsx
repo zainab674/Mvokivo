@@ -268,38 +268,35 @@ export function ApiIntegrations() {
     const IconComponent = integration.icon;
     const isConnected = integration.status === "connected";
 
-    const ActionButton = () => {
-      const className = "text-[#374151] font-semibold  rounded-lg px-4 h-9";
-      return <Button variant="ghost" className={className} onClick={() => handleIntegrationClick(integration)}>View details</Button>;
-    };
+
 
     return (
-      <Card className="bg-gray-500 rounded-3xl p-6 border-none shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300 flex flex-col h-full group relative">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ backgroundColor: `${integration.brandColor}12` }}
-            >
-              <IconComponent className="w-6 h-6" style={{ color: integration.brandColor }} />
-            </div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold text-[#1f2937] leading-none mb-0">{integration.name}</h3>
-              {isConnected && (
-                <div className="flex items-center justify-center w-4 h-4 bg-[#10b981] rounded-full">
-                  <Check className="w-2.5 h-2.5 text-white" strokeWidth={4} />
-                </div>
-              )}
-            </div>
+      <Card
+        className="bg-[#0c0c0c] rounded-[22px] p-5 border border-white/[0.04] shadow-2xl hover:bg-[#111] transition-all duration-300 flex flex-col aspect-square w-full max-w-[180px] group relative cursor-pointer"
+        onClick={() => handleIntegrationClick(integration)}
+      >
+        {/* Top Section: Icon and Connected Badge */}
+        <div className="flex items-start justify-between">
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center border border-white/[0.05] bg-zinc-900/50"
+          >
+            <IconComponent className="w-6 h-6" style={{ color: integration.brandColor }} />
           </div>
+          {isConnected && (
+            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-none text-[11px] px-3 py-1 font-bold rounded-full">
+              Connected
+            </Badge>
+          )}
         </div>
 
-        <p className="text-white text-sm leading-relaxed mb-6 flex-grow">
-          {integration.description}
-        </p>
-
-        <div className="flex justify-end mt-auto">
-          <ActionButton />
+        {/* Content Section: Title and Category (Bottom) */}
+        <div className="mt-auto">
+          <h3 className="text-[16px] font-bold text-white tracking-tight leading-tight mb-1.5 truncate">
+            {integration.name}
+          </h3>
+          <p className="text-[9px] uppercase tracking-[0.05em] text-zinc-500 font-bold leading-tight">
+            {integration.category}
+          </p>
         </div>
       </Card>
     );
@@ -345,45 +342,44 @@ export function ApiIntegrations() {
   return (
     <div className="flex flex-col min-h-screen bg-transparent">
       {/* Top Search Bar */}
-      <div className="relative mb-10">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+      <div className="relative mb-12">
+        <div className="relative max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
           <Input
-            className="pl-12 h-12 bg-gray-50/50 border-none rounded-2xl text-base focus-visible:ring-1 focus-visible:ring-primary/20 placeholder:text-gray-400 w-full"
-            placeholder="Search here"
+            className="pl-12 h-12 bg-zinc-900/50 border border-white/[0.05] rounded-2xl text-base focus-visible:ring-1 focus-visible:ring-primary/20 placeholder:text-zinc-600 w-full text-zinc-100"
+            placeholder="Search integrations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="flex gap-12">
+      <div className="flex gap-8">
         {/* Sidebar */}
-        <aside className="w-72 flex-shrink-0">
+        <aside className="w-60 flex-shrink-0">
           <div className="mb-12">
-            <h3 className="text-[#9ca3af] font-semibold mb-8 uppercase tracking-widest text-xs">Overview</h3>
+            <h3 className="text-zinc-500 font-semibold mb-8 uppercase tracking-[0.2em] text-[10px]">Overview</h3>
             <div className="space-y-6">
-              <div className="flex items-center justify-between group cursor-pointer hover:bg-gray-50/50 p-1 -m-1 rounded-lg transition-colors">
-                <div className="flex items-center gap-3 text-[#374151]">
-                  <CheckCircle2 className="w-5 h-5 text-[#374151]" />
+              <div className="flex items-center justify-between group cursor-pointer hover:bg-white/[0.02] p-2 -m-2 rounded-xl transition-all">
+                <div className="flex items-center gap-3 text-zinc-400 group-hover:text-zinc-100 transition-colors">
+                  <CheckCircle2 className="w-5 h-5" />
                   <span className="font-medium">Connected</span>
                 </div>
-                <Badge variant="secondary" className="bg-[#f3f4f6] text-[#374151] rounded-lg px-2.5 py-0.5 border-none font-semibold">
+                <Badge variant="secondary" className="bg-zinc-800/50 text-zinc-400 rounded-lg px-2.5 py-0.5 border border-white/[0.05] font-semibold">
                   {updatedIntegrations.filter(i => i.status === "connected").length}
                 </Badge>
               </div>
-
             </div>
           </div>
 
           <div>
-            <h3 className="text-[#9ca3af] font-semibold mb-8 uppercase tracking-widest text-xs">Categories</h3>
+            <h3 className="text-zinc-500 font-semibold mb-8 uppercase tracking-[0.2em] text-[10px]">Categories</h3>
             <div className="space-y-5">
               <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setSelectedCategories([])}>
-                <div className={`w-5 h-5 border-2 rounded-[6px] flex items-center justify-center transition-colors ${selectedCategories.length === 0 ? 'bg-[#1f2937] border-[#1f2937]' : 'border-gray-300'}`}>
-                  {selectedCategories.length === 0 && <Check className="w-3.5 h-3.5 text-white" strokeWidth={4} />}
+                <div className={`w-5 h-5 border-2 rounded-[6px] flex items-center justify-center transition-all ${selectedCategories.length === 0 ? 'bg-primary border-primary' : 'border-zinc-700 group-hover:border-zinc-500'}`}>
+                  {selectedCategories.length === 0 && <Check className="w-3.5 h-3.5 text-black" strokeWidth={4} />}
                 </div>
-                <span className={`font-medium transition-colors ${selectedCategories.length === 0 ? 'text-[#1f2937]' : 'text-[#6b7280]'}`}>All</span>
+                <span className={`font-medium transition-colors ${selectedCategories.length === 0 ? 'text-zinc-100' : 'text-zinc-500 group-hover:text-zinc-300'}`}>All</span>
               </div>
               {allCategories.map(category => (
                 <div
@@ -397,10 +393,10 @@ export function ApiIntegrations() {
                     }
                   }}
                 >
-                  <div className={`w-5 h-5 border-2 rounded-[6px] flex items-center justify-center transition-colors ${selectedCategories.includes(category) ? 'bg-[#1f2937] border-[#1f2937]' : 'border-gray-300'}`}>
-                    {selectedCategories.includes(category) && <Check className="w-3.5 h-3.5 text-white" strokeWidth={4} />}
+                  <div className={`w-5 h-5 border-2 rounded-[6px] flex items-center justify-center transition-all ${selectedCategories.includes(category) ? 'bg-primary border-primary' : 'border-zinc-700 group-hover:border-zinc-500'}`}>
+                    {selectedCategories.includes(category) && <Check className="w-3.5 h-3.5 text-black" strokeWidth={4} />}
                   </div>
-                  <span className={`font-medium transition-colors ${selectedCategories.includes(category) ? 'text-[#1f2937]' : 'text-[#6b7280]'}`}>
+                  <span className={`font-medium transition-colors ${selectedCategories.includes(category) ? 'text-zinc-100' : 'text-zinc-500 group-hover:text-zinc-300'}`}>
                     {category}
                   </span>
                 </div>
@@ -413,10 +409,10 @@ export function ApiIntegrations() {
         <div className="flex-1">
           <div className="mb-10">
             <h1 className="text-3xl font-bold text-white mb-2">Integrations</h1>
-            <div className="h-px bg-gray-100 w-full mt-6"></div>
+            <div className="h-px bg-white/[0.05] w-full mt-6"></div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-[repeat(auto-fill,160px)] gap-5 justify-start">
             {filteredIntegrations.map((integration) => (
               <IntegrationCard key={integration.id} integration={integration} />
             ))}

@@ -193,7 +193,7 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
   }, [data.provider, data.model, data.conversationStart, data.temperature, data.maxTokens, onChange]);
 
   return (
-    <div className=" min-h-[540px]">
+    <div className="lg:grid lg:grid-cols-12 gap-8 min-h-[540px]">
       {/* Left Column - Main Content */}
       <div className="lg:col-span-8 flex flex-col h-full">
 

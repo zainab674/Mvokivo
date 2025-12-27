@@ -37,7 +37,7 @@ export default function Settings() {
     <DashboardLayout>
       <ThemeContainer variant="base" className="min-h-screen no-hover-scaling">
         <div className="container mx-auto px-4 sm:px-[var(--space-lg)]">
-          <div className="max-w-5xl mx-auto py-6 sm:py-8">
+          <div className="max-w-7xl mx-auto py-6 sm:py-8">
             <ThemeSection spacing="lg">
               <div className="flex flex-col space-y-2 sm:space-y-[var(--space-md)] mb-6 sm:mb-0">
                 <h1 className="text-3xl sm:text-4xl font-extralight tracking-tight text-foreground">

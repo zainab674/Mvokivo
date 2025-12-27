@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, PhoneOff, Loader2 } from "lucide-react";
+import { PhoneOff, Loader2 } from "lucide-react";
 import { createLivekitToken } from "@/lib/api/apiService";
 import {
     LiveKitRoom,
@@ -14,38 +14,33 @@ import {
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 
-// --- Visual Components ---
 
 const RobotHead = ({ delay, isTalking, tilt = 0, zIndex = 0, xOffset = 0 }: { delay: number; isTalking?: boolean; tilt?: number; zIndex?: number; xOffset?: number }) => {
     return (
         <motion.div
-            initial={{ opacity: 1, scale: 1, rotateY: -30 }} // No more initial fade
+            initial={{ opacity: 1, scale: 1, rotateY: -30 }}
             animate={{
                 rotateY: isTalking ? [-15, 15, -15] : [-30, -50, -30],
                 rotateX: isTalking ? [tilt - 20, tilt + 20, tilt - 20] : [tilt - 10, tilt + 10, tilt - 10],
                 rotateZ: isTalking ? [-10, 10, -10] : [xOffset / 10, -xOffset / 10, xOffset / 10],
-                y: [0, -120, 0], // Much larger vertical float to reach navbar
+                y: [0, -120, 0],
             }}
             transition={{
-                duration: isTalking ? 5 : 12, // Slower, more cinematic
+                duration: isTalking ? 5 : 12,
                 repeat: Infinity,
-                delay: delay, // This creates the "one by one" staggered move
+                delay: delay,
                 ease: "easeInOut"
             }}
             className="relative w-56 h-56 preserve-3d group cursor-pointer"
             style={{ perspective: '1200px', zIndex }}
         >
-            {/* Small decorative "stubs" from the image */}
-            {/* Main Body - Rounded Cube with Metallic Rim Light */}
+
             <div className="absolute inset-0 bg-[#212435] rounded-[3rem] border-t-2 border-l-2 border-white/10 shadow-[20px_20px_60px_rgba(0,0,0,0.8),inset_5px_5px_15px_rgba(255,255,255,0.1),inset_-10px_-10px_30px_rgba(236,72,153,0.1)] overflow-hidden border-r-[12px] border-b-[8px] border-black/30">
 
-                {/* Dual Tone Lighting */}
                 <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-pink-500/20 to-transparent pointer-events-none" />
                 <div className="absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-blue-500/10 to-transparent pointer-events-none" />
 
-                {/* Screen Area */}
                 <div className="absolute inset-4 bg-[#0a0b12] rounded-[2.5rem] border border-white/5 flex flex-col items-center justify-center shadow-inner">
-                    {/* Glowing Eyes - "D" Shaped like the image */}
                     <div className="flex gap-10 mt-[-10px]">
                         <motion.div
                             animate={{
@@ -55,9 +50,7 @@ const RobotHead = ({ delay, isTalking, tilt = 0, zIndex = 0, xOffset = 0 }: { de
                             transition={{ duration: isTalking ? 0.3 : 4, repeat: Infinity }}
                             className="relative"
                         >
-                            {/* Outer Glow */}
                             <div className="absolute inset-0 bg-pink-500 blur-xl opacity-40 scale-150" />
-                            {/* Inner Eye - Semicircle */}
                             <div className="w-12 h-8 bg-pink-500 rounded-t-full shadow-[0_0_15px_#ec4899,0_0_30px_#ec4899] flex items-end justify-center overflow-hidden">
                                 <div className="w-2/3 h-2/3 rounded-t-full bg-white/90  blur-[1px]" />
                             </div>
@@ -78,11 +71,9 @@ const RobotHead = ({ delay, isTalking, tilt = 0, zIndex = 0, xOffset = 0 }: { de
                         </motion.div>
                     </div>
 
-                    {/* Bottom detail pill */}
                     <div className="w-4 h-1.5 bg-pink-500/30 rounded-full mt-6 shadow-[0_0_10px_#ec4899]" />
                 </div>
 
-                {/* Material Texture Overlay */}
                 <div className="absolute inset-0 bg-zinc-400/5 mix-blend-overlay pointer-events-none" />
             </div>
 
@@ -95,11 +86,11 @@ const RobotStack = ({ isTalking }: { isTalking?: boolean }) => {
         <motion.div
             animate={{
                 x: ['-30vw', '30vw', '-30vw'],
-                y: ['-45vh', '25vh', '-45vh'], // Extreme range to reach navbar and bottom
+                y: ['-45vh', '25vh', '-45vh'],
                 rotate: [-2, 2, -2]
             }}
             transition={{
-                duration: 30, // Slower for the larger travel distance
+                duration: 30,
                 repeat: Infinity,
                 ease: "easeInOut"
             }}
@@ -111,7 +102,6 @@ const RobotStack = ({ isTalking }: { isTalking?: boolean }) => {
                 <RobotHead delay={0} isTalking={isTalking} tilt={-15} zIndex={1} xOffset={-50} />
             </div>
 
-            {/* Ambient Background Glows - Reduced opacity slightly to not overpower */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] pointer-events-none">
                 <div className="absolute top-1/4 -right-1/3 w-[600px] h-[600px] bg-pink-600/5 blur-[180px] rounded-full animate-pulse" />
                 <div className="absolute -bottom-1/4 -left-1/3 w-[600px] h-[600px] bg-purple-600/5 blur-[180px] rounded-full animate-pulse" style={{ animationDelay: '1.5s' }} />
@@ -178,13 +168,11 @@ const ParticleField = () => {
 
 const BackgroundDecorations = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Animated Grid */}
         <div className="absolute inset-0 opacity-[0.05] z-0" style={{
             backgroundImage: `linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)`,
             backgroundSize: '50px 50px'
         }} />
 
-        {/* Animated Depth Orbs */}
         <motion.div
             animate={{
                 scale: [1, 1.2, 1],
@@ -204,20 +192,17 @@ const BackgroundDecorations = () => (
             className="absolute -bottom-[20%] -right-[10%] w-[60%] h-[60%] bg-pink-600/10 blur-[150px] rounded-full"
         />
 
-        {/* Vertical Scanning Line */}
         <motion.div
             animate={{ y: ['-100%', '200%'] }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
             className="absolute left-0 right-0 h-[100vh] bg-gradient-to-b from-transparent via-pink-500/[0.03] to-transparent z-1"
         />
 
-        {/* Tech Labels */}
         <FloatingTechLabel text="REAL-TIME PROCESSING" position={{ top: '25%', left: '8%' }} delay={0} />
         <FloatingTechLabel text="LATENCY: 240MS" position={{ top: '45%', right: '10%' }} delay={2} />
         <FloatingTechLabel text="NEURAL SYNCHRONIZATION" position={{ bottom: '35%', left: '12%' }} delay={4} />
         <FloatingTechLabel text="ENCRYPTED SESSION" position={{ bottom: '25%', right: '8%' }} delay={1} />
 
-        {/* Technical HUD elements */}
         <div className="absolute top-[15%] left-[5%] w-32 h-px bg-gradient-to-r from-white/20 to-transparent" />
         <div className="absolute top-[15%] left-[5%] w-px h-32 bg-gradient-to-b from-white/20 to-transparent" />
         <div className="absolute bottom-[15%] right-[5%] w-32 h-px bg-gradient-to-l from-white/20 to-transparent" />
@@ -227,7 +212,6 @@ const BackgroundDecorations = () => (
     </div>
 );
 
-// --- LiveKit Logic Components ---
 
 const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
     const { localParticipant } = useLocalParticipant();
@@ -235,7 +219,6 @@ const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
     const isMicEnabled = localParticipant?.isMicrophoneEnabled;
 
     useEffect(() => {
-        // Automatically try to enable mic
         localParticipant?.setMicrophoneEnabled(true).catch(console.error);
     }, [localParticipant]);
 
@@ -243,18 +226,11 @@ const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
         <div className="flex flex-col items-center gap-6">
             <div className="flex items-center gap-4">
                 <Button
-                    onClick={() => localParticipant?.setMicrophoneEnabled(!isMicEnabled)}
-                    variant="outline"
-                    className="rounded-full w-14 h-14 border-white/10 bg-white/5 hover:bg-white/10 text-white"
-                >
-                    {isMicEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6 text-red-500" />}
-                </Button>
-                <Button
                     onClick={onDisconnect}
                     variant="destructive"
-                    className="rounded-full w-14 h-14 bg-red-500/80 hover:bg-red-500"
+                    className="rounded-full w-20 h-20 bg-red-500/80 hover:bg-red-500 shadow-lg shadow-red-500/20 transition-all duration-300 hover:scale-110"
                 >
-                    <PhoneOff className="w-6 h-6" />
+                    <PhoneOff className="w-8 h-8" />
                 </Button>
             </div>
             <p className="text-white/60 text-sm font-mono animate-pulse">LIVE CONVERSATION...</p>
@@ -262,7 +238,6 @@ const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
     );
 };
 
-// --- Main Hero Component ---
 
 export const VapiHero = () => {
     const [status, setStatus] = useState<'idle' | 'connecting' | 'connected'>('idle');
@@ -313,7 +288,6 @@ export const VapiHero = () => {
     return (
         <section className="relative min-h-screen flex items-center justify-center bg-[#050505] overflow-hidden pt-20">
             <BackgroundDecorations />
-            {/* Robots moved outside AnimatePresence so they never disappear */}
             <RobotStack isTalking={status === 'connected'} />
 
             <div className="container relative z-20 flex flex-col items-center text-center px-6">
@@ -337,23 +311,13 @@ export const VapiHero = () => {
 
                             <motion.button
                                 onClick={handleStartTalk}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
                                 className="group relative mt-4"
                             >
                                 <div className="absolute -inset-4 bg-pink-500/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition duration-500" />
-                                <div className="relative px-14 py-7 bg-white rounded-full leading-none flex items-center shadow-[0_0_40px_rgba(255,255,255,0.1)]">
-                                    <span className="text-black font-mono text-xl md:text-2xl font-bold tracking-widest">TALK TO AI</span>
-                                    <div className="ml-5 flex gap-1.5 h-4 items-center">
-                                        {[...Array(4)].map((_, i) => (
-                                            <motion.div
-                                                key={i}
-                                                animate={{ height: [4, 16, 4] }}
-                                                transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
-                                                className="w-1 bg-black/20 rounded-full"
-                                            />
-                                        ))}
-                                    </div>
+                                <div className="relative px-14 py-7 bg-white rounded-full leading-none flex items-center shadow-[0_0_40px_rgba(255,255,255,0.1)] transition-all duration-300 group-hover:bg-pink-500">
+                                    <span className="text-black group-hover:text-white font-mono text-xl md:text-2xl font-bold tracking-[0.2em]">TALK TO AI</span>
                                 </div>
                             </motion.button>
 
@@ -396,7 +360,7 @@ export const VapiHero = () => {
                             >
                                 <RoomAudioRenderer />
                                 <StartAudio label="Click to start listening" />
-                                <div className="h-24" /> {/* Spacing for the robots to be visible behind the UI */}
+                                <div className="h-24" />
                                 <VoiceInterface onDisconnect={handleDisconnect} />
                             </LiveKitRoom>
                         </motion.div>
@@ -404,7 +368,6 @@ export const VapiHero = () => {
                 </AnimatePresence>
             </div>
 
-            {/* Bottom fading */}
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#050505] to-transparent z-30" />
         </section>
     );

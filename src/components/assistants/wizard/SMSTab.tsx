@@ -70,13 +70,13 @@ export const SMSTab: React.FC<SMSTabProps> = ({ data, onChange }) => {
   }, [toast]);
 
   return (
-    <div className=" min-h-[540px]">
+    <div className="lg:grid lg:grid-cols-12 gap-8 min-h-[540px]">
       {/* Left Column - Main Content */}
       <div className="lg:col-span-8 flex flex-col">
-        <div className="flex-1 space-y-6">
+        <div className="flex-1 space-y-4">
           {/* Header Section */}
           <div className="mb-6">
-            <h2 className="text-[28px] font-light tracking-[0.2px] mb-2">Messages</h2>
+            <h2 className="text-2xl font-light tracking-[0.2px] mb-2">Messages</h2>
             <p className="text-base text-muted-foreground max-w-xl">
               Configure your messaging assistant for SMS, WhatsApp, and other platforms
             </p>

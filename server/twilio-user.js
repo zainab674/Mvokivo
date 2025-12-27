@@ -29,7 +29,7 @@ twilioUserRouter.get('/mappings', async (req, res) => {
     const mappings = await PhoneNumber.find({
       user_id: userId,
       inbound_assistant_id: { $ne: null }
-    }).select('phone_sid number label status webhook_status inbound_assistant_id created_at');
+    }).select('phone_sid number label status webhook_status inbound_assistant_id outbound_trunk_id outbound_trunk_name created_at');
 
     // Map _id to id for frontend compatibility
     const mappedResults = mappings.map(m => ({
@@ -40,6 +40,8 @@ twilioUserRouter.get('/mappings', async (req, res) => {
       status: m.status,
       webhook_status: m.webhook_status,
       inbound_assistant_id: m.inbound_assistant_id,
+      outbound_trunk_id: m.outbound_trunk_id,
+      outbound_trunk_name: m.outbound_trunk_name,
       created_at: m.created_at
     }));
 

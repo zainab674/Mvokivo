@@ -4,6 +4,7 @@ import { authenticateToken as requireAuth } from '../utils/auth.js';
 import multer from 'multer';
 import fs from 'fs';
 import emailService from '../services/email-service.js';
+import { checkPlanLimit } from '../utils/plan-limits.js';
 
 const router = express.Router();
 
@@ -45,6 +46,14 @@ router.get('/', requireAuth, async (req, res) => {
 // POST /api/v1/email-campaigns
 router.post('/', requireAuth, upload.single('attachment'), async (req, res) => {
     try {
+        const userId = req.user.id;
+
+        // Check plan limits
+        const limitCheck = await checkPlanLimit(userId, 'email_campaign');
+        if (!limitCheck.allowed) {
+            return res.status(403).json({ success: false, message: limitCheck.message });
+        }
+
         const {
             name,
             assistantId,

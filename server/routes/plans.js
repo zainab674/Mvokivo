@@ -60,7 +60,10 @@ router.get('/', async (req, res) => {
             payAsYouGo: p.pay_as_you_go ?? false,
             features: p.features || [],
             whitelabelEnabled: p.whitelabel_enabled,
-            variantId: p.variant_id
+            variantId: p.variant_id,
+            maxAssistants: p.max_assistants,
+            maxEmailCampaigns: p.max_email_campaigns,
+            maxCallCampaigns: p.max_call_campaigns
         }));
 
         res.json({
@@ -79,7 +82,11 @@ router.get('/', async (req, res) => {
  */
 router.post('/', authenticateToken, validateAdminAccess, async (req, res) => {
     try {
-        const { plan_key, name, price, minutes, pay_as_you_go, features, whitelabel_enabled, tenant, variant_id } = req.body;
+        const {
+            plan_key, name, price, minutes, pay_as_you_go, features,
+            whitelabel_enabled, tenant, variant_id,
+            max_assistants, max_email_campaigns, max_call_campaigns
+        } = req.body;
 
         if (!plan_key || !name || price === undefined) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
@@ -111,6 +118,9 @@ router.post('/', authenticateToken, validateAdminAccess, async (req, res) => {
             whitelabel_enabled: whitelabel_enabled || false,
             variant_id,
             tenant: targetTenant,
+            max_assistants,
+            max_email_campaigns,
+            max_call_campaigns,
             is_active: true,
             display_order: 0 // Default
         });
@@ -154,6 +164,9 @@ router.put('/:key', authenticateToken, validateAdminAccess, async (req, res) => 
         if (updates.whitelabel_enabled !== undefined) plan.whitelabel_enabled = updates.whitelabel_enabled;
         if (updates.variant_id !== undefined) plan.variant_id = updates.variant_id;
         if (updates.is_active !== undefined) plan.is_active = updates.is_active;
+        if (updates.max_assistants !== undefined) plan.max_assistants = updates.max_assistants;
+        if (updates.max_email_campaigns !== undefined) plan.max_email_campaigns = updates.max_email_campaigns;
+        if (updates.max_call_campaigns !== undefined) plan.max_call_campaigns = updates.max_call_campaigns;
 
         await plan.save();
 

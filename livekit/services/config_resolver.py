@@ -47,7 +47,14 @@ class ConfigResolver:
                 if assistant_id:
                     return await self._get_assistant_by_id(assistant_id)
                 else:
-                    logger.error("WEB_NO_ASSISTANT_ID | could not find assistantId in metadata")
+                    logger.warning("WEB_NO_ASSISTANT_ID | could not find assistantId in metadata | attempting DID fallback")
+                    # Fallback to DID lookup for web calls if they look like they have a DID
+                    called_did = extract_did_from_room(ctx.room.name)
+                    if called_did:
+                        logger.info(f"WEB_DID_FALLBACK | found DID={called_did} | looking up assistant")
+                        return await self._get_assistant_by_phone(called_did)
+                    
+                    logger.error("WEB_NO_ASSISTANT_ID | could not find assistantId or DID in room")
                     return None
             
             metadata = ctx.job.metadata
@@ -78,8 +85,24 @@ class ConfigResolver:
                     return None
 
             # For regular inbound calls, get the called number (DID) to look up assistant
-            called_did = dial_info.get("called_number") or dial_info.get("to_number") or dial_info.get("phoneNumber")
-            logger.info(f"INBOUND_METADATA_CHECK | metadata={metadata} | called_did={called_did}")
+            called_did = (
+                dial_info.get("called_number") or 
+                dial_info.get("to_number") or 
+                dial_info.get("phoneNumber") or
+                dial_info.get("participantAttributes", {}).get("sip.trunkPhoneNumber") or
+                dial_info.get("sip.trunkPhoneNumber")
+            )
+            
+            # Special check for toUri if dial_info is the raw JSON from the user
+            if not called_did and "toUri" in dial_info:
+                to_uri = dial_info.get("toUri")
+                if isinstance(to_uri, dict):
+                    called_did = to_uri.get("user")
+                elif isinstance(to_uri, str) and ":" in to_uri:
+                    # Handle sip:user@host format
+                    called_did = to_uri.split(":")[1].split("@")[0]
+            
+            logger.info(f"INBOUND_METADATA_CHECK | metadata_keys={list(dial_info.keys())} | called_did={called_did}")
 
             # Fallback to room name extraction if not found in metadata
             if not called_did:

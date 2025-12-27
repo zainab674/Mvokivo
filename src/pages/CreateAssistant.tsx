@@ -28,7 +28,7 @@ import { EmailTab } from "@/components/assistants/wizard/EmailTab";
 import { AssistantFormData } from "@/components/assistants/wizard/types";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { BACKEND_URL } from "@/lib/api-config";
-import { FlowPreview } from "@/components/assistants/wizard/FlowPreview";
+
 import { AdvancedTab } from "@/components/assistants/wizard/AdvancedTab";
 import { WorkflowTab } from "@/components/assistants/wizard/WorkflowTab";
 
@@ -452,7 +452,10 @@ const CreateAssistant = () => {
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) throw new Error(`Failed to save assistant`);
+      const responseData = await response.json();
+      if (!response.ok) {
+        throw new Error(responseData.message || `Failed to save assistant`);
+      }
       toast({ title: isEditing ? 'Assistant updated' : 'Assistant created' });
       navigate('/assistants');
     } catch (e: any) {
@@ -546,8 +549,8 @@ const CreateAssistant = () => {
 
           {/* Main Content Area */}
           <div className="flex flex-1 overflow-hidden bg-[#fbfcfd] dark:bg-zinc-950/40">
-            <div className="flex-1 flex flex-col min-w-0 border-r border-border/40">
-              <div className="flex-1 overflow-y-auto p-0 sm:p-8">
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 overflow-y-auto p-0 sm:p-6">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-24">
                     <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-primary" />
@@ -561,7 +564,7 @@ const CreateAssistant = () => {
                       animate="animate"
                       exit="exit"
                       transition={{ duration: 0.2 }}
-                      className="max-w-4xl mx-auto space-y-6 sm:space-y-8"
+                      className="max-w-7xl mx-auto space-y-6 sm:space-y-8"
                     >
                       {activeTab === "details" && (
                         <div className="space-y-6 sm:space-y-8">
@@ -598,7 +601,7 @@ const CreateAssistant = () => {
 
               {/* Footer Actions */}
               <div className="border-t border-border/40 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm p-4 px-4 sm:px-8">
-                <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
                     <Button
                       variant="outline"
@@ -649,10 +652,7 @@ const CreateAssistant = () => {
                 </div>
               </div>
             </div>
-            {/* Preview Sidebar (Desktop Only) */}
-            <div className="hidden lg:flex w-[400px] xl:w-[500px] bg-white dark:bg-zinc-900/10 flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-6 xl:p-8"><FlowPreview formData={formData} /></div>
-            </div>
+
           </div>
         </div>
       </ThemeContainer>

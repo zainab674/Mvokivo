@@ -735,6 +735,11 @@ class CallHandler:
                     return "web"
                 if job_metadata.get("assistantId") or job_metadata.get("assistant_id"):
                     return "inbound_with_assistant"
+                
+                # Detect SIP calls, even if room name starts with 'assistant-' or 'web-'
+                sip_keys = ["trunkId", "dispatchRuleId", "callId", "trunk_id", "dispatch_rule_id", "call_id", "participantAttributes"]
+                if any(k in job_metadata for k in sip_keys):
+                    return "inbound"
             except (json.JSONDecodeError, KeyError):
                 pass
         

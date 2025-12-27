@@ -11,14 +11,11 @@ const featureItems = [
     { icon: Users, label: 'AI Lead Qualification' },
     { icon: BarChart3, label: 'Conversation Intelligence' },
     { icon: Target, label: 'Lead Routing & Assignment' },
-    { icon: Wifi, label: 'Number Health & Reachability' },
     { icon: ListFilter, label: 'Intelligent Call Queues' },
     { icon: MessageSquare, label: 'Automated Messages & Emails' },
     { icon: Eye, label: 'Live Call Monitoring' },
-    { icon: ShieldAlert, label: 'Spam & Risk Detection' },
-    { icon: Activity, label: 'Voicemail Detection' },
     { icon: FileText, label: 'Custom Reports & Logs' },
-    { icon: Share2, label: 'CRM & Tool Integrations' },
+    { icon: Share2, label: ' Tool Integrations' },
 ];
 
 

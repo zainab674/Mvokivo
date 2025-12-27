@@ -12,37 +12,59 @@ export default function Pricing() {
   // Map plan configs to pricing page format
   const plans = [
     {
-      name: PLAN_CONFIGS.starter.name,
-      price: `$${PLAN_CONFIGS.starter.price}`,
+      name: PLAN_CONFIGS.free.name,
+      price: "$0",
       period: "/month",
-      description: "Perfect for small businesses getting started with AI voice agents",
-      features: PLAN_CONFIGS.starter.features,
-      roi: "$2,500",
-      roiLabel: "Monthly ROI",
+      description: PLAN_CONFIGS.free.description,
+      features: PLAN_CONFIGS.free.features,
+      target: PLAN_CONFIGS.free.target,
       popular: false,
-      color: "from-blue-500/20"
+      color: "from-slate-500/10",
+      icon: "⚪"
     },
     {
-      name: PLAN_CONFIGS.professional.name,
-      price: `$${PLAN_CONFIGS.professional.price}`,
+      name: PLAN_CONFIGS.starter.name,
+      price: "$29",
       period: "/month",
-      description: "Advanced features for growing teams that need more power",
-      features: PLAN_CONFIGS.professional.features,
-      roi: "$8,500",
-      roiLabel: "Monthly ROI",
+      description: PLAN_CONFIGS.starter.description,
+      features: PLAN_CONFIGS.starter.features,
+      target: PLAN_CONFIGS.starter.target,
+      popular: false,
+      color: "from-green-500/10",
+      icon: "🟢"
+    },
+    {
+      name: PLAN_CONFIGS.growth.name,
+      price: "$79",
+      period: "/month",
+      description: PLAN_CONFIGS.growth.description,
+      features: PLAN_CONFIGS.growth.features,
+      target: PLAN_CONFIGS.growth.target,
       popular: true,
-      color: "from-pink-500/20"
+      color: "from-blue-500/20",
+      icon: "🔵"
+    },
+    {
+      name: PLAN_CONFIGS.pro.name,
+      price: "$149",
+      period: "/month",
+      description: PLAN_CONFIGS.pro.description,
+      features: PLAN_CONFIGS.pro.features,
+      target: PLAN_CONFIGS.pro.target,
+      popular: false,
+      color: "from-purple-500/20",
+      icon: "🟣"
     },
     {
       name: PLAN_CONFIGS.enterprise.name,
       price: "Custom",
       period: "",
-      description: "Tailored solutions for large organizations with custom needs",
+      description: PLAN_CONFIGS.enterprise.description,
       features: PLAN_CONFIGS.enterprise.features,
-      roi: "$50,000+",
-      roiLabel: "Monthly ROI",
+      target: PLAN_CONFIGS.enterprise.target,
       popular: false,
-      color: "from-purple-500/20"
+      color: "from-red-500/20",
+      icon: "🔴"
     }
   ];
 
@@ -72,65 +94,73 @@ export default function Pricing() {
 
       {/* Pricing Section */}
       <div className="py-24 px-6 relative">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-24">
+        <div className="max-w-7xl mx-auto">
           {/* Pricing Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-32">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 mb-20 items-stretch">
             {plans.map((plan, index) => (
               <div
                 key={index}
-                className={`group relative bg-[#0a0b12] rounded-[3rem] border transition-all duration-500 overflow-hidden flex flex-col ${plan.popular ? 'border-pink-500/50 scale-105 shadow-[0_0_50px_rgba(236,72,153,0.15)] z-20' : 'border-white/5 hover:border-white/10 shadow-2xl'}`}
+                className={`group relative bg-[#0a0b12] rounded-[2.5rem] border transition-all duration-500 overflow-hidden flex flex-col ${plan.popular ? 'border-pink-500/50 shadow-[0_0_50px_rgba(236,72,153,0.15)] z-20 scale-105' : 'border-white/5 hover:border-white/10 shadow-2xl'}`}
               >
                 <div className={`absolute inset-0 bg-gradient-to-b ${plan.color} to-transparent opacity-30 group-hover:opacity-50 transition-opacity`}></div>
 
-                <div className="p-10 relative z-10 flex-grow flex flex-col">
+                <div className="p-8 relative z-10 flex-grow flex flex-col">
                   {plan.popular && (
-                    <div className="absolute top-6 right-6">
-                      <div className="px-3 py-1 bg-pink-500 text-white text-[10px] font-mono font-bold uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(236,72,153,0.5)]">
-                        Active Peak
+                    <div className="absolute top-4 right-6">
+                      <div className="px-2 py-0.5 bg-pink-500 text-white text-[8px] font-mono font-bold uppercase tracking-widest rounded-full shadow-[0_0_15px_rgba(236,72,153,0.5)]">
+                        POPULAR
                       </div>
                     </div>
                   )}
 
-                  <div className="mb-10">
-                    <h3 className="text-sm font-mono text-white/30 tracking-[0.3em] uppercase mb-4">{plan.name}</h3>
-                    <div className="flex items-baseline gap-2 mb-4">
-                      <span className="text-5xl font-bold tracking-tighter text-white">{plan.price}</span>
-                      <span className="text-sm font-mono text-white/20 tracking-widest uppercase">{plan.period}</span>
+                  <div className="mb-6">
+                    <div className="text-2xl mb-2">{plan.icon}</div>
+                    <h3 className="text-xs font-mono text-white/30 tracking-[0.2em] uppercase mb-3">{plan.name}</h3>
+                    <div className="flex items-baseline gap-1 mb-2">
+                      <span className="text-3xl font-bold tracking-tighter text-white">{plan.price}</span>
+                      <span className="text-[10px] font-mono text-white/20 tracking-widest uppercase">{plan.period}</span>
                     </div>
-                    <p className="text-sm text-white/40 leading-relaxed font-light">{plan.description}</p>
+                    <p className="text-[10px] text-white/40 leading-relaxed font-light line-clamp-2 h-8">{plan.description}</p>
                   </div>
 
-                  <div className="mb-10 py-3 px-4 bg-white/5 rounded-2xl border border-white/5 inline-self-start">
-                    <div className="text-[10px] font-mono text-pink-500 tracking-widest uppercase mb-1">Impact Analytics</div>
-                    <div className="text-lg font-bold text-white">{plan.roi} / {plan.roiLabel}</div>
-                  </div>
-
-                  <div className="space-y-4 mb-12 flex-grow">
-                    <div className="text-[10px] font-mono text-white/20 tracking-widest uppercase mb-6">Core Modules</div>
+                  <div className="space-y-3 mb-8 flex-grow">
+                    <div className="text-[9px] font-mono text-white/20 tracking-widest uppercase mb-4">Features</div>
                     {plan.features.map((feature, featureIndex) => (
-                      <div key={featureIndex} className="flex items-start gap-4 group/item">
-                        <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-pink-500/40 group-hover/item:bg-pink-500 transition-colors" />
-                        <span className="text-xs text-white/50 group-hover/item:text-white/80 transition-colors font-light tracking-wide">{feature}</span>
+                      <div key={featureIndex} className="flex items-start gap-3 group/item">
+                        <div className="mt-1 w-1 h-1 rounded-full bg-pink-500/40 group-hover/item:bg-pink-500 transition-colors shrink-0" />
+                        <span className="text-[10px] text-white/50 group-hover/item:text-white/80 transition-colors font-light tracking-wide leading-tight">{feature}</span>
                       </div>
                     ))}
                   </div>
 
+                  <div className="mb-8 pt-4 border-t border-white/5">
+                    <div className="text-[8px] font-mono text-pink-500 tracking-widest uppercase mb-1">Target</div>
+                    <div className="text-xs font-bold text-white/70">🎯 {plan.target}</div>
+                  </div>
+
                   <Link
                     to="/signup"
-                    className={`w-full py-5 rounded-[2rem] font-bold font-mono text-xs tracking-[0.2em] transition-all text-center uppercase ${plan.popular
-                      ? 'bg-pink-500 text-white shadow-[0_0_30px_rgba(236,72,153,0.3)] hover:bg-pink-600 hover:shadow-[0_0_40px_rgba(236,72,153,0.5)]'
+                    className={`w-full py-4 rounded-2xl font-bold font-mono text-[10px] tracking-[0.2em] transition-all text-center uppercase ${plan.popular
+                      ? 'bg-pink-500 text-white shadow-[0_0_30px_rgba(236,72,153,0.3)] hover:bg-pink-600'
                       : 'bg-white/5 text-white border border-white/10 hover:bg-white/10 hover:border-white/20'
                       }`}
                   >
-                    {plan.price === "Custom" ? "Contact Terminal" : "Initialize Node ↗"}
+                    {plan.price === "Custom" ? "Contact Sales" : "Get Started ↗"}
                   </Link>
                 </div>
               </div>
             ))}
           </div>
 
+          {/* Smart Website Copy */}
+          <div className="text-center mb-32 max-w-3xl mx-auto px-6 bg-white/5 border border-white/5 py-8 rounded-3xl backdrop-blur-sm">
+            <p className="text-white/60 text-sm md:text-base font-light leading-relaxed">
+              “Voice usage is billed per minute. Premium voices are available from the <span className="text-blue-400 font-medium">Growth plan</span> onwards. Enterprise plans offer custom pricing and full white-label support.”
+            </p>
+          </div>
+
           {/* Value Props */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-32">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-32 lg:px-24">
             {[
               { icon: Zap, title: "INSTANT DEPLOY", desc: "No manual routing. Our neural stack integrates with your communication endpoints in sub-second cycles." },
               { icon: Crown, title: "ELITE SECURITY", desc: "Zero-knowledge encryption for all voice telemetry and CRM synchronization data packets." },
@@ -149,9 +179,9 @@ export default function Pricing() {
       </div>
 
       {/* CTA Section */}
-      <div className="py-32 relative border-t border-white/5 overflow-hidden">
+      <div className="py-32 relative border-t border-white/5 overflow-hidden text-center">
         <div className="absolute inset-0 bg-pink-500/[0.02] pointer-events-none"></div>
-        <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
+        <div className="max-w-4xl mx-auto px-6 relative z-10">
           <h2 className="text-5xl md:text-7xl font-bold mb-8 tracking-tighter text-white">
             INITIALIZE YOUR <br />
             <span className="text-white/20">NEURAL STACK</span>
@@ -172,4 +202,3 @@ export default function Pricing() {
     </div>
   );
 }
-

@@ -271,7 +271,10 @@ const AdminPanel = () => {
           payAsYouGo: plan.payAsYouGo ?? false,
           features: [...plan.features],
           whitelabelEnabled: plan.whitelabelEnabled ?? false,
-          variantId: plan.variantId
+          variantId: plan.variantId,
+          maxAssistants: plan.maxAssistants,
+          maxEmailCampaigns: plan.maxEmailCampaigns,
+          maxCallCampaigns: plan.maxCallCampaigns
         });
       }
     } else {
@@ -285,7 +288,10 @@ const AdminPanel = () => {
         payAsYouGo: false,
         features: [],
         whitelabelEnabled: false,
-        variantId: ''
+        variantId: '',
+        maxAssistants: 0,
+        maxEmailCampaigns: 0,
+        maxCallCampaigns: 0
       });
     }
 
@@ -327,7 +333,10 @@ const AdminPanel = () => {
         pay_as_you_go: editPlanData.payAsYouGo ?? false,
         features: (editPlanData.features || []).filter(f => f.trim()),
         whitelabel_enabled: editPlanData.whitelabelEnabled,
-        variant_id: editPlanData.variantId
+        variant_id: editPlanData.variantId,
+        max_assistants: editPlanData.maxAssistants,
+        max_email_campaigns: editPlanData.maxEmailCampaigns,
+        max_call_campaigns: editPlanData.maxCallCampaigns
       };
 
       const isUpdate = !!editingPlanKey;
@@ -1550,6 +1559,45 @@ const AdminPanel = () => {
                       Number of included minutes per month. Leave empty or set to 0 for unlimited. Additional minutes can be purchased separately.
                     </p>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="max-assistants">Max Assistants</Label>
+                      <Input
+                        id="max-assistants"
+                        type="number"
+                        min={0}
+                        value={editPlanData.maxAssistants ?? ''}
+                        onChange={(e) => setEditPlanData({ ...editPlanData, maxAssistants: e.target.value ? Number(e.target.value) : undefined })}
+                        placeholder="Unlimited"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-email-campaigns">Max Email Camp.</Label>
+                      <Input
+                        id="max-email-campaigns"
+                        type="number"
+                        min={0}
+                        value={editPlanData.maxEmailCampaigns ?? ''}
+                        onChange={(e) => setEditPlanData({ ...editPlanData, maxEmailCampaigns: e.target.value ? Number(e.target.value) : undefined })}
+                        placeholder="Unlimited"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max-call-campaigns">Max Call Camp.</Label>
+                      <Input
+                        id="max-call-campaigns"
+                        type="number"
+                        min={0}
+                        value={editPlanData.maxCallCampaigns ?? ''}
+                        onChange={(e) => setEditPlanData({ ...editPlanData, maxCallCampaigns: e.target.value ? Number(e.target.value) : undefined })}
+                        placeholder="Unlimited"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground -mt-2">
+                    Set to 0 or leave empty for unlimited.
+                  </p>
 
                   <div className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/10 p-4">
                     <div>

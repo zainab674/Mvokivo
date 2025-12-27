@@ -35,6 +35,7 @@ import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Logo } from "@/components/Logo";
 
 
 interface SidebarContentProps {
@@ -87,24 +88,24 @@ export function SidebarContent({
         <div className="flex flex-col h-full">
             {/* Logo/Brand Area */}
             <div className="p-4 border-b border-[#1e1e20]">
-                {collapsed ? (
-                    <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 mx-auto">
-                        <Sparkles className="h-5 w-5 text-white" />
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-between p-2 rounded-xl hover:bg-zinc-800/50 transition-colors cursor-pointer group">
-                        <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
-                                <Bot className="h-5 w-5 text-white" />
-                            </div>
-                            <div className="flex flex-col">
-                                <h1 className="text-[20px] text-zinc-200 font-medium tracking-tight">
-                                    {websiteSettings?.website_name || "Vokivo"}
-                                </h1>
+                <Link to="/" onClick={onClose} className="block">
+                    {collapsed ? (
+                        <div className="flex items-center justify-center py-2 hover:bg-zinc-800/50 rounded-xl transition-colors">
+                            <Logo size="md" />
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between p-2 rounded-xl hover:bg-zinc-800/50 transition-colors cursor-pointer group">
+                            <div className="flex items-center gap-3">
+                                <Logo size="sm" />
+                                <div className="flex flex-col">
+                                    <h1 className="text-[20px] text-zinc-200 font-medium tracking-tight">
+                                        {websiteSettings?.website_name || "Vokivo"}
+                                    </h1>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </Link>
             </div>
 
             {/* Navigation Items */}

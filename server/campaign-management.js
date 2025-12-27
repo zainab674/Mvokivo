@@ -6,6 +6,7 @@ import { createLiveKitRoomTwiml } from './utils/livekit-room-helper.js';
 import { applyTenantFilterFromRequest } from './utils/applyTenantFilterToQuery.js';
 
 import { authenticateToken } from './utils/auth.js';
+import { checkPlanLimit } from './utils/plan-limits.js';
 
 export const campaignManagementRouter = express.Router();
 
@@ -58,6 +59,13 @@ campaignManagementRouter.get('/', async (req, res) => {
 campaignManagementRouter.post('/', async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // Check plan limits
+    const limitCheck = await checkPlanLimit(userId, 'call_campaign');
+    if (!limitCheck.allowed) {
+      return res.status(403).json({ success: false, message: limitCheck.message });
+    }
+
     const data = req.body;
 
     // Ensure the user owns the assistant? (Ideally yes, but skipped for brevity/trust)

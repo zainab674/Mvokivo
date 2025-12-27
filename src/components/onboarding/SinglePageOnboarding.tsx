@@ -294,7 +294,10 @@ export function SinglePageOnboarding() {
             const allPlanConfigs = await getPlanConfigs(tenantSlug);
             const planConfig = allPlanConfigs[values.plan];
 
-            if (planConfig && planConfig.price > 0 && planConfig.variantId) {
+            const hasPrice = planConfig && (Number(planConfig.price) > 0 || planConfig.price === 'Custom');
+            const hasVariantId = !!(planConfig && planConfig.variantId && planConfig.variantId.trim());
+
+            if (hasPrice && hasVariantId) {
                 // Redirect to Lemon Squeezy Checkout
                 toast({
                     title: "Redirecting to Payment",
@@ -330,11 +333,8 @@ export function SinglePageOnboarding() {
                     throw new Error("No checkout URL returned");
                 }
             } else {
-                if (isNewUser) {
-                    setTimeout(() => navigate("/login"), 1000);
-                } else {
-                    navigate("/dashboard");
-                }
+                // If no payment needed or no variant ID, navigate to login
+                setTimeout(() => navigate("/login"), 1000);
             }
 
         } catch (error: any) {

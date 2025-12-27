@@ -18,13 +18,7 @@ const tabs = [
         description:
             'Autonomous TCPA and DNC filtering across all dialer sessions, ensuring every outbound campaign remains within legal safety parameters.',
     },
-    {
-        id: 'crm',
-        label: 'CRM SYNCRONIZATION',
-        title: 'Deep CRM Integration',
-        description:
-            'Live-streaming session data across your platform. Store call telemetry, intent logs, and conversion data in a centralized nerve center.',
-    },
+
     {
         id: 'analytics',
         label: 'SPEECH INTELLIGENCE',

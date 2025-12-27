@@ -54,8 +54,8 @@ def extract_name_from_summary(summary: str) -> Optional[str]:
 def extract_did_from_room(room_name: str) -> Optional[str]:
     """Extract DID (phone number) from room name for inbound calls."""
     try:
-        # Handle patterns like "inbound-_+12017656193_tVG5An7aEcnF"
-        if room_name.startswith("inbound-"):
+        # Handle patterns like "inbound-_+12017656193_tVG5An7aEcnF" or "assistant-_+923091042020_qNLXssGs95Fy"
+        if room_name.startswith("inbound-") or room_name.startswith("assistant-"):
             parts = room_name.split("_")
             if len(parts) >= 2:
                 did_part = parts[1]

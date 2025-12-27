@@ -2,6 +2,7 @@ import express from 'express';
 import { Assistant, PhoneNumber } from '../models/index.js';
 import { authenticateToken } from '../utils/auth.js';
 import { v4 as uuidv4 } from 'uuid';
+import { checkPlanLimit } from '../utils/plan-limits.js';
 
 const router = express.Router();
 
@@ -67,6 +68,13 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
+
+        // Check plan limits
+        const limitCheck = await checkPlanLimit(userId, 'assistant');
+        if (!limitCheck.allowed) {
+            return res.status(403).json({ success: false, message: limitCheck.message });
+        }
+
         const payload = req.body;
 
         // Ensure ID is generated if not provided
