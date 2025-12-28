@@ -472,7 +472,7 @@ export default function PremiumDashboard({
                         {callLogs.length > 0 ? callLogs.slice(0, 5).map((log, idx) => (
                             <WhatsNewItem
                                 key={idx}
-                                title={log.name || log.phoneNumber || "Anonymous Call"}
+                                title={log.name || log.phoneNumber || "Web Call"}
                                 description={log.resolution || "Inbound call processed by AI agent. Outcome: Successful resolution."}
                                 date={new Date(log.created_at || log.started_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                             />

@@ -3,7 +3,7 @@ import { format, parseISO } from "date-fns";
 
 export const formatPhoneNumber = (phone?: string): string => {
   // Handle undefined, null or empty phone numbers
-  if (!phone) return 'Web Call';
+  if (!phone || phone.toLowerCase() === 'unknown') return 'Web Call';
 
 
   // Remove any non-digit characters except + at the beginning
@@ -66,5 +66,5 @@ export const getCustomerName = (call: any): string => {
   if (call.contact_name) {
     return call.contact_name;
   }
-  return 'Unknown';
+  return 'Web Call';
 };

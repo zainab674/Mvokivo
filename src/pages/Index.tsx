@@ -149,11 +149,13 @@ export default function Index() {
 
       return {
         id: call.id,
-        name: call.participant_identity || call.phone_number || 'Web Call',
+        name: (call.participant_identity && call.participant_identity.toLowerCase() !== 'unknown')
+          ? call.participant_identity
+          : (call.phone_number && call.phone_number.toLowerCase() !== 'unknown' ? call.phone_number : 'Web Call'),
 
-        phoneNumber: call.phone_number || '',
-        date: new Date(call.start_time).toLocaleDateString('en-US'),
-        time: new Date(call.start_time).toLocaleTimeString('en-US', {
+        phoneNumber: (call.phone_number && call.phone_number.toLowerCase() !== 'unknown') ? call.phone_number : '',
+        date: new Date(call.start_time || call.created_at || Date.now()).toLocaleDateString('en-US'),
+        time: new Date(call.start_time || call.created_at || Date.now()).toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
           hour12: true
@@ -173,7 +175,7 @@ export default function Index() {
         phone_number: call.phone_number || '',
         call_outcome: getCallOutcome(call.transcription),
         call_duration: call.call_duration || 0,
-        created_at: call.start_time,
+        created_at: call.start_time || call.created_at || new Date().toISOString(),
         assistantId: call.assistant_id
       };
 

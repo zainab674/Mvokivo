@@ -42,9 +42,9 @@ export const fetchCalls = async () => {
           first_name: call.first_name || '',
           last_name: call.last_name || '',
           name:
-            (call.first_name && call.first_name !== "NA" && call.first_name !== "Unknown") || (call.last_name && call.last_name !== "NA")
+            (call.first_name && call.first_name !== "NA" && call.first_name.toLowerCase() !== "unknown") || (call.last_name && call.last_name !== "NA")
               ? [call.first_name, call.last_name].filter(Boolean).join(" ")
-              : (call.first_name || "Unknown"), // Fallback
+              : (call.phone_number && call.phone_number.toLowerCase() !== "unknown" ? call.phone_number : "Web Call"),
           phoneNumber: call.phone_number || '',
           date: call.created_at ? format(new Date(call.created_at), 'yyyy-MM-dd') : '',
           time: call.created_at ? format(new Date(call.created_at), 'HH:mm') : '',

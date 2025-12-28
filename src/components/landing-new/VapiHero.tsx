@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
-import { PhoneOff, Loader2 } from "lucide-react";
+import { PhoneOff, Loader2, Mic, MicOff } from "lucide-react";
 import { createLivekitToken } from "@/lib/api/apiService";
 import {
     LiveKitRoom,
@@ -214,9 +214,9 @@ const BackgroundDecorations = () => (
 
 
 const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
-    const { localParticipant } = useLocalParticipant();
+    const { localParticipant, isMicrophoneEnabled } = useLocalParticipant();
     const tracks = useTracks([Track.Source.Microphone]);
-    const isMicEnabled = localParticipant?.isMicrophoneEnabled;
+    const isMicEnabled = isMicrophoneEnabled;
 
     useEffect(() => {
         localParticipant?.setMicrophoneEnabled(true).catch(console.error);
@@ -224,7 +224,17 @@ const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
 
     return (
         <div className="flex flex-col items-center gap-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
+                <Button
+                    onClick={() => localParticipant?.setMicrophoneEnabled(!isMicEnabled)}
+                    className={`rounded-full w-16 h-16 transition-all duration-300 hover:scale-110 ${isMicEnabled
+                            ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                            : "bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/20"
+                        }`}
+                >
+                    {isMicEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
+                </Button>
+
                 <Button
                     onClick={onDisconnect}
                     variant="destructive"
@@ -233,7 +243,9 @@ const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
                     <PhoneOff className="w-8 h-8" />
                 </Button>
             </div>
-            <p className="text-white/60 text-sm font-mono animate-pulse">LIVE CONVERSATION...</p>
+            <p className="text-white/60 text-sm font-mono animate-pulse uppercase tracking-widest">
+                {isMicEnabled ? "Listening..." : "Microphone Muted"}
+            </p>
         </div>
     );
 };
@@ -356,6 +368,7 @@ export const VapiHero = () => {
                                 serverUrl={serverUrl}
                                 token={token}
                                 connect={true}
+                                audio={true}
                                 onDisconnected={handleDisconnect}
                             >
                                 <RoomAudioRenderer />
