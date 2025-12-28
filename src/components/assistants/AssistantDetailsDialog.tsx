@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Phone, Users, TrendingUp, Settings, Play, Edit2, Calendar } from "lucide-react";
+import { Phone, Users, TrendingUp, Settings, Play, Edit2, Calendar, Share2, Copy, Check } from "lucide-react";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { BACKEND_URL } from "@/lib/api-config";
 import {
@@ -69,8 +69,19 @@ interface AssistantDetailsDialogProps {
 export function AssistantDetailsDialog({ assistant, isOpen, onClose }: AssistantDetailsDialogProps) {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const { user, getAccessToken } = useAuth();
   const navigate = useNavigate();
+
+  const shareUrl = assistant ? `${window.location.origin}/agent/${assistant.id}` : "";
+  const embedCode = assistant ? `<iframe src="${shareUrl}" width="100%" height="600px" style="border:none; border-radius:12px;" allow="microphone"></iframe>` : "";
+
+  const copyToClipboard = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(type);
+    setTimeout(() => setCopied(null), 2000);
+  };
 
   const handleStartCall = () => {
     navigate(`/voiceagent?assistantId=${assistant.id}`);
@@ -160,6 +171,15 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsShareOpen(true)}
+                  className="gap-2 border-primary/20 hover:bg-primary/10"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -334,6 +354,52 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
           </div>
         </div>
       </ThemedDialogContent>
+
+      <ThemedDialog open={isShareOpen} onOpenChange={setIsShareOpen}>
+        <ThemedDialogContent className="max-w-md">
+          <ThemedDialogHeader
+            title="Share Assistant"
+            description="Share this link or embed the agent on your website."
+          />
+          <div className="space-y-6 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-400">Public Link</label>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm text-zinc-300 truncate">
+                  {shareUrl}
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => copyToClipboard(shareUrl, 'link')}
+                >
+                  {copied === 'link' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-400">Embed Code (Iframe)</label>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-zinc-900 border border-zinc-800 rounded-md px-3 py-2 text-sm text-zinc-300 font-mono h-20 overflow-y-auto break-all">
+                  {embedCode}
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => copyToClipboard(embedCode, 'embed')}
+                >
+                  {copied === 'embed' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-zinc-500 italic">
+              Note: The assistant must have its LLM and Voice settings configured properly to work.
+            </p>
+          </div>
+        </ThemedDialogContent>
+      </ThemedDialog>
     </ThemedDialog>
   );
 }

@@ -30,6 +30,54 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 /**
+ * Get single assistant by ID (Public)
+ * GET /api/v1/assistants/public/:id
+ */
+router.get('/public/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        let assistant = await Assistant.findOne({ id: id });
+
+        if (!assistant) {
+            // Fallback to check by _id
+            assistant = await Assistant.findOne({ _id: id });
+            if (!assistant) {
+                return res.status(404).json({ success: false, message: 'Assistant not found' });
+            }
+        }
+
+        // Return only necessary public info
+        res.json({
+            success: true,
+            data: {
+                id: assistant.id,
+                name: assistant.name,
+                prompt: assistant.prompt,
+                first_message: assistant.first_message,
+                llm_provider_setting: assistant.llm_provider_setting,
+                llm_model_setting: assistant.llm_model_setting,
+                voice_provider_setting: assistant.voice_provider_setting,
+                voice_model_setting: assistant.voice_model_setting,
+                voice_name_setting: assistant.voice_name_setting,
+                temperature_setting: assistant.temperature_setting,
+                max_token_setting: assistant.max_token_setting,
+                background_sound_setting: assistant.background_sound_setting,
+                wait_seconds: assistant.wait_seconds,
+                smart_endpointing: assistant.smart_endpointing,
+                cal_api_key: assistant.cal_api_key,
+                cal_event_type_id: assistant.cal_event_type_id,
+                cal_event_type_slug: assistant.cal_event_type_slug,
+                cal_timezone: assistant.cal_timezone,
+            }
+        });
+    } catch (err) {
+        console.error('Error fetching public assistant:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch assistant' });
+    }
+});
+
+/**
  * Get single assistant by ID
  * GET /api/v1/assistants/:id
  */

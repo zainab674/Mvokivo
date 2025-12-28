@@ -36,6 +36,7 @@ import TermsOfService from "./pages/TermsOfService";
 import Pricing from "./pages/Pricing";
 import Emails from "./pages/Emails";
 import EmailCampaigns from "./pages/EmailCampaigns";
+import PublicAgent from "./pages/PublicAgent";
 import ScrollToTop from "./components/ScrollToTop";
 
 
@@ -156,6 +157,7 @@ function AnimatedRoutes() {
       <Route path="/refund" element={<RefundPolicy />} />
       <Route path="/terms" element={<TermsOfService />} />
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="/agent/:assistantId" element={<PublicAgent />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
