@@ -13,6 +13,7 @@ import {
     useTracks,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
+import { VoiceVisualizer } from "@/components/voice/VoiceVisualizer";
 
 
 const RobotHead = ({ delay, isTalking, tilt = 0, zIndex = 0, xOffset = 0 }: { delay: number; isTalking?: boolean; tilt?: number; zIndex?: number; xOffset?: number }) => {
@@ -228,8 +229,8 @@ const VoiceInterface = ({ onDisconnect }: { onDisconnect: () => void }) => {
                 <Button
                     onClick={() => localParticipant?.setMicrophoneEnabled(!isMicEnabled)}
                     className={`rounded-full w-16 h-16 transition-all duration-300 hover:scale-110 ${isMicEnabled
-                            ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
-                            : "bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/20"
+                        ? "bg-white/10 text-white hover:bg-white/20 border border-white/10"
+                        : "bg-red-500/20 text-red-500 hover:bg-red-500/30 border border-red-500/20"
                         }`}
                 >
                     {isMicEnabled ? <Mic className="w-6 h-6" /> : <MicOff className="w-6 h-6" />}
@@ -373,7 +374,11 @@ export const VapiHero = () => {
                             >
                                 <RoomAudioRenderer />
                                 <StartAudio label="Click to start listening" />
-                                <div className="h-24" />
+
+                                <div className="h-32 flex items-center justify-center w-full max-w-md mt-4">
+                                    <VoiceVisualizer className="h-20" />
+                                </div>
+
                                 <VoiceInterface onDisconnect={handleDisconnect} />
                             </LiveKitRoom>
                         </motion.div>

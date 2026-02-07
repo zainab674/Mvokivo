@@ -1,6 +1,8 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { PaymentMethod, Invoice, MinutesPurchase, CallHistory, SmsMessage, Assistant, User, PlanConfig, ContactList } from '../models/index.js';
 import { authenticateToken } from '../utils/auth.js';
+import { isUnlimitedMinutes, getMinutesBalance, getNextExpiration } from '../utils/minutes-helpers.js';
 
 const router = express.Router();
 
@@ -136,38 +138,70 @@ router.get('/usage', authenticateToken, async (req, res) => {
         }
 
         // 1. Minutes Balance
-        const minutesLimit = user.minutes_limit || 0;
+        const balance = await getMinutesBalance(userId);
+        const unlimited = isUnlimitedMinutes(user);
+        const remainingMinutes = unlimited ? null : balance;
+        const minutesLimit = unlimited ? 0 : balance;
         const minutesUsed = user.minutes_used || 0;
-        const remainingMinutes = Math.max(0, minutesLimit - minutesUsed);
+        const nextExpiration = await getNextExpiration(userId);
 
-        // 2. Assistants (for API calls and phone minutes calculation)
-        const assistants = await Assistant.find({ user_id: userId }).select('id');
-        const assistantIds = assistants.map(a => a.id);
+        // 2. Assistants — collect both custom id and _id so we match CallHistory (same as call-history route)
+        const assistants = await Assistant.find({ user_id: userId }).select('id _id');
+        const assistantIds = [];
+        assistants.forEach(a => {
+            if (a.id) assistantIds.push(String(a.id));
+            if (a._id) assistantIds.push(a._id.toString());
+        });
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const firstOfMonth = new Date(y, m, 1);
+        // ISO string range for same month (LiveKit may store dates as strings e.g. "2026-02-05T22:40:38.651326")
+        const pad = (n) => String(n).padStart(2, '0');
+        const monthStartStr = `${y}-${pad(m + 1)}-01`;
+        const monthEndStr = m === 11 ? `${y + 1}-01-01` : `${y}-${pad(m + 2)}-01`;
+        // Match BSON Date or ISO string for created_at/started_at so we count all web calls
+        const thisMonthFilter = {
+            $or: [
+                { created_at: { $gte: firstOfMonth } },
+                { started_at: { $gte: firstOfMonth } },
+                { created_at: { $gte: monthStartStr, $lt: monthEndStr } },
+                { started_at: { $gte: monthStartStr, $lt: monthEndStr } }
+            ]
+        };
+
+        // Count calls for this user this month: only where assistant belongs to this user (Assistant.user_id === userId)
+        const callHistoryForUser = {
+            $and: [
+                thisMonthFilter,
+                { assistant_id: { $in: assistantIds } }
+            ]
+        };
 
         // 3. API Calls (Call History count)
         const apiCallsCount = assistantIds.length > 0
-            ? await CallHistory.countDocuments({
-                assistant_id: { $in: assistantIds },
-                created_at: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } // This month
-            })
+            ? await CallHistory.countDocuments(callHistoryForUser)
             : 0;
 
-        // 4. Phone Minutes (sum of call_duration)
+        // 4. Phone Minutes (sum of call_duration) — only for assistants that belong to this user
         let phoneMinutesCount = 0;
         if (assistantIds.length > 0) {
-            const calls = await CallHistory.find({
-                assistant_id: { $in: assistantIds },
-                created_at: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) }
-            }).select('call_duration');
-
+            const calls = await CallHistory.find(callHistoryForUser).select('call_duration');
             const totalSeconds = calls.reduce((sum, call) => sum + (call.call_duration || 0), 0);
             phoneMinutesCount = Math.round(totalSeconds / 60);
         }
 
         // 5. Text Messages
         const textMessagesCount = await SmsMessage.countDocuments({
-            user_id: userId,
-            date_created: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) }
+            $and: [
+                { user_id: userId },
+                {
+                    $or: [
+                        { date_created: { $gte: firstOfMonth } },
+                        { date_created: { $gte: monthStartStr, $lt: monthEndStr } }
+                    ]
+                }
+            ]
         });
 
         // 6. Team Members (Stub for now, or count users with same tenant)
@@ -229,12 +263,15 @@ router.get('/usage', authenticateToken, async (req, res) => {
             nextBilling = nextBillingDate.toLocaleDateString();
         }
 
-        res.json({
+        const payload = {
             success: true,
             usage: {
                 minutesBalance: remainingMinutes,
                 minutesUsed: minutesUsed,
+                minutesUsedThisMonth: phoneMinutesCount,
                 minutesLimit: minutesLimit,
+                unlimitedMinutes: unlimited,
+                nextExpiration: nextExpiration,
                 apiCalls: { used: apiCallsCount, limit: apiCallsLimit },
                 textMessages: { used: textMessagesCount, limit: textMessagesLimit },
                 teamMembers: { used: teamMembersCount, limit: teamMembersLimit },
@@ -250,7 +287,24 @@ router.get('/usage', authenticateToken, async (req, res) => {
                 payAsYouGo: payAsYouGo,
                 features: planConfig.features || []
             }
-        });
+        };
+
+        // Debug: ?debug=1 to see why "Used this month" might be 0 (different DB vs LiveKit, or assistant id mismatch)
+        if (req.query.debug === '1') {
+            const totalCallsThisMonth = await CallHistory.countDocuments(thisMonthFilter);
+            const dbName = mongoose.connection?.db?.databaseName || 'unknown';
+            payload.debug = {
+                assistantIdsCount: assistantIds.length,
+                assistantIdsSample: assistantIds.slice(0, 5),
+                totalCallsThisMonthInThisDb: totalCallsThisMonth,
+                dbName,
+                hint: totalCallsThisMonth === 0
+                    ? 'Node sees 0 calls this month in this DB. If LiveKit writes elsewhere, set LiveKit MONGODB_DB_NAME to: ' + dbName
+                    : 'Calls exist in this DB. If still 0 used, check assistantIds includes your demo assistant id.'
+            };
+        }
+
+        res.json(payload);
 
     } catch (error) {
         console.error('Error fetching usage stats:', error);

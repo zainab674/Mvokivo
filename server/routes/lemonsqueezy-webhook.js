@@ -2,6 +2,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { User, PlanConfig, Invoice, LemonSqueezyConfig } from '../models/index.js';
+import { addMinuteCredit } from '../utils/minutes-helpers.js';
 
 const router = express.Router();
 
@@ -68,19 +69,26 @@ router.post('/', async (req, res) => {
 
             const planKey = planConfig ? planConfig.plan_key : 'unknown';
 
-            // Update user
+            // Update user plan and status
             const updateData = {
                 plan: planKey,
-                is_active: true, // Reactivate if was inactive
+                is_active: true,
                 subscription_id: data.id,
-                minutes_limit: planConfig.minutes || 0 // Assign minutes from plan
             };
 
-            // If we have a 'subscription_id' field or similar in schema, update it. 
-            // Currently User schema just has 'plan'.
-
             await User.findOneAndUpdate({ id: userId }, updateData);
-            console.log(`Updated user ${userId} to plan ${planKey}`);
+
+            // Add minutes as expiring credits (3 months)
+            if (planConfig && planConfig.minutes > 0) {
+                await addMinuteCredit(userId, planConfig.minutes, {
+                    amount_paid: data.attributes.total,
+                    currency: data.attributes.currency,
+                    payment_method: 'subscription',
+                    notes: `Added ${planConfig.minutes} minutes for plan ${planKey}`
+                });
+            }
+
+            console.log(`Updated user ${userId} and added minutes for plan ${planKey}`);
 
             // Create an invoice record
             const invoiceData = {

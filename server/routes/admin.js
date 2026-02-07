@@ -1,8 +1,9 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { User } from '../models/index.js';
+import { User, GlobalProviderConfig } from '../models/index.js';
 import { authenticateToken } from '../utils/auth.js';
+import { isUnlimitedMinutes } from '../utils/minutes-helpers.js';
 
 const router = express.Router();
 
@@ -41,44 +42,34 @@ const validateAdminAccess = async (req, res, next) => {
  */
 const validateMinutesDistribution = async (tenantSlug, adminUserId, newMinutes, customerId = null) => {
   try {
-    // Get tenant admin's minutes_limit
-    const adminData = await User.findOne({ id: adminUserId }).select('minutes_limit');
+    // Get tenant admin's minutes_limit, role, tenant, slug_name (only main admin can have unlimited)
+    const adminData = await User.findOne({ id: adminUserId }).select('minutes_limit role tenant slug_name');
 
     if (!adminData) {
       return { valid: false, error: 'Tenant admin not found' };
     }
 
-    const adminMinutes = adminData.minutes_limit || 0;
+    const adminMinutes = adminData.minutes_limit ?? 0;
+    const adminUnlimited = isUnlimitedMinutes(adminData);
 
-    // If admin has unlimited minutes (0), allow any distribution
-    if (adminMinutes === 0) {
+    // If admin has unlimited minutes (admin with 0 limit), allow any distribution
+    if (adminUnlimited) {
       return { valid: true, adminMinutes: 0, currentTotal: 0, newTotal: newMinutes };
     }
 
-    // Prevent setting customer to unlimited (0) unless admin also has unlimited
-    if (newMinutes === 0 && adminMinutes > 0) {
-      return {
-        valid: false,
-        error: `Cannot set customer to unlimited minutes. Admin has limited plan (${adminMinutes} minutes). Only admins with unlimited plans can assign unlimited minutes to customers.`
-      };
-    }
+    // Customers can be set to 0 (meaning 0 minutes). Only admins can have unlimited.
 
     // Get sum of all customer minutes (excluding the admin)
-    // Find all users belonging to this tenant, excluding limit
     const customers = await User.find({
       tenant: tenantSlug,
       id: { $ne: adminUserId }
     }).select('id minutes_limit');
 
-    // Calculate current total minutes allocated to customers
     const currentTotal = customers.reduce((sum, customer) => {
-      // If updating existing customer, exclude their current minutes
       if (customerId && customer.id === customerId) {
         return sum;
       }
-      // Only count customers with limited minutes (exclude unlimited/0)
-      const customerMinutes = customer.minutes_limit || 0;
-      return customerMinutes > 0 ? sum + customerMinutes : sum;
+      return sum + (customer.minutes_limit || 0);
     }, 0);
 
     // Calculate new total
@@ -709,6 +700,73 @@ router.get('/users/:userId/stats', authenticateToken, validateAdminAccess, async
       success: false,
       error: 'Internal server error'
     });
+  }
+});
+
+/**
+ * GET /api/v1/admin/provider-config
+ * Get global provider fallback configuration
+ */
+router.get('/provider-config', authenticateToken, validateAdminAccess, async (req, res) => {
+  try {
+    const tenant = req.userSlug || 'main';
+    let config = await GlobalProviderConfig.findOne({ tenant });
+
+    if (!config && tenant !== 'main') {
+      config = await GlobalProviderConfig.findOne({ tenant: 'main' });
+    }
+
+    if (!config) {
+      return res.json({
+        success: true,
+        data: {
+          tenant: tenant,
+          llm_fallbacks: ['groq', 'openai', 'cerebras'],
+          stt_fallbacks: ['deepgram', 'openai'],
+          tts_fallbacks: ['kokoru_tts', 'raya_tts', 'cartesia', 'openai']
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    console.error('Error in GET /admin/provider-config:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/provider-config
+ * Update global provider fallback configuration
+ */
+router.post('/provider-config', authenticateToken, validateAdminAccess, async (req, res) => {
+  try {
+    const tenant = req.userSlug || 'main';
+    const { llm_fallbacks, stt_fallbacks, tts_fallbacks } = req.body;
+
+    const config = await GlobalProviderConfig.findOneAndUpdate(
+      { tenant },
+      {
+        $set: {
+          llm_fallbacks,
+          stt_fallbacks,
+          tts_fallbacks,
+          updated_at: new Date()
+        }
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    console.error('Error in POST /admin/provider-config:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
 

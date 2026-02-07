@@ -25,9 +25,12 @@ import {
     Key,
     UserCircle,
     Info,
+
     CreditCard,
-    Workflow
+    Workflow,
+    Facebook
 } from "lucide-react";
+
 
 
 import { Button } from "@/components/ui/button";
@@ -65,10 +68,13 @@ export function SidebarContent({
         { icon: <Users size={18} />, label: "Contacts", to: "/contacts" },
     ];
 
+
     const campaignItems = [
         { icon: <Rocket size={18} />, label: "Call Campaigns", to: "/campaigns" },
         { icon: <Megaphone size={18} />, label: "Email Campaigns", to: "/email-campaigns" },
+        { icon: <Facebook size={18} />, label: "Facebook Campaign", to: "/facebook-campaigns" },
     ];
+
 
     const managementItems = [
         { icon: <Mail size={18} />, label: "Emails", to: "/emails" },

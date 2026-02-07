@@ -16,6 +16,7 @@ import { createLivekitToken } from "@/lib/api/apiService";
 import { BACKEND_URL } from "@/lib/api-config";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, PhoneOff, Loader2 } from "lucide-react";
+import { VoiceVisualizer } from "@/components/voice/VoiceVisualizer";
 
 export default function PublicAgent() {
     const { assistantId } = useParams<{ assistantId: string }>();
@@ -157,23 +158,10 @@ export default function PublicAgent() {
                             <RoomAudioRenderer />
                             <StartAudio label="Enable audio to chat" />
 
-                            {/* Visualizer Placeholder / Pulsing Circle */}
-                            <div className="relative mb-12">
-                                <motion.div
-                                    animate={{
-                                        scale: [1, 1.2, 1],
-                                        opacity: [0.3, 0.6, 0.3],
-                                    }}
-                                    transition={{
-                                        duration: 2,
-                                        repeat: Infinity,
-                                        ease: "easeInOut",
-                                    }}
-                                    className="absolute inset-0 bg-indigo-500 rounded-full blur-3xl"
-                                />
-                                <div className="relative w-32 h-32 rounded-full bg-[#111] border-2 border-indigo-500/50 flex items-center justify-center z-10">
-                                    <div className="w-16 h-1 bg-indigo-500/50 rounded-full animate-pulse" />
-                                </div>
+                            {/* Real Voice Visualizer */}
+                            <div className="relative mb-12 h-32 flex items-center justify-center w-full max-w-sm">
+                                <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" />
+                                <VoiceVisualizer className="z-10 h-24" />
                             </div>
 
                             <div className="text-center mb-12">

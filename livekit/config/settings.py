@@ -53,14 +53,10 @@ def validate_model_names(config: Dict[str, Any]) -> Dict[str, Any]:
     # Ensure keys exist with sensible defaults if missing
     # LLM Settings
     if "llm_model" not in validated:
-        validated["llm_model"] = "gpt-4o-mini"
+        validated["llm_model"] = "meta-llama/llama-4-maverick-17b-128e-instruct"
         
     if "llm_provider" not in validated:
-         # Infer from model name or default
-         if "gpt" in validated["llm_model"]:
-             validated["llm_provider"] = "openai"
-         else:
-             validated["llm_provider"] = "openai"
+         validated["llm_provider"] = "Groq"
 
     # TTS Settings
     if "tts_model" not in validated:
@@ -74,6 +70,6 @@ def validate_model_names(config: Dict[str, Any]) -> Dict[str, Any]:
         validated["stt_provider"] = "deepgram"
         
     if "stt_model" not in validated:
-        validated["stt_model"] = "nova-2"
+        validated["stt_model"] = "flux-general-en"
 
     return validated

@@ -49,6 +49,20 @@ const AdminPanel = () => {
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
   const [isDeleteUserOpen, setIsDeleteUserOpen] = useState(false);
   const [editUserData, setEditUserData] = useState<Partial<AdminUser>>({});
+
+  // Provider Configuration State
+  const [providerConfig, setProviderConfig] = useState<{
+    llm_fallbacks: string[];
+    stt_fallbacks: string[];
+    tts_fallbacks: string[];
+  }>({
+    llm_fallbacks: ['groq', 'openai', 'cerebras'],
+    stt_fallbacks: ['deepgram', 'openai'],
+    tts_fallbacks: ['kokoru_tts', 'raya_tts', 'cartesia', 'openai']
+  });
+  const [loadingProviderConfig, setLoadingProviderConfig] = useState(false);
+  const [savingProviderConfig, setSavingProviderConfig] = useState(false);
+
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
   const [allUserStats, setAllUserStats] = useState<Record<string, UserStats>>({});
@@ -95,23 +109,31 @@ const AdminPanel = () => {
     return plan.charAt(0).toUpperCase() + plan.slice(1);
   };
 
-  const formatMinutes = (minutes: number | null | undefined, plan: string | null | undefined) => {
-    if (minutes === 0 || minutes === null || minutes === undefined) return 'Unlimited';
+  // Only main tenant admin has "Unlimited" minutes (0 limit). Whitelabel admins have minutes per plan.
+  const isMainAdminUnlimited = (user: { role?: string | null; tenant?: string | null; slug_name?: string | null; minutes_limit?: number | null }) =>
+    user.role === 'admin' && (user.tenant === 'main' || !user.tenant) && !user.slug_name &&
+    (user.minutes_limit === 0 || user.minutes_limit === null || user.minutes_limit === undefined);
+
+  const formatMinutes = (minutes: number | null | undefined, plan: string | null | undefined, user?: { role?: string | null; tenant?: string | null; slug_name?: string | null } | null) => {
+    const unlimited = user && isMainAdminUnlimited({ ...user, minutes_limit: minutes });
+    if (unlimited) return 'Unlimited';
+    if (minutes === null || minutes === undefined) return '0 min';
     return `${minutes.toLocaleString()} min`;
   };
 
   const getRemainingMinutes = (user: AdminUser) => {
-    if (user.minutes_limit === 0 || user.minutes_limit === null || user.minutes_limit === undefined) return 'Unlimited';
+    if (isMainAdminUnlimited(user)) return 'Unlimited';
     const used = user.minutes_used || 0;
-    const remaining = Math.max(0, user.minutes_limit - used);
+    const limit = user.minutes_limit ?? 0;
+    const remaining = Math.max(0, limit - used);
     return `${remaining.toLocaleString()} min`;
   };
 
   const getUsageStatus = (user: AdminUser) => {
-    if (user.minutes_limit === 0 || user.minutes_limit === null || user.minutes_limit === undefined) return 'Unlimited';
+    if (isMainAdminUnlimited(user)) return 'Unlimited';
 
     const used = user.minutes_used || 0;
-    const limit = user.minutes_limit;
+    const limit = user.minutes_limit ?? 0;
 
     if (used >= limit) return 'Exceeded';
 
@@ -185,6 +207,7 @@ const AdminPanel = () => {
     fetchUsers();
     fetchPlanConfigs();
     fetchLemonSqueezyConfig();
+    fetchProviderConfig();
   }, [isAdmin, user?.id]);
 
   const fetchLemonSqueezyConfig = async () => {
@@ -576,6 +599,51 @@ const AdminPanel = () => {
     }
   };
 
+  const fetchProviderConfig = async () => {
+    try {
+      setLoadingProviderConfig(true);
+      const token = getAccessToken();
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/provider-config`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (result.success) {
+        setProviderConfig(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching provider config:', error);
+      toast.error('Failed to load AI provider settings');
+    } finally {
+      setLoadingProviderConfig(false);
+    }
+  };
+
+  const handleSaveProviderConfig = async () => {
+    try {
+      setSavingProviderConfig(true);
+      const token = getAccessToken();
+      const response = await fetch(`${BACKEND_URL}/api/v1/admin/provider-config`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(providerConfig)
+      });
+      const result = await response.json();
+      if (result.success) {
+        toast.success('AI provider configuration saved successfully');
+      } else {
+        throw new Error(result.error || 'Failed to save configuration');
+      }
+    } catch (error: any) {
+      console.error('Error saving provider config:', error);
+      toast.error(error.message || 'Failed to save AI provider settings');
+    } finally {
+      setSavingProviderConfig(false);
+    }
+  };
+
 
   const handleEditUser = async () => {
     if (!selectedUser) return;
@@ -698,10 +766,9 @@ const AdminPanel = () => {
     const totalCalls = Object.values(allUserStats).reduce((sum, stats) => sum + stats.totalCalls, 0);
     const totalMinutesUsed = users.reduce((sum, user) => sum + (user.minutes_used || 0), 0);
     const totalMinutesLimit = users.reduce((sum, user) => {
-      if (user.minutes_limit === 0 || user.minutes_limit === null || user.minutes_limit === undefined) {
-        return sum; // Skip unlimited
-      }
-      return sum + user.minutes_limit;
+      // Only main admin can have unlimited (0); skip from sum
+      if (isMainAdminUnlimited(user)) return sum;
+      return sum + (user.minutes_limit ?? 0);
     }, 0);
     const totalPlans = Object.keys(planConfigs).length;
 
@@ -802,6 +869,10 @@ const AdminPanel = () => {
                 <TabsTrigger value="lemonsqueezy" className="flex-1 lg:flex-none flex items-center gap-2 text-sm sm:text-base py-2 sm:py-0">
                   <CreditCard className="h-4 w-4" />
                   Lemon Squeezy
+                </TabsTrigger>
+                <TabsTrigger value="providers" className="flex-1 lg:flex-none flex items-center gap-2 text-sm sm:text-base py-2 sm:py-0">
+                  <Activity className="h-4 w-4" />
+                  AI Providers
                 </TabsTrigger>
               </TabsList>
 
@@ -1039,7 +1110,7 @@ const AdminPanel = () => {
                                   </TableCell>
                                   <TableCell className="py-4 px-6 text-center">
                                     <span className="text-xs font-bold text-foreground">
-                                      {formatMinutes(user.minutes_limit, user.plan)}
+                                      {formatMinutes(user.minutes_limit, user.plan, user)}
                                     </span>
                                   </TableCell>
                                   <TableCell className="py-4 px-6 text-center">
@@ -1160,6 +1231,81 @@ const AdminPanel = () => {
                           </Button>
                         </div>
                       </>
+                    )}
+                  </CardContent>
+                </ThemeCard>
+              </TabsContent>
+
+              <TabsContent value="providers" className="mt-0 space-y-8">
+                <ThemeCard className="overflow-hidden shadow-xl border-border/20">
+                  <CardHeader className="border-b border-border/40 bg-muted/20 p-4 sm:p-6">
+                    <CardTitle className="text-xl sm:text-2xl font-bold">AI Provider Fallbacks</CardTitle>
+                    <CardDescription className="text-sm sm:text-base mt-1">
+                      Configure the fallback chain for LLM, STT, and TTS services.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6 space-y-6">
+                    {loadingProviderConfig ? (
+                      <div className="flex items-center justify-center py-20">
+                        <div className="flex flex-col items-center gap-4">
+                          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                          <p className="text-sm text-muted-foreground font-medium">Loading config...</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="space-y-2">
+                          <Label>LLM Fallback Chain (Comma separated)</Label>
+                          <Input
+                            value={providerConfig.llm_fallbacks.join(', ')}
+                            onChange={(e) => setProviderConfig({
+                              ...providerConfig,
+                              llm_fallbacks: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                            })}
+                            placeholder="groq, openai, cerebras"
+                          />
+                          <p className="text-xs text-muted-foreground">Supported: groq, openai, cerebras</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>STT Fallback Chain (Comma separated)</Label>
+                          <Input
+                            value={providerConfig.stt_fallbacks.join(', ')}
+                            onChange={(e) => setProviderConfig({
+                              ...providerConfig,
+                              stt_fallbacks: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                            })}
+                            placeholder="deepgram, soniox, groq, openai"
+                          />
+                          <p className="text-xs text-muted-foreground">Supported: deepgram, soniox, groq (whisper), openai (whisper)</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>TTS Fallback Chain (Comma separated)</Label>
+                          <Input
+                            value={providerConfig.tts_fallbacks.join(', ')}
+                            onChange={(e) => setProviderConfig({
+                              ...providerConfig,
+                              tts_fallbacks: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                            })}
+                            placeholder="kokoru_tts, raya_tts, cartesia, openai, rime, elevenlabs"
+                          />
+                          <p className="text-xs text-muted-foreground">Supported: kokoru_tts, raya_tts, cartesia, openai, rime, elevenlabs, hume</p>
+                        </div>
+
+                        <div className="flex justify-end pt-4">
+                          <Button onClick={handleSaveProviderConfig} disabled={savingProviderConfig}>
+                            {savingProviderConfig ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              'Save Configuration'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
                     )}
                   </CardContent>
                 </ThemeCard>

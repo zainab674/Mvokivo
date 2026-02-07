@@ -38,17 +38,22 @@ class CallOutcomeService:
     """Service for analyzing call transcriptions and determining outcomes using OpenAI"""
     
     def __init__(self):
-        self.client = None
-        api_key = os.getenv("OPENAI_API_KEY")
-        if AsyncOpenAI and api_key:
-            try:
-                self.client = AsyncOpenAI(api_key=api_key)
-                logger.info("OPENAI_CLIENT_INITIALIZED | Call outcome analysis enabled")
-            except Exception as e:
-                logger.error(f"OPENAI_CLIENT_INIT_FAILED | error={str(e)}")
-                self.client = None
-        else:
-            logger.warning("OPENAI_CLIENT_NOT_AVAILABLE | OPENAI_API_KEY not configured")
+        self._client = None
+    
+    @property
+    def client(self):
+        """Lazy access to OpenAI client."""
+        if self._client is None:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if AsyncOpenAI and api_key:
+                try:
+                    self._client = AsyncOpenAI(api_key=api_key)
+                    logger.info("OPENAI_CLIENT_INITIALIZED | Call outcome analysis enabled")
+                except Exception as e:
+                    logger.error(f"OPENAI_CLIENT_INIT_FAILED | error={str(e)}")
+            else:
+                logger.warning("OPENAI_CLIENT_NOT_AVAILABLE | OPENAI_API_KEY not configured")
+        return self._client
     
     def _truncate_transcript(self, text: str, max_chars: int = 3500) -> str:
         """Hard-cap the transcript to keep latency predictable."""

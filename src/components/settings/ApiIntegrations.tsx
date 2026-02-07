@@ -1,75 +1,80 @@
+
 import React, { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Building2, Database, Users, Zap, Phone, MessageSquare,
-  Calendar, CheckCircle2, Plus, Mail, Search, Check, Info
+  Phone,
+  Calendar, CheckCircle2, Mail, Search, Check, Facebook
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { TwilioIntegrationCard } from "./integrations/TwilioIntegrationCard";
 import { SecurityCard } from "./integrations/SecurityCard";
-import { TwilioAuthDialog } from "./TwilioAuthDialog";
-import { CalendarIntegrationCard } from "./CalendarIntegrationCard";
-import { CalendarAuthDialog } from "./CalendarAuthDialog";
-import type { TwilioIntegration, TwilioCredentials } from "./integrations/types";
-import { TwilioCredentialsService, type UserTwilioCredentials } from "@/lib/twilio-credentials";
+import type { TwilioIntegration } from "./integrations/types";
+import { TwilioCredentialsService } from "@/lib/twilio-credentials";
 import { CalendarCredentialsService, type UserCalendarCredentials, type CalendarCredentialsInput } from "@/lib/calendar-credentials";
-import { WhatsAppIntegrationCard } from "./WhatsAppIntegrationCard";
-import { WhatsAppCredentialsService, type UserWhatsAppCredentials } from "@/lib/whatsapp-credentials";
-import { EmailIntegrationCard } from "./EmailIntegrationCard";
+import { WhatsAppCredentialsService } from "@/lib/whatsapp-credentials";
 import { EmailAuthDialog } from "./EmailAuthDialog";
 import { EmailManagementDialog } from "./EmailManagementDialog";
 import { TwilioManagementDialog } from "./TwilioManagementDialog";
 import { CalendarManagementDialog } from "./CalendarManagementDialog";
-import { WhatsAppManagementDialog } from "./WhatsAppManagementDialog";
-
-const integrationsData = [
-  {
-    id: "twilio",
-    name: "Twilio",
-    description: "Cloud communications platform for voice, SMS, and video",
-    icon: Phone,
-    status: "available",
-    category: "Messaging & Support",
-    brandColor: "#f22f46"
-  },
-  {
-    id: "calcom",
-    name: "Cal.com",
-    description: "Open-source scheduling infrastructure for everyone",
-    icon: Calendar,
-    status: "available",
-    category: "Project & Workflow",
-    brandColor: "#292929"
-  },
-  {
-    id: "email",
-    name: "Email (SMTP/IMAP)",
-    description: "Connect your email for AI assistant replies and campaigns",
-    icon: Mail,
-    status: "available",
-    category: "Messaging & Support",
-    brandColor: "#ea4335"
-  },
-
-];
+import { FacebookManagementDialog } from "./FacebookManagementDialog";
+import axios from "axios";
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
 
 export function ApiIntegrations() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>(["Messaging & Support"]);
   const [twilioIntegrations, setTwilioIntegrations] = useState<TwilioIntegration[]>([]);
   const [calendarIntegrations, setCalendarIntegrations] = useState<UserCalendarCredentials[]>([]);
   const [whatsappIntegrations, setWhatsappIntegrations] = useState<any[]>([]);
   const [emailIntegrations, setEmailIntegrations] = useState<any[]>([]);
+  const [facebookIntegrations, setFacebookIntegrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [twilioDialogOpen, setTwilioDialogOpen] = useState(false);
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
-  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [facebookDialogOpen, setFacebookDialogOpen] = useState(false);
+
+  const integrationsData = [
+    {
+      id: "twilio",
+      name: "Twilio",
+      description: "Cloud communications platform for voice, SMS, and video",
+      icon: Phone,
+      status: "available",
+      category: "Messaging & Support",
+      brandColor: "#f22f46"
+    },
+    {
+      id: "calcom",
+      name: "Cal.com",
+      description: "Open-source scheduling infrastructure for everyone",
+      icon: Calendar,
+      status: "available",
+      category: "Project & Workflow",
+      brandColor: "#292929"
+    },
+    {
+      id: "email",
+      name: "Email (SMTP/IMAP)",
+      description: "Connect your email for AI assistant replies and campaigns",
+      icon: Mail,
+      status: "available",
+      category: "Messaging & Support",
+      brandColor: "#ea4335"
+    },
+    {
+      id: "facebook",
+      name: "Facebook Lead Ads",
+      description: "Connect Facebook Pages to trigger AI calls on new leads",
+      icon: Facebook,
+      status: "available",
+      category: "Messaging & Support",
+      brandColor: "#1877F2"
+    }
+  ];
 
   // Load credentials on component mount
   useEffect(() => {
@@ -78,6 +83,12 @@ export function ApiIntegrations() {
     loadWhatsAppCredentials();
     loadEmailCredentials();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadFacebookIntegrations();
+    }
+  }, [user]);
 
   const loadTwilioCredentials = async () => {
     try {
@@ -147,6 +158,22 @@ export function ApiIntegrations() {
     }
   };
 
+  const loadFacebookIntegrations = async () => {
+    try {
+      if (!user) return;
+      const token = localStorage.getItem('auth_token');
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      const res = await axios.get(`${BACKEND_URL}/api/v1/facebook/integrations/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) {
+        setFacebookIntegrations(res.data.integrations);
+      }
+    } catch (e) {
+      console.error("Error loading Facebook integrations", e);
+    }
+  };
+
   const maskAccountSid = (accountSid: string): string => {
     if (accountSid.length <= 8) return accountSid;
     return accountSid.substring(0, 2) + "*".repeat(accountSid.length - 6) + accountSid.substring(accountSid.length - 4);
@@ -173,9 +200,10 @@ export function ApiIntegrations() {
       if (integration.id === "twilio") status = twilioIntegrations.length > 0 ? "connected" : "available";
       if (integration.id === "calcom") status = calendarIntegrations.length > 0 ? "connected" : "available";
       if (integration.id === "email") status = emailIntegrations.length > 0 ? "connected" : "available";
+      if (integration.id === "facebook") status = facebookIntegrations.length > 0 ? "connected" : "available";
       return { ...integration, status };
     });
-  }, [twilioIntegrations, calendarIntegrations, emailIntegrations]);
+  }, [integrationsData, twilioIntegrations, calendarIntegrations, emailIntegrations, facebookIntegrations]);
 
   const filteredIntegrations = useMemo(() => {
     return updatedIntegrations.filter(integration => {
@@ -217,15 +245,15 @@ export function ApiIntegrations() {
     }
   };
 
-  const handleRefreshIntegration = async (id: string) => {
-    try {
-      await TwilioCredentialsService.setActiveCredentials(id);
-      await loadTwilioCredentials();
-      toast({ title: "Integration refreshed", description: "Twilio integration set as active." });
-    } catch (error) {
-      toast({ title: "Refresh failed", description: "Failed to refresh integration.", variant: "destructive" });
-    }
-  };
+  //   const handleRefreshIntegration = async (id: string) => {
+  //     try {
+  //       await TwilioCredentialsService.setActiveCredentials(id);
+  //       await loadTwilioCredentials();
+  //       toast({ title: "Integration refreshed", description: "Twilio integration set as active." });
+  //     } catch (error) {
+  //       toast({ title: "Refresh failed", description: "Failed to refresh integration.", variant: "destructive" });
+  //     }
+  //   };
 
   const handleCalendarConnect = async (data: CalendarCredentialsInput) => {
     try {
@@ -247,28 +275,27 @@ export function ApiIntegrations() {
     }
   };
 
-  const handleRefreshCalendarIntegration = async (id: string) => {
-    try {
-      await CalendarCredentialsService.setActiveCredentials(id);
-      await loadCalendarCredentials();
-      toast({ title: "Integration refreshed", description: "Calendar integration set as active." });
-    } catch (error) {
-      toast({ title: "Refresh failed", description: "Failed to refresh calendar integration.", variant: "destructive" });
-    }
-  };
+  //   const handleRefreshCalendarIntegration = async (id: string) => {
+  //     try {
+  //       await CalendarCredentialsService.setActiveCredentials(id);
+  //       await loadCalendarCredentials();
+  //       toast({ title: "Integration refreshed", description: "Calendar integration set as active." });
+  //     } catch (error) {
+  //       toast({ title: "Refresh failed", description: "Failed to refresh calendar integration.", variant: "destructive" });
+  //     }
+  //   };
 
   const handleIntegrationClick = (integration: any) => {
     if (integration.id === "twilio") setTwilioDialogOpen(true);
     else if (integration.id === "calcom") setCalendarDialogOpen(true);
     else if (integration.id === "email") setEmailDialogOpen(true);
+    else if (integration.id === "facebook") setFacebookDialogOpen(true);
     else toast({ title: "Coming Soon", description: `${integration.name} integration is coming soon!` });
   };
 
   const IntegrationCard = ({ integration }: { integration: any }) => {
     const IconComponent = integration.icon;
     const isConnected = integration.status === "connected";
-
-
 
     return (
       <Card
@@ -440,7 +467,10 @@ export function ApiIntegrations() {
             handleRemoveCalendarIntegration={handleRemoveCalendarIntegration}
           />
 
-
+          <FacebookManagementDialog
+            open={facebookDialogOpen}
+            onOpenChange={setFacebookDialogOpen}
+          />
 
           <EmailManagementDialog
             open={emailDialogOpen}

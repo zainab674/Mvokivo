@@ -236,7 +236,7 @@ function PhoneNumberCard({
 
 export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) {
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
-  const [assistants, setAssistants] = useState<Array<{ id: string; name: string }>>([]);
+  const [assistants, setAssistants] = useState<Array<{ id: string; _id?: string; name: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [hasTwilioCredentials, setHasTwilioCredentials] = useState<boolean | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -251,7 +251,11 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
       (async () => {
         try {
           const { assistants: data } = await fetchAssistants(user.id);
-          setAssistants((data || []).map((a) => ({ id: a.id, name: a.name ?? "Untitled" })));
+          setAssistants((data || []).map((a) => ({
+            id: a.id,
+            _id: (a as any)._id,
+            name: a.name ?? "Untitled"
+          })));
         } catch (e) {
           console.error("Failed to load assistants:", e);
         }
@@ -334,7 +338,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
           // Normalize Twilio phone number for matching
           const normalizedTwilioNumber = n.phoneNumber.replace(/\D/g, '');
           const assistantId = phoneToAssistantMap.get(normalizedTwilioNumber);
-          const assistant = assistantId ? assistants.find(a => a.id === assistantId) : null;
+          const assistant = assistantId ? assistants.find(a => a.id === assistantId || a._id === assistantId) : null;
 
           console.log('Twilio number:', n.phoneNumber, '->', normalizedTwilioNumber, '->', assistantId, '->', assistant?.name);
 
@@ -410,7 +414,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
           // Normalize Twilio phone number for matching
           const normalizedTwilioNumber = n.phoneNumber.replace(/\D/g, '');
           const assistantId = phoneToAssistantMap.get(normalizedTwilioNumber);
-          const assistant = assistantId ? assistants.find(a => a.id === assistantId) : null;
+          const assistant = assistantId ? assistants.find(a => a.id === assistantId || a._id === assistantId) : null;
 
           console.log('Twilio number (admin):', n.phoneNumber, '->', normalizedTwilioNumber, '->', assistantId, '->', assistant?.name);
 

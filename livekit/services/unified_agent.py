@@ -19,6 +19,8 @@ from services.rag_service import get_rag_service
 from integrations.calendar_api import Calendar, SlotUnavailableError
 from integrations.mongodb_client import MongoDBClient
 from utils.latency_logger import measure_latency_context
+from utils.timezone_utils import normalize_caller_timezone
+
 
 
 @dataclass
@@ -32,6 +34,8 @@ class BookingData:
     confirmed: bool = False
     booked: bool = False
     appointment_id: Optional[str] = None
+    timezone: Optional[str] = None
+
 
 
 class UnifiedAgent(Agent):
@@ -286,8 +290,17 @@ class UnifiedAgent(Agent):
             logging.error(f"METRICS_COLLECTION_ERROR | error={str(e)}")
 
     def _tz(self) -> ZoneInfo:
-        """Get timezone from calendar or default to UTC."""
-        return getattr(self.calendar, "tz", None) or ZoneInfo("UTC")
+        """Get timezone from user preference, calendar or default to UTC."""
+        tz_name = self._booking_data.timezone or getattr(self.calendar, "tz", None)
+        if isinstance(tz_name, ZoneInfo):
+            return tz_name
+        if tz_name:
+            try:
+                return ZoneInfo(tz_name)
+            except Exception:
+                pass
+        return ZoneInfo("UTC")
+
 
     def _require_calendar(self) -> Optional[str]:
         """Check if calendar is available for booking."""
@@ -515,9 +528,19 @@ class UnifiedAgent(Agent):
     # ========== BOOKING TOOLS ==========
     
     @function_tool(name="list_slots_on_day")
-    async def list_slots_on_day(self, ctx: RunContext, day: str, max_options: int = 10) -> str:
-        """List available appointment slots for a specific day. Shows up to 10 slots by default, or use max_options to show more."""
+    async def list_slots_on_day(self, ctx: RunContext, day: str, max_options: int = 10, timeframe: Optional[str] = None) -> str:
+        """List available appointment slots for a specific day.
+        
+        Args:
+            day: The day to list slots for (e.g. 'today', 'tomorrow', 'Friday', '2025-09-05').
+            max_options: Maximum number of slots to show.
+            timeframe: Optional filter for 'morning', 'afternoon', or 'evening'.
+        """
+        if not self._booking_data.timezone:
+            return "Before we look at available times, could you please tell me which timezone you are in? (e.g., Eastern Time, Pacific Time, or your city)"
+
         msg = self._require_calendar()
+
         if msg:
             return msg
         
@@ -562,8 +585,30 @@ class UnifiedAgent(Agent):
                     key = slot.start_time.isoformat()  # Stable key based on ISO time
                     self._slots_map[key] = slot
                 
-                # Only show first max_options to user for brevity, but let them know if there are more
-                display_slots = all_slots[:max_options]
+                # Filter by timeframe if provided
+                if timeframe:
+                    timeframe = timeframe.lower()
+                    filtered_slots = []
+                    for slot in all_slots:
+                        local_time = slot.start_time.astimezone(self._tz())
+                        hour = local_time.hour
+                        if timeframe == 'morning' and 5 <= hour < 12:
+                            filtered_slots.append(slot)
+                        elif timeframe == 'afternoon' and 12 <= hour < 17:
+                            filtered_slots.append(slot)
+                        elif timeframe == 'evening' and 17 <= hour < 22:
+                            filtered_slots.append(slot)
+                    
+                    if not filtered_slots:
+                        return f"I don't see any {timeframe} slots for {day}. Would you like to check a different timeframe or day?"
+                    
+                    display_slots = filtered_slots[:max_options]
+                    slots_to_show = filtered_slots
+                else:
+                    # Recommendation: show 3-4 slots if no preference is given
+                    display_slots = all_slots[:4]
+                    slots_to_show = all_slots
+
                 lines = []
                 for i, slot in enumerate(display_slots, 1):
                     local_time = slot.start_time.astimezone(self._tz())
@@ -571,14 +616,16 @@ class UnifiedAgent(Agent):
                     lines.append(f"{i}. {formatted_time}")
                 
                 # Build response with total count information
-                response_parts = [f"Available slots for {day}:\n" + "\n".join(lines)]
+                response_parts = [f"Available slots for {day} ({self._booking_data.timezone}):\n" + "\n".join(lines)]
                 
                 # Inform user if there are more slots available
-                if len(all_slots) > max_options:
-                    response_parts.append(f"\nI'm showing you {len(display_slots)} of {len(all_slots)} total available slots. You can choose any time slot from the list above, or ask me to show more options.")
+                if len(slots_to_show) > len(display_slots):
+                    total_info = len(slots_to_show)
+                    response_parts.append(f"\nI'm showing {len(display_slots)} options. We have {total_info} total slots available that day including others. Do any of these work, or would you prefer a different time?")
                 
-                logging.info("SLOTS_LISTED | total=%d | displayed=%d | day=%s", len(all_slots), len(display_slots), day)
+                logging.info("SLOTS_LISTED | total=%d | displayed=%d | day=%s | timeframe=%s", len(all_slots), len(display_slots), day, timeframe)
                 return "".join(response_parts)
+
                 
             except asyncio.TimeoutError:
                 logging.warning(f"list_slots_on_day TIMEOUT | day={day}")
@@ -622,9 +669,9 @@ class UnifiedAgent(Agent):
 
         if missing_fields:
             return f"Great—{formatted_time}. I still need your {', '.join(missing_fields)}."
-        # auto-book now to remove an extra LLM turn
-        logging.info("AUTO_BOOKING_TRIGGERED | all fields available")
-        return await self._do_schedule()
+        
+        return f"I've selected {formatted_time}. Shall I go ahead and book this for you?"
+
 
 
     @function_tool(name="auto_book_appointment")
@@ -715,6 +762,33 @@ class UnifiedAgent(Agent):
         logging.info("NOTES_SET | notes=%s", notes)
         return f"Notes set: {notes}"
 
+    @function_tool(name="set_user_timezone")
+    async def set_user_timezone(self, ctx: RunContext, timezone_input: str) -> str:
+        """Set the user's timezone for scheduling. Use this when the user mentions their timezone or city.
+        
+        Args:
+            timezone_input: The timezone or city name provided by the user (e.g. 'Eastern Time', 'London', 'America/Chicago').
+        """
+        normalized = normalize_caller_timezone(timezone_input)
+        if not normalized:
+            # If it's one of the ambiguous ones, we can be specific
+            if timezone_input.upper() in ["CST", "IST", "PST", "EST", "MST", "BST"]:
+                return f"I'm sorry, {timezone_input} can be ambiguous. Could you please specify your city or a more specific timezone (like 'Central Time' or 'America/Chicago')?"
+            return f"I couldn't quite recognize '{timezone_input}'. Could you tell me your city or specific timezone?"
+        
+        self._booking_data.timezone = normalized
+        # Update calendar timezone if supported to ensure API calls use the user's timezone
+        if self.calendar and hasattr(self.calendar, "tz"):
+            try:
+                self.calendar.tz = ZoneInfo(normalized)
+                logging.info("CALENDAR_TIMEZONE_UPDATED | tz=%s", normalized)
+            except Exception as e:
+                logging.warning("CALENDAR_TIMEZONE_UPDATE_FAILED | error=%s", str(e))
+        
+        logging.info("USER_TIMEZONE_SET | input=%s | normalized=%s", timezone_input, normalized)
+        return f"Timezone set to {normalized}."
+
+
     @function_tool(name="confirm_details")
     async def confirm_details(self, ctx: RunContext, dummy: Optional[str] = None) -> str:
         """Confirm the appointment details and book it. Only call this when ALL required information is collected.
@@ -768,7 +842,8 @@ class UnifiedAgent(Agent):
         """
         # Check if booking is already completed
         if self._booking_data.booked:
-            return "Your appointment has already been successfully booked! Is there anything else I can help you with?"
+            return "You're all set! Your appointment is already confirmed and booked. Is there anything else I can help you with today?"
+
         
         # Log current booking data for debugging
         logging.info("FINALIZE_BOOKING_VALIDATION | slot=%s | name=%s | email=%s | phone=%s", 
@@ -1041,7 +1116,12 @@ class UnifiedAgent(Agent):
                 # Reset state after successful booking to allow follow-on bookings
                 prev_email = self._booking_data.email
                 self._reset_state()
-                return f"Perfect! Booked for {formatted_time}. A confirmation will go to {prev_email}. Need another time?"
+                return (
+                    f"Perfect! You're all set. Your appointment is confirmed for {formatted_time} ({tz.key if hasattr(tz, 'key') else str(tz)}). "
+                    f"I've sent a confirmation to {prev_email}. "
+                    f"Is there anything else I can help you with before we finish?"
+                )
+
             
             except asyncio.TimeoutError:
                 logging.error("BOOKING_TIMEOUT | calendar operation timed out after 15 seconds")

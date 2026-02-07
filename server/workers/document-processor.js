@@ -18,7 +18,7 @@ class DocumentProcessor {
   async processDocument(docId) {
     try {
       console.log(`Processing document: ${docId}`);
-      
+
       // Get document details
       const document = await this.databaseService.getDocument(docId);
       if (!document) {
@@ -34,11 +34,11 @@ class DocumentProcessor {
       // Check if we have a Pinecone assistant name
       if (!knowledgeBase.pinecone_assistant_name) {
         console.log(`No Pinecone assistant found for knowledge base ${document.knowledge_base_id}, attempting to create one...`);
-        
+
         // Try to create an assistant for this knowledge base
         const PineconeAssistantHelper = (await import('../services/pinecone-assistant-helper.js')).default;
         const pineconeHelper = new PineconeAssistantHelper();
-        
+
         const assistantResult = await pineconeHelper.ensureAssistantExists(
           document.company_id,
           document.knowledge_base_id,
@@ -48,19 +48,19 @@ class DocumentProcessor {
             region: 'us'
           }
         );
-        
+
         if (!assistantResult.success || !assistantResult.assistant) {
           throw new Error(`Failed to create Pinecone assistant: ${assistantResult.error}`);
         }
-        
+
         // Update the knowledge base with the assistant info
         await this.databaseService.updateKnowledgeBaseAssistantInfo(document.knowledge_base_id, assistantResult.assistant);
-        
+
         // Update the knowledge base object for the rest of the function
         knowledgeBase.pinecone_assistant_name = assistantResult.assistant.name;
         console.log(`Created Pinecone assistant: ${assistantResult.assistant.name}`);
       }
-      
+
       // Final fallback - generate assistant name if still not available
       if (!knowledgeBase.pinecone_assistant_name) {
         // Generate assistant name using the same pattern as the helper
@@ -70,7 +70,7 @@ class DocumentProcessor {
       }
 
       console.log(`Uploading document to Pinecone Assistant: ${knowledgeBase.pinecone_assistant_name}`);
-      
+
       // Upload file to Pinecone Assistant
       const uploadResult = await this.pineconeUploadService.uploadFileAndWait(
         knowledgeBase.pinecone_assistant_name,
@@ -103,22 +103,22 @@ class DocumentProcessor {
 
       // Update document status to indicate it's been uploaded to Pinecone Assistant
       // Document status is now tracked via pinecone_status in updateDocumentPineconeInfo
-      
+
       // Update document with Pinecone file ID
       await this.databaseService.updateDocumentPineconeInfo(docId, {
         pinecone_file_id: uploadResult.fileId,
         pinecone_status: 'ready',
         pinecone_processed_at: new Date().toISOString()
       });
-      
+
       console.log(`Document successfully uploaded to Pinecone Assistant: ${docId} -> ${uploadResult.fileId}`);
-      return { 
-        success: true, 
+      return {
+        success: true,
         docId,
         pineconeFileId: uploadResult.fileId,
         assistantName: knowledgeBase.pinecone_assistant_name
       };
-      
+
     } catch (error) {
       console.error(`Document processing failed: ${docId}`, error);
       // Update document with error status via Pinecone info
@@ -129,25 +129,7 @@ class DocumentProcessor {
     }
   }
 
-  // Add document to queue (commented out due to Queue import issues)
-  // async addDocumentToQueue(docId) {
-  //   return await this.documentQueue.add('process-document', { docId });
-  // }
 
-  // Get queue status (commented out due to Queue import issues)
-  // async getQueueStatus() {
-  //   const waiting = await this.documentQueue.getWaiting();
-  //   const active = await this.documentQueue.getActive();
-  //   const completed = await this.documentQueue.getCompleted();
-  //   const failed = await this.documentQueue.getFailed();
-  //   
-  //   return {
-  //     waiting: waiting.length,
-  //     active: active.length,
-  //     completed: completed.length,
-  //     failed: failed.length
-  //   };
-  // }
 }
 
 export default DocumentProcessor;

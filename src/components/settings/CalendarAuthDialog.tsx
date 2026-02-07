@@ -86,16 +86,20 @@ export function CalendarAuthDialog({ children, onSuccess }: CalendarAuthDialogPr
     try {
       // Save credentials to database (no event type ID needed)
       // Timezone is hardcoded to UTC
-      const payload: CalendarCredentialsInput = { 
+      const payload: CalendarCredentialsInput = {
         ...form,
         timezone: "UTC", // Hardcoded to UTC
         eventTypeId: "", // Will be generated during assistant creation
         eventTypeSlug: "" // Will be provided during assistant creation
       };
-      await CalendarCredentialsService.saveCredentials(payload);
-      
-      toast({ title: "Calendar connected", description: "Your calendar has been connected successfully." });
-      onSuccess?.(payload);
+
+      if (onSuccess) {
+        await onSuccess(payload);
+      } else {
+        await CalendarCredentialsService.saveCredentials(payload);
+        toast({ title: "Calendar connected", description: "Your calendar has been connected successfully." });
+      }
+
       setOpen(false);
       resetForm();
     } catch (error) {
@@ -130,52 +134,52 @@ export function CalendarAuthDialog({ children, onSuccess }: CalendarAuthDialogPr
         {/* body */}
         <div className="flex-1 overflow-y-auto px-1">
           <form id="calendar-form" onSubmit={onSubmit} className="space-y-4">
-              {/* Provider */}
-              <div className="space-y-2">
-                <Label htmlFor="provider">Calendar Provider</Label>
-                <Select
-                  value={form.provider}
-                  onValueChange={(v) => setField("provider", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select calendar provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providers.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Provider */}
+            <div className="space-y-2">
+              <Label htmlFor="provider">Calendar Provider</Label>
+              <Select
+                value={form.provider}
+                onValueChange={(v) => setField("provider", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select calendar provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              {/* Label */}
-              <div className="space-y-2">
-                <Label htmlFor="label">Label</Label>
-                <Input
-                  id="label"
-                  placeholder="e.g., My Cal.com Account"
-                  value={form.label}
-                  onChange={(e) => setField("label", e.target.value)}
-                />
-              </div>
+            {/* Label */}
+            <div className="space-y-2">
+              <Label htmlFor="label">Label</Label>
+              <Input
+                id="label"
+                placeholder="e.g., My Cal.com Account"
+                value={form.label}
+                onChange={(e) => setField("label", e.target.value)}
+              />
+            </div>
 
-              {/* API Key */}
-              <div className="space-y-2">
-                <Label htmlFor="apiKey">API Key</Label>
-                <Input
-                  id="apiKey"
-                  type="password"
-                  placeholder={form.provider === "calcom" ? "cal_live_..." : "Enter API key"}
-                  value={form.apiKey}
-                  onChange={(e) => setField("apiKey", e.target.value)}
-                />
-              </div>
+            {/* API Key */}
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API Key</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder={form.provider === "calcom" ? "cal_live_..." : "Enter API key"}
+                value={form.apiKey}
+                onChange={(e) => setField("apiKey", e.target.value)}
+              />
+            </div>
 
-              {/* Cal.com extras - REMOVED */}
-              {/* Event type slug will be handled during assistant creation */}
-            </form>
+            {/* Cal.com extras - REMOVED */}
+            {/* Event type slug will be handled during assistant creation */}
+          </form>
         </div>
 
         {/* footer */}

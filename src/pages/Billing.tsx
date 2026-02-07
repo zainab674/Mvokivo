@@ -42,6 +42,10 @@ export default function Billing() {
   const [planConfigs, setPlanConfigs] = useState<Record<string, any>>({});
   const [minutesBalance, setMinutesBalance] = useState(0);
   const [minutesUsed, setMinutesUsed] = useState(0);
+  const [nextExpiration, setNextExpiration] = useState<{
+    expiry_date: string;
+    minutes_expiring: number;
+  } | null>(null);
   const [isPlanChangeDialogOpen, setIsPlanChangeDialogOpen] = useState(false);
 
   const getUsagePercentage = (used: number, limit: number) => {
@@ -85,9 +89,10 @@ export default function Billing() {
             payAsYouGo: plan.payAsYouGo || false,
           });
 
-          // Set Minutes
+          // Set Minutes (balance from limit - total used; "used this month" from call history)
           setMinutesBalance(usage.minutesBalance);
-          setMinutesUsed(usage.minutesUsed);
+          setMinutesUsed(usage.minutesUsedThisMonth ?? usage.minutesUsed ?? 0);
+          setNextExpiration(usage.nextExpiration);
 
           // Set Usage
           setUsage([
@@ -219,6 +224,19 @@ export default function Billing() {
                     {minutesUsed.toLocaleString()}
                   </span>
                 </div>
+                {nextExpiration && (
+                  <div className="flex flex-col gap-1 pt-2 border-t border-border/40">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Expiring soon</span>
+                      <span className="text-warning font-medium">
+                        {nextExpiration.minutes_expiring.toLocaleString()} mins
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                      <span>on {new Date(nextExpiration.expiry_date).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
 
@@ -231,43 +249,7 @@ export default function Billing() {
             </CardContent>
           </Card>
 
-          {/* Usage Overview */}
-          <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="text-lg sm:text-xl">Usage This Month</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">Current usage across all services</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4 sm:p-6">
-              {usage.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No usage data available</p>
-              ) : (
-                usage.map((item) => {
-                  const IconComponent = item.icon;
-                  const percentage = getUsagePercentage(item.used, item.limit === Infinity ? 0 : item.limit);
-                  const limitDisplay = item.limit === Infinity ? 'Unlimited' : item.limit.toLocaleString();
-                  return (
-                    <div key={item.name} className="space-y-2">
-                      <div className="flex items-center justify-between text-xs sm:text-sm">
-                        <div className="flex items-center gap-2">
-                          <IconComponent className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-foreground">{item.name}</span>
-                        </div>
-                        <span className="text-muted-foreground">
-                          {item.used.toLocaleString()} / {limitDisplay}
-                        </span>
-                      </div>
-                      {item.limit !== Infinity && (
-                        <Progress
-                          value={percentage}
-                          className="h-1.5 sm:h-2"
-                        />
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
+
 
           {/* Billing History */}
           <div className="lg:col-span-3">

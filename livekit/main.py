@@ -107,6 +107,20 @@ except Exception:
     CARTESIA_AVAILABLE = False
 
 try:
+    from livekit.plugins import soniox as lk_soniox
+    SONIOX_AVAILABLE = True
+except ImportError:
+    lk_soniox = None
+    SONIOX_AVAILABLE = False
+
+try:
+    from livekit.agents import stt as lk_stt
+    STT_ADAPTER_AVAILABLE = True
+except ImportError:
+    lk_stt = None
+    STT_ADAPTER_AVAILABLE = False
+
+try:
     import openai as cerebras_client
     CEREBRAS_AVAILABLE = True
 except ImportError:
@@ -126,6 +140,7 @@ from utils.latency_logger import (
     LatencyProfiler
 )
 from utils.data_extractors import extract_phone_from_room, extract_name_from_summary, extract_call_sid_from_metadata
+from utils.fallback_llm import FallbackLLM
 
 # Configure logging with security hardening
 configure_safe_logging(level=logging.INFO)
@@ -200,18 +215,23 @@ def _build_background_ambient_config(setting: Optional[str]):
     return None
 
 # ---- Shared OpenAI client & HTTP transport (used by all OpenAI calls) ----
-_HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=60.0, write=30.0, pool=30.0)  # Increased read timeout
-_HTTP_CLIENT = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+_HTTP_CLIENT: httpx.AsyncClient | None = None
+_OPENAI_CLIENT: AsyncOpenAI | None = None
 
-_OPENAI_CLIENT = AsyncOpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    http_client=_HTTP_CLIENT,  # ensures streaming reads don't hit short defaults
-    timeout=60.0,              # increased overall guard for better reliability
-    max_retries=5,             # increased retries for better resilience (was 3)
-    default_headers={
-        "User-Agent": "LiveKit-Agent/1.0",
-    },
-)
+def get_openai_client():
+    """Get or create shared OpenAI client."""
+    global _HTTP_CLIENT, _OPENAI_CLIENT
+    if _OPENAI_CLIENT is None:
+        _HTTP_TIMEOUT = httpx.Timeout(connect=5.0, read=60.0, write=30.0, pool=30.0)
+        _HTTP_CLIENT = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+        _OPENAI_CLIENT = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            http_client=_HTTP_CLIENT,
+            timeout=60.0,
+            max_retries=5,
+            default_headers={"User-Agent": "LiveKit-Agent/1.0"},
+        )
+    return _OPENAI_CLIENT
 # --------------------------------------------------------------------------
 
 
@@ -242,6 +262,14 @@ class CallHandler:
         
         # Start pre-warming in background
         asyncio.create_task(self._prewarm_components())
+
+    async def aclose(self):
+        """Clean up resources."""
+        if hasattr(self, 'mongodb') and self.mongodb:
+            try:
+                await self.mongodb.close()
+            except Exception as e:
+                logger.debug(f"MONGODB_CLOSE_ERROR | error={str(e)}")
 
     async def _prewarm_components(self):
         """Pre-warm critical components to eliminate cold start latency."""
@@ -570,7 +598,7 @@ class CallHandler:
 
             # Create session and agent BEFORE waiting for participant to start listening immediately
             async with measure_latency_context("session_creation", call_id):
-                session = self._create_session(assistant_config)
+                session = await self._create_session(assistant_config)
                 
                 # Initialize agent factory with pre-warmed components
                 agent_factory = AgentFactory(
@@ -696,14 +724,14 @@ class CallHandler:
                     # logger.error(f"POST_CALL_ANALYSIS_FAILED | error={str(e)}")
                     pass
 
-            # Register shutdown callback to ensure proper cleanup and analysis
-            ctx.add_shutdown_callback(save_call_on_shutdown)
-
-            # Wait for session completion
-            await self._wait_for_session_completion(session, ctx)
-
-            profiler.finish(success=True)
-            # logger.info(f"CALL_COMPLETED | room={ctx.room.name}")
+            # Wait for session completion and perform post-call tasks
+            try:
+                await self._wait_for_session_completion(session, ctx)
+                profiler.finish(success=True)
+            finally:
+                # Ensure post-call analysis and database save happen while resources are still open
+                # This must happen BEFORE handler.aclose() is called in the entrypoint finally block
+                await save_call_on_shutdown()
 
         except Exception as e:
             # logger.error(f"CALL_ERROR | room={ctx.room.name} | error={str(e)}", exc_info=True)
@@ -1251,7 +1279,7 @@ class CallHandler:
                 return "Summary generation not available - API key not configured."
 
             # Use shared OpenAI client
-            client = AsyncOpenAI(api_key=openai_api_key)
+            client = get_openai_client()
             
             response = await asyncio.wait_for(
                 client.chat.completions.create(
@@ -1297,7 +1325,7 @@ class CallHandler:
                 return False
 
             # Use shared OpenAI client
-            client = AsyncOpenAI(api_key=openai_api_key)
+            client = get_openai_client()
             
             response = await asyncio.wait_for(
                 client.chat.completions.create(
@@ -1355,7 +1383,7 @@ class CallHandler:
                 return {}
 
             # Use shared OpenAI client
-            client = AsyncOpenAI(api_key=openai_api_key)
+            client = get_openai_client()
             
             # Build the extraction prompt
             extraction_prompt = prompt or "Extract the following information from the call transcript:"
@@ -1396,106 +1424,62 @@ class CallHandler:
             # logger.warning(f"AI_STRUCTURED_DATA_EXTRACTION_ERROR | error={str(e)}")
             return {}
 
-    def _create_session(self, config: Dict[str, Any]) -> AgentSession:
-        """Create agent session using assistant's database settings."""
-        # Validate and fix model names to prevent API errors
+    async def _create_session(self, config: Dict[str, Any]) -> AgentSession:
+        """Create agent session using assistant's database settings with dynamic fallbacks."""
         from config.settings import validate_model_names
         config = validate_model_names(config)
         
+        # 0. Fetch global provider configuration for fallbacks
+        tenant = config.get("tenant", "main")
+        provider_config = await self.mongodb.fetch_provider_config(tenant)
+        logger.info(f"SESSION_PROVIDER_CONFIG | tenant={tenant} | has_config={bool(provider_config)}")
+
         # re-use prewarmed VAD, fallback if missing
         vad = getattr(self, "_prewarmed_vad", None) or silero.VAD.load()
 
-        # Get configuration from assistant data - optimized for performance
-        llm_provider = config.get("llm_provider_setting", "OpenAI")
-        llm_model = config.get("llm_model_setting", "gpt-4o-mini")  # Fast model by default
-        temperature = config.get("temperature_setting", 0.1)  # Lower temperature for consistency
-        max_tokens = config.get("max_token_setting", 200)  # Reduced for faster responses
+        # Initialize agent factory to use its creation methods
+        from services.agent_factory import AgentFactory
+        agent_factory = AgentFactory(
+            self.mongodb,
+            self._prewarmed_llms,
+            self._prewarmed_tts,
+            self._prewarmed_vad
+        )
 
+        # 1. Create LLM based on provider with dynamic fallbacks
+        llm_provider = config.get("llm_provider_setting", "OpenAI")
+        llm_model = config.get("llm_model_setting", "gpt-4o-mini")
+        temperature = config.get("temperature_setting", 0.1)
+        max_tokens = config.get("max_token_setting", 200)
+        
+        llm = agent_factory._create_llm(llm_provider, llm_model, temperature, max_tokens, config, provider_config)
+
+        # 2. Create TTS based on provider with dynamic fallbacks
         voice_provider = config.get("voice_provider_setting", "OpenAI")
         voice_model = config.get("voice_model_setting", "gpt-4o-mini-tts")
         voice_name = config.get("voice_name_setting", "alloy")
-
-        # Debug logging for TTS provider selection
-        logger.info(f"TTS_PROVIDER_SELECTED | provider={voice_provider} | model={voice_model} | voice={voice_name}")
-
-        # Create LLM based on provider
-        llm = self._create_llm(llm_provider, llm_model, temperature, max_tokens, config)
-
-        # Create TTS based on provider
-        tts = self._create_tts(voice_provider, voice_model, voice_name, config)
-
-        # Create STT - prefer Deepgram streaming for better latency, fallback to OpenAI Whisper
-        language_setting = config.get("language_setting", "en")
         
-        # Map combined language codes to Deepgram-supported codes
-        language_mapping = {
-            "en-es": "en",  # Default to English for combined languages
-            "en": "en",
-            "es": "es", 
-            "pt": "pt",
-            "fr": "fr",
-            "de": "de",
-            "nl": "nl",
-            "no": "no",
-            "ar": "ar"
-        }
-        deepgram_language = language_mapping.get(language_setting, "en")
-        
-        # Try Deepgram STT first if available and API key is set
-        stt = None
-        deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
-        
-        if DEEPGRAM_AVAILABLE and deepgram_api_key:
-            try:
-                stt = lk_deepgram.STT(
-                    model="nova-3",
-                    language=deepgram_language
-                )
-                logger.info(f"DEEPGRAM_STT_CONFIGURED | model=nova-3 | language={deepgram_language}")
-            except Exception as e:
-                logger.warning(f"DEEPGRAM_STT_FAILED | error={str(e)} | falling back to OpenAI Whisper")
-                stt = None
-        
-        # Fallback to OpenAI Whisper STT if Deepgram is not available or failed
-        whisper_language = None
-        if stt is None:
-            # Map language codes for OpenAI Whisper
-            whisper_language_mapping = {
-                "en": "en", "es": "es", "pt": "pt", "fr": "fr", 
-                "de": "de", "nl": "nl", "no": "no", "ar": "ar",
-                "en-es": "en"  # Default to English for combined
-            }
-            whisper_language = whisper_language_mapping.get(language_setting, "en")
-            
-            stt = openai.STT(
-                model="whisper-1",
-                language=whisper_language
-            )
-            logger.info(
-                "OPENAI_STT_CONFIGURED | model=whisper-1 | language=%s | reason=%s",
-                whisper_language,
-                'DEEPGRAM_NOT_AVAILABLE' if not DEEPGRAM_AVAILABLE else 'DEEPGRAM_FAILED' if deepgram_api_key else 'DEEPGRAM_API_KEY_NOT_SET'
-            )
-        else:
-            logger.info("OPENAI_STT_SKIPPED | reason=DEEPGRAM_CONFIGURED")
+        tts = agent_factory._create_tts(voice_provider, voice_model, voice_name, config, provider_config)
+
+        # 3. Create STT with dynamic fallbacks - Forced to English
+        language_setting = "en"
+        stt = agent_factory._create_stt(language_setting, provider_config, config)
 
         # Get call management settings from assistant config
-        max_call_duration_minutes = config.get("max_call_duration", 30)  # From DB (in seconds, convert to minutes)
-        silence_timeout_seconds = config.get("silence_timeout", 20)       # From DB
+        max_call_duration_minutes = config.get("max_call_duration", 30)
+        silence_timeout_seconds = config.get("silence_timeout", 20)
         
         # Convert max call duration from seconds to minutes for session timeout
         max_call_duration_seconds = max_call_duration_minutes
 
         # Get voice timing settings from assistant config
-        voice_on_punctuation_seconds = config.get("voice_on_punctuation_seconds", 0.1)      # From DB
-        voice_on_no_punctuation_seconds = config.get("voice_on_no_punctuation_seconds", 1.5)  # From DB
-        voice_on_number_seconds = config.get("voice_on_number_seconds", 0.5)               # From DB
-        voice_backoff_seconds = config.get("voice_backoff_seconds", 1)                      # From DB
+        voice_on_punctuation_seconds = config.get("voice_on_punctuation_seconds", 0.1)
+        voice_on_no_punctuation_seconds = config.get("voice_on_no_punctuation_seconds", 1.5)
 
         # Get interruption threshold settings from assistant config
-        min_interruption_words = config.get("num_words_to_interrupt_assistant", 3)  # From DB, default to 3 words
-        min_interruption_duration = 0.5  # Require at least 0.5 seconds of speech
-        false_interruption_timeout = 2.0  # Wait 2 seconds before signaling false interruption
+        min_interruption_words = config.get("num_words_to_interrupt_assistant", 3)
+        min_interruption_duration = 0.5
+        false_interruption_timeout = 2.0
 
         return AgentSession(
             vad=vad,
@@ -1514,88 +1498,64 @@ class CallHandler:
 
     # Keep the original LLM and TTS creation methods for pre-warming
     def _create_llm(self, provider: str, model: str, temperature: float, max_tokens: int, config: Dict[str, Any]):
-        """Create LLM using assistant config + environment API keys."""
+        """Create a fallback chain of LLMs as requested."""
+        llm_chain = []
         
-        if provider == "Groq" and GROQ_AVAILABLE:
-            # Use assistant's Groq settings from database
-            groq_model = config.get("groq_model", "llama3-8b-8192")  # From DB
-            groq_temperature = config.get("groq_temperature", 0.10)  # From DB  
-            groq_max_tokens = config.get("groq_max_tokens", 250)    # From DB
-            
-            # Get API key from environment (centralized)
-            groq_api_key = os.getenv("GROQ_API_KEY")
-            
-            if groq_api_key:
-                # Handle model mapping for decommissioned models
-                model_mapping = {
-                    "llama3-8b-8192": "llama-3.1-8b-instant",
-                    "llama3-70b-8192": "llama-3.3-70b-versatile"
-                }
-                mapped_model = model_mapping.get(groq_model, groq_model)
-                
-                llm = lk_groq.LLM(
-                    model=mapped_model,
-                    api_key=groq_api_key,  # From environment
-                    temperature=groq_temperature,  # From assistant DB
-                    parallel_tool_calls=False,  # Disabled to prevent parallel function call errors
+        # 1. Main: Groq (Model: llama-4-maverick)
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if GROQ_AVAILABLE and groq_api_key:
+            try:
+                llm_chain.append(lk_groq.LLM(
+                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                    api_key=groq_api_key,
+                    temperature=temperature,
+                    parallel_tool_calls=False,
                     tool_choice="auto",
-                )
-                logger.info(f"GROQ_LLM_CONFIGURED | model={mapped_model} | temp={groq_temperature} | tokens={groq_max_tokens}")
-                return llm
-            else:
-                logger.warning("GROQ_API_KEY_NOT_SET | falling back to OpenAI LLM")
+                ))
+                logger.info("FALLBACK_CHAIN_SETUP | Added Groq (meta-llama/llama-4-maverick-17b-128e-instruct)")
+            except Exception as e:
+                logger.error(f"FALLBACK_CHAIN_ERROR | Failed to add Groq: {str(e)}")
 
-        elif provider == "Cerebras" and CEREBRAS_AVAILABLE:
-            # Use assistant's Cerebras settings from database
-            cerebras_model = config.get("llm_model_setting", "gpt-oss-120b")  # From DB
-            cerebras_temperature = config.get("temperature_setting", 0.3)  # From DB
-            cerebras_max_tokens = config.get("max_token_setting", 250)     # From DB
-            
-            # Get API key from environment (centralized)
-            cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
-            
-            if cerebras_api_key:
-                llm = openai.LLM(
-                    model=cerebras_model,
-                    api_key=cerebras_api_key,  # From environment
-                    base_url="https://api.cerebras.ai/v1",
-                    temperature=cerebras_temperature,  # From assistant DB
-                    parallel_tool_calls=False,  # Disabled to prevent parallel function call errors
-                    tool_choice="auto",
-                )
-                logger.info(f"CEREBRAS_LLM_CONFIGURED | model={cerebras_model} | temp={cerebras_temperature} | tokens={cerebras_max_tokens}")
-                return llm
-            else:
-                logger.warning("CEREBRAS_API_KEY_NOT_SET | falling back to OpenAI LLM")
-
-        # Default to OpenAI with assistant's settings
-        openai_model = config.get("llm_model_setting", "GPT-4o Mini")  # From DB
-        openai_temperature = config.get("temperature_setting", 1)       # From DB
-        openai_max_tokens = config.get("max_token_setting", 250)       # From DB
-        
-        # Map OpenAI model names
-        model_mapping = {
-            "GPT-4o": "gpt-4o",
-            "GPT-4o Mini": "gpt-4o-mini",
-            "GPT-4.1": "gpt-4.1",
-            "GPT-4.1 Mini": "gpt-4.1-mini",
-            "gpt-4.1": "gpt-4.1",
-            "gpt-4.1-mini": "gpt-4.1-mini"
-        }
-        mapped_model = model_mapping.get(openai_model, "gpt-4o-mini")
-        
-        # Get API key from environment (centralized)
+        # 2. Fallback 1: OpenAI (Model: gpt-4o)
         openai_api_key = os.getenv("OPENAI_API_KEY")
-        
-        llm = openai.LLM(
-            model=mapped_model,
-            api_key=openai_api_key,  # From environment
-            temperature=float(openai_temperature),  # From assistant DB
-            parallel_tool_calls=False,  # Disabled to prevent parallel function call errors
-            tool_choice="auto",
-        )
-        logger.info(f"OPENAI_LLM_CONFIGURED | model={mapped_model} | temp={openai_temperature} | tokens={openai_max_tokens}")
-        return llm
+        if openai_api_key:
+            try:
+                llm_chain.append(openai.LLM(
+                    model="gpt-4o",
+                    api_key=openai_api_key,
+                    temperature=temperature,
+                    parallel_tool_calls=False,
+                    tool_choice="auto",
+                ))
+                logger.info("FALLBACK_CHAIN_SETUP | Added OpenAI (gpt-4o)")
+            except Exception as e:
+                logger.error(f"FALLBACK_CHAIN_ERROR | Failed to add OpenAI: {str(e)}")
+
+        # 3. Fallback 2: Cerebras (Model: llama-3.1-70b-versatile)
+        cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
+        if CEREBRAS_AVAILABLE and cerebras_api_key:
+            try:
+                llm_chain.append(openai.LLM(
+                    model="llama-3.1-70b-versatile",
+                    api_key=cerebras_api_key,
+                    base_url="https://api.cerebras.ai/v1",
+                    temperature=temperature,
+                    parallel_tool_calls=False,
+                    tool_choice="auto",
+                ))
+                logger.info("FALLBACK_CHAIN_SETUP | Added Cerebras (llama-3.1-70b-versatile)")
+            except Exception as e:
+                logger.error(f"FALLBACK_CHAIN_ERROR | Failed to add Cerebras: {str(e)}")
+
+        if not llm_chain:
+            logger.critical("FALLBACK_CHAIN_FAILED | No LLM providers available")
+            raise RuntimeError("No LLM providers available")
+
+        # Return the first one if only one exists, or a FallbackLLM if multiple exist
+        if len(llm_chain) == 1:
+            return llm_chain[0]
+            
+        return FallbackLLM(llm_chain)
 
     def _create_tts(self, provider: str, model: str, voice_name: str, config: Dict[str, Any]):
         """Create TTS using assistant config + environment API keys.
@@ -1764,7 +1724,7 @@ class CallHandler:
             cartesia_model = config.get("voice_model_setting", "sonic-3")  # From DB
             # Default to first Sonic 3 voice if not set
             cartesia_voice = config.get("voice_name_setting", "f9836c6e-a0bd-460e-9d3c-f7299fa60f94")  # From DB (default Sonic 3 voice)
-            cartesia_language = config.get("language_setting", "en")  # From DB
+            cartesia_language = "en"  # Forced to English
             cartesia_speed = config.get("speed", 1.0)  # From DB
             cartesia_volume = config.get("volume", 1.0)  # From DB (if available)
             cartesia_emotion = config.get("emotion")  # From DB (optional)
@@ -1860,7 +1820,10 @@ async def entrypoint(ctx: JobContext):
     
     # Create call handler and process the call
     handler = CallHandler()
-    await handler.handle_call(ctx)
+    try:
+        await handler.handle_call(ctx)
+    finally:
+        await handler.aclose()
     
     logger.info(f"✅ AGENT_ENTRYPOINT_COMPLETE | room={ctx.room.name}")
 

@@ -1,6 +1,7 @@
 import express from 'express';
-import { User, PlanConfig } from '../models/index.js';
+import { User, PlanConfig, MinutesPurchase } from '../models/index.js';
 import { authenticateToken } from '../utils/auth.js';
+import { addMinuteCredit } from '../utils/minutes-helpers.js';
 
 const router = express.Router();
 
@@ -36,28 +37,26 @@ router.post('/change-plan', authenticateToken, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Plan not found' });
         }
 
-        // Update user's plan and reset minutes
+        // Update user's plan
         const updates = {
             plan: newPlan.toLowerCase(),
-            updated_at: new Date()
+            updated_at: new Date(),
+            minutes_used: 0 // Reset usage counter
         };
 
-        // Assign minutes based on new plan configuration
-        if (planConfig.minutes !== undefined && planConfig.minutes !== null) {
-            updates.minutes_limit = Number(planConfig.minutes);
-            console.log(`Assigned ${planConfig.minutes} minutes to user ${userId} for new plan ${newPlan}`);
-        } else if (planConfig.pay_as_you_go) {
-            // Pay as you go plan - no minutes included
-            updates.minutes_limit = 0;
-            console.log(`User ${userId} switched to pay-as-you-go plan ${newPlan} - no minutes included`);
-        } else {
-            // Unlimited or unspecified
-            updates.minutes_limit = 0;
-            console.log(`User ${userId} switched to plan ${newPlan} with unlimited/unspecified minutes`);
-        }
+        // If plan has minutes, invalidate old active credits and add new ones
+        if (planConfig.minutes > 0) {
+            // Optional: Invalidate old credits if you want a clean start on plan change
+            await MinutesPurchase.updateMany(
+                { user_id: userId, status: 'completed', remaining_minutes: { $gt: 0 } },
+                { $set: { remaining_minutes: 0 } }
+            );
 
-        // Reset minutes_used to 0 when changing plans
-        updates.minutes_used = 0;
+            await addMinuteCredit(userId, planConfig.minutes, {
+                payment_method: 'plan_change',
+                notes: `Minutes for new plan: ${planConfig.name}`
+            });
+        }
 
         const updatedUser = await User.findOneAndUpdate(
             { id: userId },

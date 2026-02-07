@@ -18,6 +18,7 @@ router.get('/', authenticateToken, async (req, res) => {
         const transformed = assistants.map(a => ({
             ...a.toObject(),
             id: a.id || a._id.toString(),
+            _id: a._id.toString(),
             description: a.prompt ? a.prompt.substring(0, 100) + '...' : undefined,
             status: 'active'
         }));

@@ -19,6 +19,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { createLivekitToken } from "@/lib/api/apiService";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { BACKEND_URL } from "@/lib/api-config";
+import { VoiceVisualizer } from "@/components/voice/VoiceVisualizer";
 
 export default function VoiceAgent() {
   const navigate = useNavigate();
@@ -306,6 +307,14 @@ export default function VoiceAgent() {
                         : ""}
                     .
                   </div>
+
+                  <div className="flex flex-col items-center justify-center py-12 bg-white/[0.02] rounded-2xl border border-white/[0.05] mt-8 mb-6">
+                    <VoiceVisualizer />
+                    <p className="text-xs text-muted-foreground mt-4 font-light tracking-widest uppercase opacity-70">
+                      AI Agent
+                    </p>
+                  </div>
+
                   <AutoMic />
                   <InitialConfigSender />
                 </LiveKitRoom>

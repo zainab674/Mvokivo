@@ -2,7 +2,7 @@ import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { 
+import {
   ThemedDialog,
   ThemedDialogTrigger,
   ThemedDialogContent,
@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Phone } from "lucide-react";
+import { Phone, RefreshCw } from "lucide-react";
 
 const twilioFormSchema = z.object({
   accountSid: z.string().min(1, {
@@ -44,6 +44,8 @@ interface TwilioAuthDialogProps {
 export function TwilioAuthDialog({ onSuccess, children }: TwilioAuthDialogProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
 
   const form = useForm<TwilioFormValues>({
     resolver: zodResolver(twilioFormSchema),
@@ -56,6 +58,7 @@ export function TwilioAuthDialog({ onSuccess, children }: TwilioAuthDialogProps)
 
   async function onSubmit(data: TwilioFormValues) {
     console.log("TwilioAuthDialog onSubmit called with data:", data);
+    setLoading(true);
     try {
       if (onSuccess) {
         console.log("Calling onSuccess callback...");
@@ -71,6 +74,8 @@ export function TwilioAuthDialog({ onSuccess, children }: TwilioAuthDialogProps)
         title: "Failed to save Twilio credentials",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -152,8 +157,15 @@ export function TwilioAuthDialog({ onSuccess, children }: TwilioAuthDialogProps)
               >
                 Cancel
               </Button>
-              <Button type="submit">
-                Import from Twilio
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Connecting...
+                  </span>
+                ) : (
+                  "Import from Twilio"
+                )}
               </Button>
             </DialogFooter>
           </form>

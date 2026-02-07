@@ -27,7 +27,7 @@ interface ModernUserTableProps {
     onEditUser: (user: AdminUser) => void;
     onDeleteUser: (user: AdminUser) => void;
     onSupportAccess: (sessionData: any) => void;
-    formatMinutes: (minutes: number | null | undefined, plan: string | null | undefined) => string;
+    formatMinutes: (minutes: number | null | undefined, plan: string | null | undefined, user?: { role?: string | null; tenant?: string | null; slug_name?: string | null } | null) => string;
     getRemainingMinutes: (user: AdminUser) => string;
 }
 
@@ -143,7 +143,7 @@ export const ModernUserTable: React.FC<ModernUserTableProps> = ({
                                                     {user.minutes_used?.toLocaleString() || 0}
                                                 </span>
                                                 <span className="text-xs text-gray-500">
-                                                    / {formatMinutes(user.minutes_limit, user.plan)}
+                                                    / {formatMinutes(user.minutes_limit, user.plan, user)}
                                                 </span>
                                             </div>
                                             <span className="text-xs text-emerald-400 font-medium">

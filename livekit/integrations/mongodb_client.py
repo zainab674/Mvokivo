@@ -133,6 +133,29 @@ class MongoDBClient:
             self.logger.error(f"Error fetching assistant from MongoDB: {e}")
             return None
     
+    async def fetch_provider_config(self, tenant: str = "main") -> Optional[Dict[str, Any]]:
+        """
+        Fetch global provider configuration from MongoDB.
+        """
+        if not self.is_available():
+            return None
+        
+        try:
+            # For whitelabel tenants, we try their config first, then fall back to main
+            config = await self._db.globalproviderconfigs.find_one({"tenant": tenant})
+            if not config and tenant != "main":
+                config = await self._db.globalproviderconfigs.find_one({"tenant": "main"})
+            
+            if config:
+                if "_id" in config:
+                    del config["_id"]
+                return config
+            return None
+        except Exception as e:
+            self.logger.error(f"Error fetching provider config: {e}")
+            return None
+
+    
     async def fetch_assistant_by_phone(self, phone_number: str) -> Optional[Dict[str, Any]]:
         """
         Fetch assistant by phone number (for inbound calls).
@@ -292,15 +315,22 @@ class MongoDBClient:
                     minutes_data = data.get("data", {})
                     remaining = minutes_data.get("remainingMinutes", 0)
                     total = minutes_data.get("totalMinutes", 0)
-                    
-                    # If total is 0, it's unlimited
-                    if total == 0:
+                    # Only the backend can set unlimited (admin with 0 limit). 0 for non-admin = no minutes.
+                    unlimited = minutes_data.get("unlimited", False)
+                    if unlimited:
                         return {
                             "available": True,
                             "remaining_minutes": 0,
                             "unlimited": True
                         }
-                    
+                    if total == 0:
+                        return {
+                            "available": False,
+                            "remaining_minutes": 0,
+                            "minutes_limit": 0,
+                            "minutes_used": minutes_data.get("usedMinutes", 0),
+                            "unlimited": False
+                        }
                     return {
                         "available": remaining > 0,
                         "remaining_minutes": remaining,

@@ -12,7 +12,7 @@ import calendarRoutes from './routes/calendar.js';
 import callHistoryRoutes from './routes/call-history.js';
 import contactsRoutes from './routes/contacts.js';
 import knowledgeBaseRoutes from './routes/knowledge-base.js';
-import minutesRoutes from './routes/minutes.js';
+import minutesRoutes, { userMinutesRouter } from './routes/minutes.js';
 import minutesPricingRoutes from './routes/minutes-pricing.js';
 import plansRoutes from './routes/plans.js';
 import supportAccessRoutes from './routes/supportAccess.js';
@@ -79,6 +79,7 @@ app.use('/api/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/v1/knowledge-base', knowledgeBaseRoutes);
 app.use('/api/minutes', minutesRoutes);
 app.use('/api/v1/minutes', minutesRoutes);
+app.use('/api/v1/users', userMinutesRouter);
 app.use('/api/minutes-pricing', minutesPricingRoutes);
 app.use('/api/v1/minutes-pricing', minutesPricingRoutes);
 app.use('/api/plans', plansRoutes);
@@ -114,7 +115,12 @@ app.use('/api/v1/email-campaigns', emailCampaignsRouter);
 app.use('/api/v1/integrations', integrationRouter);
 app.use('/api/v1/calls', callEmailRouter);
 app.use('/api/v1/ai', aiRoutes);
+
+import facebookRouter from './routes/facebook.js';
+
+app.use('/api/v1/facebook', facebookRouter);
 app.use('/api/v1/webhooks/lemonsqueezy', lemonSqueezyWebhookRouter);
+
 app.use('/api/v1/checkouts', lemonSqueezyCheckoutRouter);
 
 app.get('/api/v1/test', (req, res) => {
@@ -139,6 +145,7 @@ app.listen(PORT, () => {
             console.log("Attempting to start ngrok tunnel...");
             const listener = await ngrok.forward({ addr: PORT, authtoken_from_env: true });
             console.log(`\n🚀 Ngrok Tunnel Active: ${listener.url()}`);
+            process.env.NGROK_URL = listener.url();
             console.log(`   -> Webhook URL: ${listener.url()}/api/v1/webhooks/lemonsqueezy\n`);
         } catch (e) {
             console.error("\n⚠️  Ngrok failed to start:", e.message);

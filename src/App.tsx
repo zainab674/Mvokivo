@@ -35,8 +35,11 @@ import RefundPolicy from "./pages/RefundPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import Pricing from "./pages/Pricing";
 import Emails from "./pages/Emails";
+
 import EmailCampaigns from "./pages/EmailCampaigns";
+import FacebookCampaigns from "./pages/FacebookCampaigns";
 import PublicAgent from "./pages/PublicAgent";
+
 import ScrollToTop from "./components/ScrollToTop";
 
 
@@ -143,7 +146,10 @@ function AnimatedRoutes() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/integrations" element={<Integrations />} />
+
         <Route path="/billing" element={<Billing />} />
+        <Route path="/facebook-campaigns" element={<FacebookCampaigns />} />
+
 
 
 

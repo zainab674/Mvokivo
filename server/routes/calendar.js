@@ -80,14 +80,41 @@ router.get('/credentials/active', authenticateToken, async (req, res) => {
 router.post('/credentials', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        const { provider, apiKey, timezone, label } = req.body;
+        let { provider, apiKey, timezone, label } = req.body;
 
         if (!provider || !apiKey || !label) {
             return res.status(400).json({ success: false, message: 'Missing required fields' });
         }
 
-        // Deactivate valid credentials for this provider
+        provider = provider.trim();
+        apiKey = apiKey.trim();
+        label = label.trim();
+
+        // Deactivate valid credentials for this provider (others)
         await UserCalendarCredential.updateMany({ user_id: userId, provider }, { is_active: false });
+
+        // Check if a credential with the same label already exists for this provider
+        const existingCredential = await UserCalendarCredential.findOne({ user_id: userId, provider, label });
+
+        if (existingCredential) {
+            existingCredential.api_key = apiKey;
+            existingCredential.timezone = timezone;
+            existingCredential.is_active = true;
+            existingCredential.updated_at = new Date();
+            await existingCredential.save();
+
+            return res.json({
+                id: existingCredential._id,
+                user_id: existingCredential.user_id,
+                provider: existingCredential.provider,
+                api_key: existingCredential.api_key,
+                timezone: existingCredential.timezone,
+                label: existingCredential.label,
+                is_active: existingCredential.is_active,
+                created_at: existingCredential.created_at,
+                updated_at: existingCredential.updated_at
+            });
+        }
 
         const newCredential = new UserCalendarCredential({
             user_id: userId,

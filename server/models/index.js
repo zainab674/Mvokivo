@@ -132,8 +132,8 @@ const smsMessageSchema = new mongoose.Schema({
     direction: String, // 'inbound' or 'outbound'
     status: String,
     user_id: String,
-    date_created: { type: Date, default: Date.now },
-    date_updated: { type: Date, default: Date.now }
+    date_created: { type: mongoose.Schema.Types.Mixed, default: Date.now },
+    date_updated: { type: mongoose.Schema.Types.Mixed, default: Date.now }
 });
 
 export const SmsMessage = mongoose.model('SmsMessage', smsMessageSchema);
@@ -302,9 +302,9 @@ const callHistorySchema = new mongoose.Schema({
     recording_url: String,
     summary: String,
     sentiment: String,
-    started_at: Date,
-    ended_at: Date,
-    created_at: { type: Date, default: Date.now }
+    started_at: mongoose.Schema.Types.Mixed,
+    ended_at: mongoose.Schema.Types.Mixed,
+    created_at: { type: mongoose.Schema.Types.Mixed, default: Date.now }
 });
 
 export const CallHistory = mongoose.model('CallHistory', callHistorySchema);
@@ -596,12 +596,14 @@ export const MinutesPricingConfig = mongoose.model('MinutesPricingConfig', minut
 
 const minutesPurchaseSchema = new mongoose.Schema({
     user_id: { type: String, required: true },
-    minutes_purchased: { type: Number, required: true }, // Can be negative for debits (although code uses payment_method for tracking)
+    minutes_purchased: { type: Number, required: true }, // The original amount
+    remaining_minutes: { type: Number, default: 0 },   // Amount left to use
     amount_paid: Number,
     currency: String,
-    payment_method: String, // 'stripe', 'whitelabel_admin', 'whitelabel_customer_sale'
+    payment_method: String, // 'stripe', 'whitelabel_admin', 'whitelabel_customer_sale', 'subscription'
     status: { type: String, default: 'pending' },
     notes: String,
+    expires_at: { type: Date }, // Date when these minutes expire
     created_at: { type: Date, default: Date.now }
 });
 
@@ -679,6 +681,19 @@ const workspaceInvitationSchema = new mongoose.Schema({
 
 export const WorkspaceInvitation = mongoose.model('WorkspaceInvitation', workspaceInvitationSchema);
 
+
+const facebookIntegrationSchema = new mongoose.Schema({
+    user_id: { type: String, required: true },
+    facebook_user_id: String,
+    page_id: String,
+    page_name: String,
+    page_access_token: String,
+    assistant_id: String,
+    connected_at: { type: Date, default: Date.now }
+});
+
+export const FacebookIntegration = mongoose.model('FacebookIntegration', facebookIntegrationSchema);
+
 const lemonSqueezyConfigSchema = new mongoose.Schema({
     tenant: { type: String, default: 'main' }, // 'main' or specific tenant
     api_key: String,
@@ -689,3 +704,25 @@ const lemonSqueezyConfigSchema = new mongoose.Schema({
 });
 
 export const LemonSqueezyConfig = mongoose.model('LemonSqueezyConfig', lemonSqueezyConfigSchema);
+
+const userFacebookCredentialSchema = new mongoose.Schema({
+    user_id: { type: String, required: true, unique: true },
+    app_id: { type: String, required: true },
+    app_secret: { type: String, required: true },
+    is_active: { type: Boolean, default: true },
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
+});
+
+export const UserFacebookCredential = mongoose.model('UserFacebookCredential', userFacebookCredentialSchema);
+
+const globalProviderConfigSchema = new mongoose.Schema({
+    tenant: { type: String, default: 'main' }, // 'main' for global, or specific tenant slug
+    llm_fallbacks: { type: [String], default: ['groq', 'openai', 'cerebras'] },
+    stt_fallbacks: { type: [String], default: ['deepgram', 'openai'] },
+    tts_fallbacks: { type: [String], default: ['kokoru_tts', 'raya_tts', 'cartesia', 'openai'] },
+    updated_at: { type: Date, default: Date.now }
+});
+
+export const GlobalProviderConfig = mongoose.model('GlobalProviderConfig', globalProviderConfigSchema);
+

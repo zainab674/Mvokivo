@@ -118,7 +118,10 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
       const { mappings } = await response.json();
 
       // Filter for this assistant
-      const assistantNumbers = mappings.filter((m: any) => m.inbound_assistant_id === assistant.id);
+      const assistantNumbers = mappings.filter((m: any) =>
+        m.inbound_assistant_id === assistant.id ||
+        m.inbound_assistant_id === (assistant as any)._id
+      );
 
       setPhoneNumbers(assistantNumbers || []);
     } catch (error) {
@@ -163,10 +166,11 @@ export function AssistantDetailsDialog({ assistant, isOpen, onClose }: Assistant
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-foreground mb-1">
-                    {assistant.name}
+                    {assistant.name || "Unnamed Assistant"}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {assistant.description.substring(0, 70)}...
+                    {assistant.description?.substring(0, 70) || "No description available"}
+                    {(assistant.description?.length || 0) > 70 ? "..." : ""}
                   </p>
                 </div>
               </div>

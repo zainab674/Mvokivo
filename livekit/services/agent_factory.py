@@ -15,11 +15,16 @@ from services.unified_agent import UnifiedAgent
 from integrations.calendar_api import CalComCalendar
 from config.settings import validate_model_names
 from utils.instruction_builder import build_analysis_instructions, build_call_management_instructions, build_workflow_instructions
+from utils.fallback_llm import FallbackLLM
+from livekit.plugins import openai, groq as lk_groq
+from livekit.agents.tts import FallbackAdapter
+from integrations.raya_tts import RayaTTS
+from integrations.kokoro_tts import KokoruTTS
 
 logger = logging.getLogger(__name__)
 
 # Global OpenAI client for field classification
-_OPENAI_CLIENT = None
+_OPENAI_CLIENT: Optional['AsyncOpenAI'] = None
 
 def get_openai_client():
     """Get or create OpenAI client for field classification."""
@@ -44,7 +49,20 @@ class AgentFactory:
         # Validate model names first
         config = validate_model_names(config)
         
+        # 0. Fetch global provider configuration for fallbacks
+        tenant = config.get("tenant", "main")
+        provider_config = await self.mongodb.fetch_provider_config(tenant)
+        logger.info(f"PROVIDER_CONFIG_FETCHED | tenant={tenant} | has_config={bool(provider_config)}")
+
         instructions = config.get("prompt", "You are a helpful assistant.")
+        
+        # GLOBAL LANGUAGE RULE: Enforce English globally
+        instructions += (
+            "\n\nGLOBAL LANGUAGE RULE:\n"
+            "- You MUST always communicate in English.\n"
+            "- Regardless of the language used by the user, you must respond ONLY in English.\n"
+            "- If the user speaks in a language other than English, acknowledge it if necessary but provide your full response in English.\n"
+        )
 
         # Add date context only if calendar is configured
         cal_api_key = config.get('cal_api_key')
@@ -89,13 +107,8 @@ class AgentFactory:
             instructions += f' IMPORTANT: Start the conversation by saying exactly: "{first_message}" Do not repeat or modify this greeting.'
             logger.info(f"FIRST_MESSAGE_SET | first_message={first_message}")
 
-        # Log final instructions for debugging
-        # logger.info(f"FINAL_INSTRUCTIONS_LENGTH | length={len(instructions)}")
-        # logger.info(f"FINAL_INSTRUCTIONS_PREVIEW | preview={instructions}...")
-
         # Create unified agent that combines RAG and booking capabilities
         knowledge_base_id = config.get("knowledge_base_id")
-        logger.info(f"UNIFIED_AGENT_CONFIG | knowledge_base_id={knowledge_base_id}")
         
         # Initialize calendar if credentials are available
         calendar = await self._initialize_calendar(config)
@@ -103,21 +116,49 @@ class AgentFactory:
         # Add RAG tools to instructions if knowledge base is available
         if knowledge_base_id:
             instructions += "\n\nKNOWLEDGE BASE ACCESS:\nYou have access to a knowledge base with information about the company. You can use the following tools when needed:\n- query_knowledge_base: Search for specific information\n- get_detailed_information: Get comprehensive details about a topic\n\nIMPORTANT: Only use the knowledge base tools when explicitly instructed to do so in your system prompt or when the user specifically requests information that requires knowledge base lookup. Do not automatically search the knowledge base unless instructed.\n\nWhen you do use the knowledge base, provide complete, well-formatted responses with proper context and source information when available."
-            logger.info("RAG_TOOLS | Knowledge base tools added to instructions (conditional usage)")
 
         # Add booking instructions only if calendar is available
         if calendar:
-            instructions += "\n\nBOOKING CAPABILITIES:\nYou can help users book appointments. You have access to the following booking tools:\n- list_slots_on_day: Show available appointment slots for a specific day (shows 10 slots by default - use max_options=20 to show more)\n- choose_slot: Select a time slot for the appointment (can use time like '7:00pm' or slot number from list)\n- set_name: Set the customer's name\n- set_email: Set the customer's email\n- set_phone: Set the customer's phone number\n- finalize_booking: Complete the booking when ALL information is collected (time slot, name, email, phone)\n\nCRITICAL BOOKING RULES:\n- ONLY start booking if the user explicitly requests it (e.g., 'I want to book', 'schedule an appointment', 'book a time')\n- Do NOT automatically start booking just because you have contact information (phone, email, name)\n- Do NOT call list_slots_on_day or any booking tools unless the user explicitly asks to book or schedule an appointment\n- Do NOT call finalize_booking or confirm_details until you have: 1) selected time slot, 2) customer name, 3) email, and 4) phone number. Only call ONE of these functions, not both."
-            logger.info("BOOKING_TOOLS | Calendar booking tools added to instructions")
+            instructions += (
+                "\n\nBOOKING CAPABILITIES:\n"
+                "You can help users book appointments. You have access to the following booking tools:\n"
+                "- set_user_timezone: MUST call this first if the user's timezone is not yet resolved.\n"
+                "- list_slots_on_day: Show available slots. Always ask for morning/afternoon/evening preference FIRST.\n"
+                "- choose_slot: Select a time slot (supports '8am', '3:30pm', or index like '1').\n"
+                "- set_name: Set the customer's name.\n"
+                "- set_email: Set the customer's email.\n"
+                "- set_phone: Set the customer's phone number.\n"
+                "- finalize_booking: Complete the booking when ALL info is collected.\n\n"
+                "CRITICAL BOOKING RULES:\n"
+                "1. TIMEZONE FIRST: If the user wants to book, first check if their timezone is known. If not, use set_user_timezone to resolve it. Do NOT list slots until timezone is confirmed as a valid IANA string (e.g. America/New_York).\n"
+                "2. PREFERENCE FIRST: Before listing slots, ask if they prefer morning, afternoon, or evening. Only list 3-4 slots unless they ask for more.\n"
+                "3. NO AUTO-BOOK: When a slot is chosen, confirm it with the user before finalizing.\n"
+                "4. CONFIRMATION: Only call finalize_booking when you have slot, name, email, and phone.\n"
+                "5. NATURAL FLOW: If the user provides info like 'I'm in New York', call set_user_timezone('America/New_York') immediately."
+            )
 
-        # Create unified agent with both RAG and booking capabilities
-        # Use pre-warmed components if available
+        # Add graceful exit instructions
+        instructions += (
+            "\n\nGRACEFUL EXIT:\n"
+            "Once a task is complete (like booking), give a warm summary: 'You're all set for [Day] at [Time] [Timezone]. A confirmation is on its way to [Email].' "
+            "Always ask 'Is there anything else I can help you with today?' before ending. "
+            "If the user says 'no' or 'that's it', say goodbye politely."
+        )
+           
+        # Create LLM based on provider
         llm_provider = config.get("llm_provider_setting", "OpenAI")
         llm_model = config.get("llm_model_setting", "gpt-4o-mini")
-        config_key = f"{llm_provider}_{llm_model}"
+        temperature = config.get("temperature_setting", 0.1)
+        max_tokens = config.get("max_token_setting", 200)
         
-        prewarmed_llm = self._prewarmed_llms.get(config_key)
-        prewarmed_tts = self._prewarmed_tts.get("openai_nova")
+        # Create LLM fallback chain
+        prewarmed_llm = self._create_llm(llm_provider, llm_model, temperature, max_tokens, config, provider_config)
+
+        tts_provider = config.get("tts_provider_setting", "auto")
+        tts_model = config.get("tts_model_setting", "")
+        tts_voice = config.get("tts_voice_setting", "nova")
+
+        prewarmed_tts = self._create_tts(tts_provider, tts_model, tts_voice, config, provider_config)
         prewarmed_vad = self._prewarmed_vad
         
         agent = UnifiedAgent(
@@ -131,20 +172,10 @@ class AgentFactory:
             prewarmed_vad=prewarmed_vad
         )
         
-        logger.info("UNIFIED_AGENT_CREATED | rag_enabled=%s | calendar_enabled=%s", 
-                   bool(knowledge_base_id), bool(calendar))
-        
         # Set analysis fields if configured
-        analysis_fields = config.get("structured_data_fields", [])
-        # Handle case where structured_data_fields is None
-        if analysis_fields is None:
-            analysis_fields = []
-        logger.info(f"ANALYSIS_FIELDS_DEBUG | raw_config={config.get('structured_data_fields')} | processed_fields={analysis_fields}")
+        analysis_fields = config.get("structured_data_fields", []) or []
         if analysis_fields:
             agent.set_analysis_fields(analysis_fields)
-            logger.info(f"ANALYSIS_FIELDS_SET | count={len(analysis_fields)} | fields={[f.get('name', 'unnamed') for f in analysis_fields]}")
-        else:
-            logger.warning("NO_ANALYSIS_FIELDS_CONFIGURED | assistant has no structured_data_fields")
         
         # Set transfer configuration if enabled
         transfer_enabled = config.get("transfer_enabled", False)
@@ -157,7 +188,6 @@ class AgentFactory:
                 "transfer_condition": config.get("transfer_condition")
             }
             agent.set_transfer_config(transfer_config)
-            logger.info(f"TRANSFER_CONFIG_SET | enabled={transfer_enabled} | phone={transfer_config.get('transfer_phone_number')}")
 
         return agent
 
@@ -166,9 +196,6 @@ class AgentFactory:
         # Debug logging for calendar configuration
         cal_api_key = config.get('cal_api_key')
         cal_event_type_id = config.get('cal_event_type_id')
-        logger.info(f"CALENDAR_DEBUG | cal_api_key present: {bool(cal_api_key)} | cal_event_type_id present: {bool(cal_event_type_id)}")
-        logger.info(f"CALENDAR_DEBUG | cal_api_key value: {cal_api_key[:10] if cal_api_key else 'NOT_FOUND'}... | cal_event_type_id value: {cal_event_type_id or 'NOT_FOUND'}")
-        logger.info(f"CALENDAR_DEBUG | cal_timezone: {config.get('cal_timezone', 'NOT_FOUND')}")
         
         if config.get("cal_api_key") and config.get("cal_event_type_id"):
             # Validate and convert event_type_id to proper format
@@ -176,58 +203,44 @@ class AgentFactory:
             try:
                 # Convert to string first, then validate it's a valid number
                 if isinstance(event_type_id, str):
-                    # Remove any non-numeric characters except for the event type format
                     cleaned_id = event_type_id.strip()
-                    # Handle Cal.com event type format like "cal_1759650430507_boxv695kh"
                     if cleaned_id.startswith("cal_"):
-                        # Extract the numeric part
                         parts = cleaned_id.split("_")
                         if len(parts) >= 2:
                             numeric_part = parts[1]
                             if numeric_part.isdigit():
                                 event_type_id = int(numeric_part)
                             else:
-                                logger.error(f"INVALID_EVENT_TYPE_ID | cannot extract number from {cleaned_id}")
                                 event_type_id = None
                         else:
-                            logger.error(f"INVALID_EVENT_TYPE_ID | malformed cal.com ID {cleaned_id}")
                             event_type_id = None
                     elif cleaned_id.isdigit():
                         event_type_id = int(cleaned_id)
                     else:
-                        logger.error(f"INVALID_EVENT_TYPE_ID | not a valid number {cleaned_id}")
                         event_type_id = None
                 elif isinstance(event_type_id, (int, float)):
                     event_type_id = int(event_type_id)
                 else:
-                    logger.error(f"INVALID_EVENT_TYPE_ID | unexpected type {type(event_type_id)}: {event_type_id}")
                     event_type_id = None
-            except (ValueError, TypeError) as e:
-                logger.error(f"EVENT_TYPE_ID_CONVERSION_ERROR | error={str(e)} | value={event_type_id}")
+            except (ValueError, TypeError):
                 event_type_id = None
             
             if event_type_id:
-                # Get timezone from config, default to Asia/Karachi for Pakistan
                 cal_timezone = config.get("cal_timezone") or "Asia/Karachi"
-                logger.info(f"CALENDAR_CONFIG | api_key={'*' * 10} | event_type_id={event_type_id} | timezone={cal_timezone}")
                 calendar = CalComCalendar(
                     api_key=config.get("cal_api_key"),
                     event_type_id=event_type_id,
                     timezone=cal_timezone
                 )
-                # Initialize the calendar
                 try:
                     await calendar.initialize()
-                    logger.info("CALENDAR_INITIALIZED | calendar setup successful")
                     return calendar
                 except Exception as e:
                     logger.error(f"CALENDAR_INIT_FAILED | error={str(e)}")
                     return None
             else:
-                logger.error("CALENDAR_CONFIG_FAILED | invalid event_type_id")
                 return None
         else:
-            logger.warning("CALENDAR_NOT_CONFIGURED | missing cal_api_key or cal_event_type_id")
             return None
 
     async def _classify_data_fields_with_llm(self, structured_data: list) -> Dict[str, list]:
@@ -235,12 +248,10 @@ class AgentFactory:
         try:
             openai_api_key = os.getenv("OPENAI_API_KEY")
             if not openai_api_key:
-                logger.warning("OPENAI_API_KEY not configured for field classification")
                 return {"ask_user": [], "extract_from_conversation": []}
 
             client = get_openai_client()
             
-            # Prepare field descriptions
             fields_json = json.dumps([
                 {
                     "name": field.get("name", ""),
@@ -300,3 +311,226 @@ Return a JSON object with two arrays. You must respond with valid JSON format on
                 "ask_user": [field.get("name", "") for field in structured_data],
                 "extract_from_conversation": []
             }
+
+    def _create_stt(self, language: str, provider_config: Optional[Dict[str, Any]] = None, assistant_config: Optional[Dict[str, Any]] = None):
+        """Create STT using dynamic fallback search."""
+        stt_chain = []
+        
+        # Get model from assistant config or provider config
+        stt_model = (assistant_config or {}).get("stt_model_setting") or (provider_config or {}).get("stt_model") or "nova-2"
+        
+        # Fallback list from DB or default
+        fallbacks = provider_config.get("stt_fallbacks") if provider_config else None
+        if not fallbacks:
+            fallbacks = ['deepgram', 'openai']
+            
+        deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        soniox_api_key = os.getenv("SONIOX_API_KEY")
+        
+        # Language mapping for STT - Forced to English
+        stt_lang = "en"
+
+        from main import DEEPGRAM_AVAILABLE, SONIOX_AVAILABLE, GROQ_AVAILABLE
+        from livekit.plugins import deepgram as lk_deepgram, soniox as lk_soniox, groq as lk_groq, openai as lk_openai
+        from livekit.agents import stt as lk_stt_module
+
+        for fb in fallbacks:
+            if fb == 'deepgram' and DEEPGRAM_AVAILABLE and deepgram_api_key:
+                try:
+                    if "flux" in stt_model.lower():
+                        stt_chain.append(lk_deepgram.STTv2(model="flux-general-en"))
+                        logger.info("STT_CHAIN | Added Deepgram Flux (STTv2)")
+                    else:
+                        stt_chain.append(lk_deepgram.STT(model="nova-2", language=stt_lang))
+                        logger.info("STT_CHAIN | Added Deepgram")
+                except Exception as e:
+                    logger.error(f"STT_CHAIN_ERROR | Deepgram: {e}")
+            
+            elif fb == 'soniox' and SONIOX_AVAILABLE and soniox_api_key:
+                try:
+                    stt_chain.append(lk_soniox.STT(api_key=soniox_api_key))
+                    logger.info("STT_CHAIN | Added Soniox")
+                except Exception as e:
+                    logger.error(f"STT_CHAIN_ERROR | Soniox: {e}")
+            
+            elif fb == 'groq' and GROQ_AVAILABLE and groq_api_key:
+                try:
+                    stt_chain.append(lk_groq.STT(model="whisper-large-v3-turbo", api_key=groq_api_key, language=stt_lang))
+                    logger.info("STT_CHAIN | Added Groq Whisper")
+                except Exception as e:
+                    logger.error(f"STT_CHAIN_ERROR | Groq: {e}")
+            
+            elif fb == 'openai' and openai_api_key:
+                try:
+                    stt_chain.append(openai.STT(model="whisper-1", language=stt_lang))
+                    logger.info("STT_CHAIN | Added OpenAI Whisper")
+                except Exception as e:
+                    logger.error(f"STT_CHAIN_ERROR | OpenAI: {e}")
+
+        if not stt_chain:
+            return openai.STT(model="whisper-1", language=stt_lang)
+            
+        if len(stt_chain) == 1:
+            return stt_chain[0]
+            
+        from livekit.plugins import silero
+        return lk_stt_module.FallbackAdapter(stt_chain, vad=silero.VAD.load())
+
+    def _create_tts(self, provider: str, model: str, voice_name: str, config: Dict[str, Any], provider_config: Optional[Dict[str, Any]] = None):
+        """Create TTS using assistant config + environment API keys with dynamic fallback support."""
+        tts_chain = []
+        
+        # Fallback list from DB or default
+        fallbacks = provider_config.get("tts_fallbacks") if provider_config else None
+        if not fallbacks:
+            fallbacks = ['raya_tts', 'kokoru_tts', 'cartesia', 'openai']
+            
+        unreal_api_key = os.getenv("UNREAL_API_KEY")
+        raya_api_key = os.getenv("BAKBAK_API_KEY")
+        cartesia_api_key = os.getenv("CARTESIA_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        rime_api_key = os.getenv("RIME_API_KEY")
+        elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+        hume_api_key = os.getenv("HUME_API_KEY")
+        
+        from main import (
+            RIME_AVAILABLE, ELEVENLABS_AVAILABLE, HUME_AVAILABLE, 
+            CARTESIA_AVAILABLE, lk_cartesia, lk_rime, lk_elevenlabs, lk_hume
+        )
+
+        for fb in fallbacks:
+            if fb == 'raya_tts' and raya_api_key:
+                try:
+                    # Forced to English voice regardless of setting to satisfy "all languages to speak english"
+                    raya_voice = "sophia"
+                    raya_lang = "en"
+                    tts_chain.append(RayaTTS(api_key=raya_api_key, voice_id=raya_voice, language=raya_lang))
+                    logger.info(f"TTS_CHAIN | Added Raya")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | Raya: {e}")
+            
+            elif fb == 'kokoru_tts' and unreal_api_key:
+                try:
+                    # Forced to English voice regardless of setting to satisfy "all languages to speak english"
+                    kokoru_voice = "Rowan"
+                    tts_chain.append(KokoruTTS(api_key=unreal_api_key, voice=kokoru_voice))
+                    logger.info(f"TTS_CHAIN | Added Kokoru")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | Kokoru: {e}")
+            
+            elif fb == 'cartesia' and cartesia_api_key and CARTESIA_AVAILABLE:
+                try:
+                    cartesia_model = config.get("cartesia_model_setting", "sonic-3")
+                    cartesia_voice = config.get("cartesia_voice_setting", "f9836c6e-a0bd-460e-9d3c-f7299fa60f94")
+                    tts_chain.append(lk_cartesia.TTS(model=cartesia_model, voice=cartesia_voice, api_key=cartesia_api_key))
+                    logger.info(f"TTS_CHAIN | Added Cartesia")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | Cartesia: {e}")
+
+            elif fb == 'rime' and rime_api_key and RIME_AVAILABLE:
+                try:
+                    rime_model = config.get("voice_model_setting", "mistv2")
+                    rime_speaker = config.get("voice_name_setting", "rainforest")
+                    tts_chain.append(lk_rime.TTS(model=rime_model, speaker=rime_speaker, api_key=rime_api_key))
+                    logger.info(f"TTS_CHAIN | Added Rime")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | Rime: {e}")
+
+            elif fb == 'elevenlabs' and elevenlabs_api_key and ELEVENLABS_AVAILABLE:
+                try:
+                    el_voice = config.get("voice_name_setting", "rachel")
+                    tts_chain.append(lk_elevenlabs.TTS(voice_id=el_voice, api_key=elevenlabs_api_key))
+                    logger.info(f"TTS_CHAIN | Added ElevenLabs")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | ElevenLabs: {e}")
+
+            elif fb == 'openai' and openai_api_key:
+                try:
+                    voice_mapping = {
+                        "rachel": "nova", "domi": "shimmer", "bella": "nova", "antoni": "echo",
+                        "elli": "nova", "josh": "echo", "arnold": "fable", "alloy": "alloy",
+                        "nova": "nova", "shimmer": "shimmer", "echo": "echo", "fable": "fable", "onyx": "onyx"
+                    }
+                    mapped_voice = voice_mapping.get(voice_name.lower(), "alloy")
+                    tts_chain.append(openai.TTS(model="tts-1", voice=mapped_voice, api_key=openai_api_key))
+                    logger.info(f"TTS_CHAIN | Added OpenAI")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | OpenAI: {e}")
+
+            elif fb == 'hume' and hume_api_key and HUME_AVAILABLE:
+                try:
+                    tts_chain.append(lk_hume.TTS(api_key=hume_api_key))
+                    logger.info(f"TTS_CHAIN | Added Hume")
+                except Exception as e:
+                    logger.error(f"TTS_CHAIN_ERROR | Hume: {e}")
+
+        if not tts_chain:
+            if openai_api_key:
+                 return openai.TTS(model="tts-1", voice="alloy", api_key=openai_api_key)
+            raise RuntimeError("No TTS providers available")
+
+        return tts_chain[0] if len(tts_chain) == 1 else FallbackAdapter(tts_chain)
+
+    def _create_llm(self, provider: str, model: str, temperature: float, max_tokens: int, config: Dict[str, Any], provider_config: Optional[Dict[str, Any]] = None):
+        """Create a fallback chain of LLMs as requested."""
+        llm_chain = []
+        
+        # Fallback list from DB or default
+        fallbacks = provider_config.get("llm_fallbacks") if provider_config else None
+        if not fallbacks:
+            fallbacks = ['groq', 'openai', 'cerebras']
+            
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        cerebras_api_key = os.getenv("CEREBRAS_API_KEY")
+        
+        for fb in fallbacks:
+            if fb == 'groq' and groq_api_key and lk_groq:
+                try:
+                    llm_chain.append(lk_groq.LLM(
+                        model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                        api_key=groq_api_key,
+                        temperature=temperature,
+                        parallel_tool_calls=False,
+                        tool_choice="auto",
+                    ))
+                    logger.info("LLM_CHAIN | Added Groq")
+                except Exception as e:
+                    logger.error(f"LLM_CHAIN_ERROR | Groq: {e}")
+            
+            elif fb == 'openai' and openai_api_key:
+                try:
+                    llm_chain.append(openai.LLM(
+                        model="gpt-4o",
+                        api_key=openai_api_key,
+                        temperature=temperature,
+                        parallel_tool_calls=False,
+                        tool_choice="auto",
+                    ))
+                    logger.info("LLM_CHAIN | Added OpenAI")
+                except Exception as e:
+                    logger.error(f"LLM_CHAIN_ERROR | OpenAI: {e}")
+            
+            elif fb == 'cerebras' and cerebras_api_key:
+                try:
+                    llm_chain.append(openai.LLM(
+                        model="llama-3.1-70b-versatile",
+                        api_key=cerebras_api_key,
+                        base_url="https://api.cerebras.ai/v1",
+                        temperature=temperature,
+                        parallel_tool_calls=False,
+                        tool_choice="auto",
+                    ))
+                    logger.info("LLM_CHAIN | Added Cerebras")
+                except Exception as e:
+                    logger.error(f"LLM_CHAIN_ERROR | Cerebras: {e}")
+
+        if not llm_chain:
+            if openai_api_key:
+                 return openai.LLM(model="gpt-4o-mini", api_key=openai_api_key)
+            raise RuntimeError("No LLM providers available")
+
+        return llm_chain[0] if len(llm_chain) == 1 else FallbackLLM(llm_chain)
+

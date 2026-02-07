@@ -23,7 +23,9 @@ class SMSDatabaseService {
         return null;
       }
 
-      const assistant = await Assistant.findById(phoneDoc.inbound_assistant_id);
+      const assistant = (phoneDoc.inbound_assistant_id.startsWith('asst_'))
+        ? await Assistant.findOne({ id: phoneDoc.inbound_assistant_id })
+        : await Assistant.findById(phoneDoc.inbound_assistant_id);
 
       console.log('Database query result:', assistant);
       return assistant;
@@ -192,7 +194,9 @@ class SMSDatabaseService {
    */
   async getUserIdFromAssistant(assistantId) {
     try {
-      const assistant = await Assistant.findById(assistantId).select('user_id');
+      const assistant = (assistantId.startsWith('asst_'))
+        ? await Assistant.findOne({ id: assistantId }).select('user_id')
+        : await Assistant.findById(assistantId).select('user_id');
       return assistant?.user_id || null;
     } catch (error) {
       console.error('Exception in getUserIdFromAssistant:', error);
