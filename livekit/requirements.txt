@@ -6,6 +6,10 @@ livekit-plugins-openai>=0.8.0
 livekit-plugins-silero>=0.8.0
 livekit-plugins-elevenlabs>=1.2.11
 livekit-plugins-deepgram>=0.8.0
+livekit-plugins-soniox>=0.6.0
+livekit-plugins-groq>=0.1.0
+livekit-plugins-turn-detector>=0.1.0
+
 livekit-agents[rime]~=1.2
 livekit-agents[hume]~=1.2
 livekit-agents[cartesia]~=1.2

@@ -58,6 +58,7 @@ except ImportError:
 
 # Plugin imports
 from livekit.plugins import openai, silero
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 from livekit.agents.tts import FallbackAdapter
 
 # Additional provider imports
@@ -1486,6 +1487,7 @@ class CallHandler:
             stt=stt,
             llm=llm,
             tts=tts,
+            turn_detection=MultilingualModel(),
             allow_interruptions=True,
             preemptive_generation=True,  # Enable preemptive generation for reduced latency
             min_endpointing_delay=voice_on_punctuation_seconds,   # From assistant DB

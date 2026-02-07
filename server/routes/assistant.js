@@ -133,6 +133,9 @@ router.post('/', authenticateToken, async (req, res) => {
             ...payload,
             id: newId,
             user_id: userId,
+            voice_provider_setting: "Cartesia",
+            voice_model_setting: "sonic-3",
+            voice_name_setting: "41468051-3a85-4b68-92ad-64add250d369",
             created_at: new Date(),
             updated_at: new Date()
         });
@@ -167,6 +170,12 @@ router.put('/:id', authenticateToken, async (req, res) => {
         }
 
         Object.assign(assistant, updates);
+
+        // Enforce hardcoded voice
+        assistant.voice_provider_setting = "Cartesia";
+        assistant.voice_model_setting = "sonic-3";
+        assistant.voice_name_setting = "41468051-3a85-4b68-92ad-64add250d369";
+
         assistant.updated_at = new Date();
 
         await assistant.save();

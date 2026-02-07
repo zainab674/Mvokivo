@@ -423,7 +423,7 @@ Return a JSON object with two arrays. You must respond with valid JSON format on
             elif fb == 'cartesia' and cartesia_api_key and CARTESIA_AVAILABLE:
                 try:
                     cartesia_model = config.get("cartesia_model_setting", "sonic-3")
-                    cartesia_voice = config.get("cartesia_voice_setting", "f9836c6e-a0bd-460e-9d3c-f7299fa60f94")
+                    cartesia_voice = config.get("cartesia_voice_setting", "41468051-3a85-4b68-92ad-64add250d369")
                     tts_chain.append(lk_cartesia.TTS(model=cartesia_model, voice=cartesia_voice, api_key=cartesia_api_key))
                     logger.info(f"TTS_CHAIN | Added Cartesia")
                 except Exception as e:

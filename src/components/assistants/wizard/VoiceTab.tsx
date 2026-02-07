@@ -71,63 +71,28 @@ export const VoiceTab: React.FC<VoiceTabProps> = ({ data, onChange }) => {
       {/* Header Section */}
 
 
-      {/* Card 1 - Voice Identity Card */}
+      {/* Card 1 - Background Sound Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-medium">Voice Characteristics</CardTitle>
+          <CardTitle className="text-lg font-medium">Background Sound</CardTitle>
+          <CardDescription>Configure ambient background sounds for your assistant's voice.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 sm:space-y-8">
-          {/* Voice Selection - Only show Voice dropdown */}
-          <div className="max-w-md">
-            <div className="space-y-3">
-              <Label className="text-base font-semibold tracking-tight">Voice</Label>
-              <Select value={data.voice} onValueChange={(value) => onChange({ voice: value })}>
-                <SelectTrigger className="w-full h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {getFilteredVoices().map((voice) => (
-                    <SelectItem key={voice.value} value={voice.value}>
-                      {voice.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <Label className="text-base font-semibold tracking-tight">Select Sound</Label>
+            <Select value={data.backgroundSound || "off"} onValueChange={(value) => onChange({ backgroundSound: value })}>
+              <SelectTrigger className="w-full sm:w-[240px] h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">Off</SelectItem>
+                <SelectItem value="office">Office</SelectItem>
+                <SelectItem value="cafe">Cafe</SelectItem>
+                <SelectItem value="nature">Nature</SelectItem>
+                <SelectItem value="white-noise">White Noise</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Card 2 - Additional Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg sm:text-xl font-medium tracking-tight">Additional Configuration</CardTitle>
-          <CardDescription>Configure additional settings for the voice of your assistant.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6 sm:space-y-8">
-          {/* Config Adapter Section */}
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <Label className="text-base font-semibold tracking-tight">Background Sound</Label>
-              <Select value={data.backgroundSound || "off"} onValueChange={(value) => onChange({ backgroundSound: value })}>
-                <SelectTrigger className="w-full sm:w-[180px] h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="off">Off</SelectItem>
-                  <SelectItem value="office">Office</SelectItem>
-                  <SelectItem value="cafe">Cafe</SelectItem>
-                  <SelectItem value="nature">Nature</SelectItem>
-                  <SelectItem value="white-noise">White Noise</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-
-          </div>
-
-
-
         </CardContent>
       </Card>
 

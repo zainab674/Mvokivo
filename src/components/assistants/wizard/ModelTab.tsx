@@ -169,6 +169,13 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
     fetchCalendarCredentials();
   }, [toast]);
 
+  // Fetch event types if calendar is already selected (e.g. on mount in edit mode)
+  useEffect(() => {
+    if (data.calendar && data.calendar !== "None" && eventTypes.length === 0 && !loadingEventTypes && !eventTypesError) {
+      fetchEventTypesForCalendar(data.calendar);
+    }
+  }, [data.calendar, eventTypes.length, loadingEventTypes, eventTypesError]);
+
   // Ensure provider, model, and default settings are always set correctly
   useEffect(() => {
     const updates: Partial<ModelData> = {};
