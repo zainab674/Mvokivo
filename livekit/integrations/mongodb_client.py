@@ -256,6 +256,61 @@ class MongoDBClient:
             self.logger.error(f"Error saving call history to MongoDB: {e}")
             return False
 
+    async def update_campaign_call_status(
+        self,
+        campaign_call_id: str,
+        status: str,
+        outcome: Optional[str] = None,
+        duration: Optional[int] = None,
+        notes: Optional[str] = None
+    ) -> bool:
+        """
+        Update CampaignCall and CallQueue status in MongoDB.
+        """
+        if not self.is_available():
+            self.logger.warning("MongoDB client not available")
+            return False
+        
+        try:
+            # Convert string ID to ObjectId
+            oid = ObjectId(campaign_call_id)
+            
+            # 1. Update CampaignCall
+            update_data = {
+                "status": status,
+                "updated_at": datetime.datetime.now()
+            }
+            if outcome:
+                update_data["outcome"] = outcome
+            if duration is not None:
+                update_data["call_duration"] = duration
+            if notes:
+                update_data["notes"] = notes
+            if status == "completed":
+                update_data["completed_at"] = datetime.datetime.now()
+                
+            await self._db.campaigncalls.update_one(
+                {"_id": oid},
+                {"$set": update_data}
+            )
+            
+            # 2. Update CallQueue
+            queue_status = "completed" if status == "completed" else "failed" if status == "failed" else "processing"
+            await self._db.callqueues.update_one(
+                {"campaign_call_id": campaign_call_id},
+                {"$set": {
+                    "status": queue_status,
+                    "updated_at": datetime.datetime.now()
+                }}
+            )
+            
+            self.logger.info(f"Campaign status updated: {campaign_call_id} -> {status}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error updating campaign call status: {e}")
+            return False
+
     async def save_n8n_spreadsheet_id(self, assistant_id: str, spreadsheet_id: str) -> bool:
         """
         Save N8N spreadsheet ID for assistant.

@@ -72,7 +72,6 @@ export function SidebarContent({
     const campaignItems = [
         { icon: <Rocket size={18} />, label: "Call Campaigns", to: "/campaigns" },
         { icon: <Megaphone size={18} />, label: "Email Campaigns", to: "/email-campaigns" },
-        { icon: <Facebook size={18} />, label: "Facebook Campaign", to: "/facebook-campaigns" },
     ];
 
 

@@ -1,3 +1,4 @@
+import { getAccessToken } from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/api-config";
 
 export interface CampaignStatus {
@@ -51,10 +52,12 @@ export interface GetCampaignStatusResponse {
  */
 export const getCampaignStatus = async (campaignId: string): Promise<GetCampaignStatusResponse> => {
   try {
+    const token = await getAccessToken();
     const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${campaignId}/status`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
     });
 

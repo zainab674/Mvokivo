@@ -24,6 +24,7 @@ import emailRouter from './routes/emails.js';
 import emailCampaignsRouter from './routes/email-campaigns.js';
 import integrationRouter from './routes/integration.js';
 import callEmailRouter from './routes/call-email.js';
+import recordingsRouter from './routes/recordings.js';
 import aiRoutes from './routes/ai.js';
 import { emailWorker } from './workers/email-worker.js';
 
@@ -41,6 +42,7 @@ import { livekitOutboundCallsRouter } from './livekit-outbound-calls.js';
 import lemonSqueezyWebhookRouter from './routes/lemonsqueezy-webhook.js';
 import lemonSqueezyCheckoutRouter from './routes/lemonsqueezy-checkout.js';
 import lemonSqueezyConfigRouter from './routes/lemonsqueezy-config.js';
+import { campaignEngine } from './campaign-execution-engine.js';
 
 dotenv.config();
 
@@ -114,11 +116,12 @@ app.use('/api/v1/emails', emailRouter);
 app.use('/api/v1/email-campaigns', emailCampaignsRouter);
 app.use('/api/v1/integrations', integrationRouter);
 app.use('/api/v1/calls', callEmailRouter);
+app.use('/api/v1/calls', recordingsRouter);
 app.use('/api/v1/ai', aiRoutes);
 
-import facebookRouter from './routes/facebook.js';
+// import facebookRouter from './routes/facebook.js';
 
-app.use('/api/v1/facebook', facebookRouter);
+// app.use('/api/v1/facebook', facebookRouter);
 app.use('/api/v1/webhooks/lemonsqueezy', lemonSqueezyWebhookRouter);
 
 app.use('/api/v1/checkouts', lemonSqueezyCheckoutRouter);
@@ -138,6 +141,9 @@ app.listen(PORT, () => {
 
     // Start Email Worker
     emailWorker.start();
+
+    // Start Campaign Engine
+    campaignEngine.start();
 
     // Start Ngrok Tunnel
     (async () => {

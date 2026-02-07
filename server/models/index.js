@@ -383,32 +383,6 @@ const contactSchema = new mongoose.Schema({
 
 export const Contact = mongoose.model('Contact', contactSchema);
 
-const campaignSchema = new mongoose.Schema({
-    user_id: { type: String, required: true },
-    assistant_id: { type: String, required: true },
-    name: { type: String, required: true },
-    status: { type: String, default: 'draft' }, // status used in UI
-    execution_status: { type: String, default: 'draft', enum: ['draft', 'running', 'paused', 'completed', 'error'] }, // status used by engine
-    type: { type: String, default: 'outbound' },
-    schedule: Date,
-    next_call_at: Date,
-    daily_cap: { type: Number, default: 100 },
-    current_daily_calls: { type: Number, default: 0 },
-    start_hour: { type: Number, default: 9 },
-    end_hour: { type: Number, default: 17 },
-    calling_days: { type: [String], default: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] },
-    campaign_prompt: String,
-    contact_source: { type: String, enum: ['contact_list', 'csv_file'], default: 'contact_list' },
-    contact_list_id: String,
-    csv_file_id: String,
-    total_calls_made: { type: Number, default: 0 },
-    last_execution_at: Date,
-    tenant: String,
-    created_at: { type: Date, default: Date.now },
-    updated_at: { type: Date, default: Date.now }
-});
-
-export const Campaign = mongoose.model('Campaign', campaignSchema);
 
 const contactListSchema = new mongoose.Schema({
     user_id: { type: String, required: true },
@@ -726,3 +700,57 @@ const globalProviderConfigSchema = new mongoose.Schema({
 
 export const GlobalProviderConfig = mongoose.model('GlobalProviderConfig', globalProviderConfigSchema);
 
+
+const campaignSchema = new mongoose.Schema({
+    user_id: { type: String, required: true },
+    assistant_id: { type: String, required: true },
+    name: { type: String, required: true },
+    status: { type: String, default: 'draft' }, // status used in UI
+    execution_status: { type: String, default: 'idle', enum: ['idle', 'running', 'paused', 'completed', 'error'] }, // status used by engine
+    type: { type: String, default: 'outbound' },
+    schedule: Date,
+    next_call_at: Date,
+    daily_cap: { type: Number, default: 100 },
+    current_daily_calls: { type: Number, default: 0 },
+    start_hour: { type: Number, default: 9 },
+    end_hour: { type: Number, default: 17 },
+    calling_days: { type: [String], default: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] },
+    campaign_prompt: String,
+    contact_source: { type: String, enum: ['contact_list', 'csv_file'], default: 'contact_list' },
+    contact_list_id: String,
+    csv_file_id: String,
+    total_calls_made: { type: Number, default: 0 },
+    last_execution_at: Date,
+    tenant: String,
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
+}, {
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+    strictPopulate: false
+});
+
+// Virtuals for population
+campaignSchema.virtual('assistant', {
+    ref: 'Assistant',
+    localField: 'assistant_id',
+    foreignField: '_id',
+    justOne: true
+});
+
+
+campaignSchema.virtual('contact_list', {
+    ref: 'ContactList',
+    localField: 'contact_list_id',
+    foreignField: '_id',
+    justOne: true
+});
+
+campaignSchema.virtual('csv_file', {
+    ref: 'CsvFile',
+    localField: 'csv_file_id',
+    foreignField: '_id',
+    justOne: true
+});
+
+export const Campaign = mongoose.model('Campaign', campaignSchema);

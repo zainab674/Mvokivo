@@ -1052,7 +1052,13 @@ class CallHandler:
                 participant_identity=call_data.get("participant_identity"),
                 call_sid=call_data.get("call_sid"),
                 start_time=call_data.get("start_time"),
-                end_time=call_data.get("end_time")
+                end_time=call_data.get("end_time"),
+                call_summary=analysis_results.get("call_summary"),
+                call_success=analysis_results.get("call_success"),
+                structured_data=analysis_results.get("structured_data"),
+                call_outcome=analysis_results.get("call_outcome"),
+                outcome_confidence=analysis_results.get("outcome_confidence"),
+                outcome_reasoning=analysis_results.get("outcome_reasoning")
             )
             
             if success:
@@ -1078,6 +1084,24 @@ class CallHandler:
             else:
                 # logger.error(f"CALL_HISTORY_SAVE_FAILED | call_id={call_id}")
                 pass
+            
+            # CRITICAL: Update CampaignCall and CallQueue if this is a campaign call
+            try:
+                if ctx.job.metadata:
+                    job_meta = json.loads(ctx.job.metadata)
+                    campaign_call_id = job_meta.get("campaignCallId")
+                    if campaign_call_id:
+                        self.logger.info(f"CAMPAIGN_UPDATE_START | campaign_call_id={campaign_call_id}")
+                        await self.mongodb.update_campaign_call_status(
+                            campaign_call_id=campaign_call_id,
+                            status="completed",
+                            outcome=analysis_results.get("call_outcome"),
+                            duration=call_duration,
+                            notes=analysis_results.get("call_summary")
+                        )
+                        self.logger.info(f"CAMPAIGN_UPDATE_SUCCESS | campaign_call_id={campaign_call_id}")
+            except Exception as meta_error:
+                self.logger.error(f"CAMPAIGN_STATUS_UPDATE_ERROR | error={str(meta_error)}")
                 
         except Exception as e:
             # logger.error(f"CALL_HISTORY_SAVE_ERROR | error={str(e)}")

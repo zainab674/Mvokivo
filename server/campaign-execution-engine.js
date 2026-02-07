@@ -1,5 +1,6 @@
 // server/campaign-execution-engine.js
 import { Campaign, CampaignCall, CallQueue, PhoneNumber, Contact, CsvContact, ContactList } from './models/index.js';
+import { SipClient } from 'livekit-server-sdk';
 
 class CampaignExecutionEngine {
   constructor() {
@@ -134,13 +135,20 @@ class CampaignExecutionEngine {
         });
 
         if (campaignCall) {
-          // Update existing call if it's not already completed
+          // Update existing call if it's already completed or failed
           if (campaignCall.status === 'completed' || campaignCall.status === 'failed') {
             console.log(`⏭️ Skipping contact ${contact.name} - already completed/failed`);
             continue;
           }
 
-          // Update existing call to pending
+          // CRITICAL: If call is in 'calling' or 'pending' status, do NOT reset it
+          // This prevents the engine from re-queuing a call that is already being handled
+          if (campaignCall.status === 'calling' || campaignCall.status === 'pending') {
+            console.log(`⏭️ Skipping contact ${contact.name} - already ${campaignCall.status}`);
+            continue;
+          }
+
+          // Update existing call to pending (for other statuses if any)
           campaignCall.status = 'pending';
           campaignCall.scheduled_at = new Date();
           await campaignCall.save();
@@ -238,6 +246,22 @@ class CampaignExecutionEngine {
         .limit(batchSize);
 
       if (!queueItems || queueItems.length === 0) {
+        // Before completing, check if there are any calls still in progress ('calling' or 'processing')
+        const activeCalls = await CampaignCall.countDocuments({
+          campaign_id: campaign._id,
+          status: { $in: ['calling', 'processing'] }
+        });
+
+        const activeQueue = await CallQueue.countDocuments({
+          campaign_id: campaign._id,
+          status: { $in: ['processing'] }
+        });
+
+        if (activeCalls > 0 || activeQueue > 0) {
+          console.log(`⏳ Waiting for ${activeCalls} active calls to finish for campaign: ${campaign.name}`);
+          return; // Don't complete yet, let the next cycle check again
+        }
+
         console.log(`No more queued calls for campaign: ${campaign.name}`);
         await this.completeCampaign(campaign._id);
         return;
@@ -418,19 +442,19 @@ class CampaignExecutionEngine {
     }
 
     if (!withinHours) {
-      console.log(`  ❌ Outside calling hours: ${currentHour} not between ${campaign.start_hour}-${campaign.end_hour}`);
+      console.log(`  ❌ Outside calling hours: ${currentHour} not between ${campaign.start_hour}-${campaign.end_hour || 24}`);
       return false;
     }
 
     // Check if today is a calling day
     if (!campaign.calling_days.includes(currentDay)) {
-      console.log(`  ❌ Not a calling day: ${currentDay} not in ${JSON.stringify(campaign.calling_days)}`);
+      console.log(`  ❌ Not a calling day: ${currentDay} (Configured: ${campaign.calling_days.join(', ')})`);
       return false;
     }
 
     // Check daily cap
     if (currentDailyCalls >= dailyCap) {
-      console.log(`  ❌ Daily cap reached: ${currentDailyCalls}/${dailyCap}`);
+      console.log(`  ❌ Daily cap reached for ${campaign.name}: ${currentDailyCalls}/${dailyCap}`);
       return false;
     }
 
@@ -524,6 +548,7 @@ class CampaignExecutionEngine {
       const { RoomServiceClient, AccessToken, AgentDispatchClient } = await import('livekit-server-sdk');
       const roomClient = new RoomServiceClient(LK_HTTP_URL, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
       const agentDispatchClient = new AgentDispatchClient(LK_HTTP_URL, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
+      const sipClient = new SipClient(LK_HTTP_URL, process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET);
 
       // 5) ensure room exists
       try {
@@ -552,6 +577,7 @@ class CampaignExecutionEngine {
           agentId: campaign.assistant_id,
           callType: 'campaign',
           campaignId: campaign._id,
+          campaignCallId: campaignCall._id.toString(),
           contactName: campaignCall.contact_name || 'Unknown',
           campaignPrompt: campaign.campaign_prompt || '',
           outbound_trunk_id: outboundTrunkId,
@@ -569,6 +595,41 @@ class CampaignExecutionEngine {
       });
 
       console.log('✅ Agent dispatch successful:', dispatchResult);
+
+      // 7) DIAL OUT
+      console.log(`📞 Creating SIP participant for outbound call:`, {
+        outboundTrunkId,
+        phoneNumber: toNumber,
+        roomName
+      });
+
+      const sipParticipantOptions = {
+        participantIdentity: `sip-${campaignCall._id}-${Date.now()}`,
+        participantName: 'AI Assistant',
+        krispEnabled: true,
+        waitUntilAnswered: true,
+        playDialtone: false,
+        metadata: JSON.stringify({
+          assistantId: campaign.assistant_id,
+          campaignId: campaign._id,
+          contactName: campaignCall.contact_name,
+          callType: 'outbound',
+          source: 'campaign'
+        })
+      };
+
+      const sipParticipant = await sipClient.createSipParticipant(
+        outboundTrunkId,
+        toNumber,
+        roomName,
+        sipParticipantOptions
+      );
+
+      console.log(`✅ SIP participant created successfully:`, {
+        participantId: sipParticipant.participantIdentity,
+        roomName: sipParticipant.roomName,
+        status: sipParticipant.status
+      });
 
       // 10) bookkeeping
       campaignCall.call_sid = callId;

@@ -3,53 +3,111 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { CompactPlayButton } from "./audio/CompactPlayButton";
 import { CompactProgress } from "./audio/CompactProgress";
+import { getAccessToken } from "@/lib/auth";
+import { getAuthHeaders } from "@/lib/api-config";
 
 interface CompactAudioPlayerProps extends React.HTMLAttributes<HTMLDivElement> {
   src: string;
   duration?: string;
+  title?: string;
 }
 
 export function CompactAudioPlayer({
   src,
   duration = "0:00",
+  title,
   className,
   ...props
 }: CompactAudioPlayerProps) {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [totalDuration, setTotalDuration] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const progressRef = React.useRef<HTMLDivElement>(null);
+  const objectUrlRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    const audio = new Audio(src);
-    audio.crossOrigin = "anonymous";
-    audioRef.current = audio;
+    const isAuthenticatedEndpoint = src.includes("/api/v1/calls/recording");
 
-    const handleLoadMetadata = () => {
-      setTotalDuration(audio.duration);
+    const loadAudio = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        let audioUrl = src;
+
+        if (isAuthenticatedEndpoint) {
+          const token = await getAccessToken();
+          if (!token) {
+            throw new Error("No authentication token available");
+          }
+
+          const response = await fetch(src, {
+            headers: await getAuthHeaders(token),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to load audio: ${response.status} ${response.statusText}`);
+          }
+
+          const blob = await response.blob();
+          audioUrl = URL.createObjectURL(blob);
+          objectUrlRef.current = audioUrl;
+        }
+
+        const audio = new Audio(audioUrl);
+        audio.crossOrigin = "anonymous";
+        audioRef.current = audio;
+
+        const handleLoadMetadata = () => {
+          setTotalDuration(audio.duration);
+          setLoading(false);
+        };
+
+        const handleTimeUpdate = () => {
+          setCurrentTime(audio.currentTime);
+        };
+
+        const handleEnded = () => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        };
+
+        const handleError = () => {
+          console.error("Audio player error");
+          setError("Failed to load audio");
+          setLoading(false);
+        };
+
+        audio.addEventListener("loadedmetadata", handleLoadMetadata);
+        audio.addEventListener("timeupdate", handleTimeUpdate);
+        audio.addEventListener("ended", handleEnded);
+        audio.addEventListener("error", handleError);
+
+        audio.load();
+
+        return () => {
+          audio.pause();
+          audio.removeEventListener("loadedmetadata", handleLoadMetadata);
+          audio.removeEventListener("timeupdate", handleTimeUpdate);
+          audio.removeEventListener("ended", handleEnded);
+          audio.removeEventListener("error", handleError);
+        };
+      } catch (err) {
+        console.error("Error loading audio:", err);
+        setError(err instanceof Error ? err.message : "Failed to load audio");
+        setLoading(false);
+      }
     };
 
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    audio.addEventListener("loadedmetadata", handleLoadMetadata);
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleEnded);
-
-    audio.load();
+    loadAudio();
 
     return () => {
-      audio.pause();
-      audio.removeEventListener("loadedmetadata", handleLoadMetadata);
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleEnded);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
     };
   }, [src]);
 
@@ -86,6 +144,16 @@ export function CompactAudioPlayer({
     }
   };
 
+  if (error) {
+    return (
+      <div className={cn("w-full p-2 bg-destructive/10 rounded-md border border-destructive/20", className)} {...props}>
+        <div className="text-[10px] text-destructive flex items-center gap-1">
+          <span>Failed to load recording</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -98,15 +166,26 @@ export function CompactAudioPlayer({
       )}
       {...props}
     >
+      {title && (
+        <div className="text-[10px] text-muted-foreground mb-1.5 truncate">{title}</div>
+      )}
       <div className="flex items-center gap-3">
-        <CompactPlayButton isPlaying={isPlaying} onClick={togglePlayPause} />
-        <CompactProgress
-          currentTime={currentTime}
-          totalDuration={totalDuration}
-          duration={duration}
-          onProgressChange={handleProgressChange}
-          ref={progressRef}
+        <CompactPlayButton
+          isPlaying={isPlaying}
+          onClick={togglePlayPause}
+          disabled={loading}
         />
+        {loading ? (
+          <div className="flex-1 text-[10px] text-muted-foreground animate-pulse">Loading audio...</div>
+        ) : (
+          <CompactProgress
+            currentTime={currentTime}
+            totalDuration={totalDuration}
+            duration={duration}
+            onProgressChange={handleProgressChange}
+            ref={progressRef}
+          />
+        )}
       </div>
     </div>
   );

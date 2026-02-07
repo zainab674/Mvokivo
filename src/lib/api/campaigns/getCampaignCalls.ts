@@ -1,3 +1,4 @@
+import { getAccessToken } from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/api-config";
 
 export interface CampaignCall {
@@ -57,10 +58,12 @@ export const getCampaignCalls = async (params: GetCampaignCallsParams): Promise<
     if (params.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
+    const token = await getAccessToken();
     const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${params.campaignId}/calls?${queryParams.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
     });
 

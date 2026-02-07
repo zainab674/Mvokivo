@@ -1,3 +1,4 @@
+import { getAccessToken } from '@/lib/auth';
 import { BACKEND_URL } from '@/lib/api-config';
 
 export interface PhoneNumberMapping {
@@ -13,11 +14,13 @@ export interface PhoneNumberMappingsResponse {
 /**
  * Fetch phone number to assistant mappings
  */
-export const fetchPhoneNumberMappings = async (userId: string, accessToken: string): Promise<PhoneNumberMappingsResponse> => {
+export const fetchPhoneNumberMappings = async (userId: string, token?: string): Promise<PhoneNumberMappingsResponse> => {
   try {
     if (!userId) {
       throw new Error('User ID is required to fetch mappings');
     }
+
+    const accessToken = token || getAccessToken();
 
     if (!accessToken) {
       throw new Error('Access token is required to fetch mappings');

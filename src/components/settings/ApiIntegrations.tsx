@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Phone,
-  Calendar, CheckCircle2, Mail, Search, Check, Facebook
+  Calendar, CheckCircle2, Mail, Search, Check
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SecurityCard } from "./integrations/SecurityCard";
@@ -17,7 +17,6 @@ import { EmailAuthDialog } from "./EmailAuthDialog";
 import { EmailManagementDialog } from "./EmailManagementDialog";
 import { TwilioManagementDialog } from "./TwilioManagementDialog";
 import { CalendarManagementDialog } from "./CalendarManagementDialog";
-import { FacebookManagementDialog } from "./FacebookManagementDialog";
 import axios from "axios";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 
@@ -30,12 +29,10 @@ export function ApiIntegrations() {
   const [calendarIntegrations, setCalendarIntegrations] = useState<UserCalendarCredentials[]>([]);
   const [whatsappIntegrations, setWhatsappIntegrations] = useState<any[]>([]);
   const [emailIntegrations, setEmailIntegrations] = useState<any[]>([]);
-  const [facebookIntegrations, setFacebookIntegrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [twilioDialogOpen, setTwilioDialogOpen] = useState(false);
   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [facebookDialogOpen, setFacebookDialogOpen] = useState(false);
 
   const integrationsData = [
     {
@@ -64,15 +61,6 @@ export function ApiIntegrations() {
       status: "available",
       category: "Messaging & Support",
       brandColor: "#ea4335"
-    },
-    {
-      id: "facebook",
-      name: "Facebook Lead Ads",
-      description: "Connect Facebook Pages to trigger AI calls on new leads",
-      icon: Facebook,
-      status: "available",
-      category: "Messaging & Support",
-      brandColor: "#1877F2"
     }
   ];
 
@@ -83,12 +71,6 @@ export function ApiIntegrations() {
     loadWhatsAppCredentials();
     loadEmailCredentials();
   }, []);
-
-  useEffect(() => {
-    if (user) {
-      loadFacebookIntegrations();
-    }
-  }, [user]);
 
   const loadTwilioCredentials = async () => {
     try {
@@ -158,22 +140,6 @@ export function ApiIntegrations() {
     }
   };
 
-  const loadFacebookIntegrations = async () => {
-    try {
-      if (!user) return;
-      const token = localStorage.getItem('auth_token');
-      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      const res = await axios.get(`${BACKEND_URL}/api/v1/facebook/integrations/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.data.success) {
-        setFacebookIntegrations(res.data.integrations);
-      }
-    } catch (e) {
-      console.error("Error loading Facebook integrations", e);
-    }
-  };
-
   const maskAccountSid = (accountSid: string): string => {
     if (accountSid.length <= 8) return accountSid;
     return accountSid.substring(0, 2) + "*".repeat(accountSid.length - 6) + accountSid.substring(accountSid.length - 4);
@@ -200,10 +166,9 @@ export function ApiIntegrations() {
       if (integration.id === "twilio") status = twilioIntegrations.length > 0 ? "connected" : "available";
       if (integration.id === "calcom") status = calendarIntegrations.length > 0 ? "connected" : "available";
       if (integration.id === "email") status = emailIntegrations.length > 0 ? "connected" : "available";
-      if (integration.id === "facebook") status = facebookIntegrations.length > 0 ? "connected" : "available";
       return { ...integration, status };
     });
-  }, [integrationsData, twilioIntegrations, calendarIntegrations, emailIntegrations, facebookIntegrations]);
+  }, [integrationsData, twilioIntegrations, calendarIntegrations, emailIntegrations]);
 
   const filteredIntegrations = useMemo(() => {
     return updatedIntegrations.filter(integration => {
@@ -289,7 +254,6 @@ export function ApiIntegrations() {
     if (integration.id === "twilio") setTwilioDialogOpen(true);
     else if (integration.id === "calcom") setCalendarDialogOpen(true);
     else if (integration.id === "email") setEmailDialogOpen(true);
-    else if (integration.id === "facebook") setFacebookDialogOpen(true);
     else toast({ title: "Coming Soon", description: `${integration.name} integration is coming soon!` });
   };
 
@@ -465,11 +429,6 @@ export function ApiIntegrations() {
             calendarIntegrations={calendarIntegrations}
             handleCalendarConnect={handleCalendarConnect}
             handleRemoveCalendarIntegration={handleRemoveCalendarIntegration}
-          />
-
-          <FacebookManagementDialog
-            open={facebookDialogOpen}
-            onOpenChange={setFacebookDialogOpen}
           />
 
           <EmailManagementDialog

@@ -1,6 +1,5 @@
 import { getAccessToken } from '@/lib/auth';
-import { TwilioCredentialsService } from "@/lib/twilio-credentials";
-import { BACKEND_URL } from '@/lib/api-config';
+import { BACKEND_URL, getAuthHeaders } from '@/lib/api-config';
 
 export interface RecordingInfo {
   recordingSid: string;
@@ -37,7 +36,7 @@ export interface TwilioRecordingResponse {
 }
 
 /**
- * Fetch recording URL from Twilio using call_sid (exactly like voiceagents)
+ * Fetch recording URL from backend using call_sid (Bearer Auth)
  */
 export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo | null> => {
   try {
@@ -53,32 +52,19 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
       return null;
     }
 
-    // Get Twilio credentials using the service (like voiceagents approach)
-    const credentials = await TwilioCredentialsService.getActiveCredentials();
-
-    if (!credentials) {
-      console.error('Failed to fetch Twilio credentials');
-      return null;
-    }
-
-    // Debug: Log credential lengths to check for truncation
-    console.log('Credentials debug:', {
-      accountSid: credentials.account_sid,
-      accountSidLength: credentials.account_sid?.length,
-      authTokenLength: credentials.auth_token?.length,
-      authTokenPreview: credentials.auth_token?.substring(0, 10) + '...'
-    });
-
-    // Call our server API to get recording info from Twilio (like voiceagents)
+    // Call our server API to get recording info (Bearer authenticated)
     console.log('Fetching recording for callSid:', callSid);
     const response = await fetch(
-      `${BACKEND_URL}/api/v1/call/${callSid}/recordings?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`
+      `${BACKEND_URL}/api/v1/calls/${callSid}/recordings`,
+      {
+        headers: await getAuthHeaders(token)
+      }
     );
 
     console.log('Recording API response status:', response.status);
 
     if (!response.ok) {
-      console.error('Failed to fetch recording from Twilio:', response.status, response.statusText);
+      console.error('Failed to fetch recording info from backend:', response.status, response.statusText);
       return null;
     }
 
@@ -92,12 +78,8 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
     // Get the first (and usually only) recording
     const recording = data.recordings[0];
 
-    // Use our proxy endpoint instead of direct Twilio API access (like voiceagents)
-    // This avoids CORS and authentication issues
-    const proxyAudioUrl = `${BACKEND_URL}/api/v1/call/recording/${recording.sid}/audio?accountSid=${encodeURIComponent(credentials.account_sid)}&authToken=${encodeURIComponent(credentials.auth_token)}`;
-
-    console.log('Proxy audio URL length:', proxyAudioUrl.length);
-    console.log('Proxy audio URL preview:', proxyAudioUrl.substring(0, 100) + '...');
+    // Use our proxy endpoint (Bearer authenticated on playback)
+    const proxyAudioUrl = `${BACKEND_URL}/api/v1/calls/recording/${recording.sid}/audio`;
 
     return {
       recordingSid: recording.sid,
@@ -107,7 +89,7 @@ export const fetchRecordingUrl = async (callSid: string): Promise<RecordingInfo 
       recordingChannels: recording.channels || 2,
       recordingStartTime: recording.startTime,
       recordingSource: recording.source,
-      recordingTrack: 'both' // Default for dual recording (like voiceagents)
+      recordingTrack: 'both' // Default for dual recording
     };
 
   } catch (error) {

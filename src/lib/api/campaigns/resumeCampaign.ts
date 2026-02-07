@@ -1,3 +1,4 @@
+import { getAccessToken } from "@/lib/auth";
 import { BACKEND_URL } from "@/lib/api-config";
 
 export interface ResumeCampaignRequest {
@@ -15,10 +16,12 @@ export interface ResumeCampaignResponse {
  */
 export const resumeCampaign = async (data: ResumeCampaignRequest): Promise<ResumeCampaignResponse> => {
   try {
+    const token = await getAccessToken();
     const response = await fetch(`${BACKEND_URL}/api/v1/campaigns/${data.campaignId}/resume`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
     });
 

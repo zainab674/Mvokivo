@@ -31,9 +31,8 @@ export default function Conversations() {
   const hasManualSelectionRef = useRef(false);
   const [messageFilter, setMessageFilter] = useState<'all' | 'calls' | 'sms'>('all');
 
-  // Progressive loading functions
   const [progressiveFunctions, setProgressiveFunctions] = useState<{
-    getConversationDetails: (phoneNumber: string, days?: number) => Promise<any>;
+    getConversationDetails: (phoneNumber: string, days?: number | null, participantIdentity?: string | null) => Promise<any>;
     loadMoreHistory: (phoneNumber: string, offset?: number, limit?: number) => Promise<any>;
     fetchNewMessagesSince: (phoneNumber: string, sinceTimestamp: string) => Promise<any>;
   } | null>(null);
@@ -198,7 +197,7 @@ export default function Conversations() {
   };
 
   // Load conversation details for a specific contact
-  const loadConversationDetails = async (phoneNumber: string) => {
+  const loadConversationDetails = async (phoneNumber: string, participantIdentity?: string | null) => {
     if (!progressiveFunctions) {
       console.error('Progressive functions not available');
       return;
@@ -210,7 +209,7 @@ export default function Conversations() {
 
       // Always load ALL call history, not filtered by date range
       // Passing null explicitly to ensure all calls are loaded
-      const response = await progressiveFunctions.getConversationDetails(phoneNumber, null);
+      const response = await progressiveFunctions.getConversationDetails(phoneNumber, null, participantIdentity);
       const conversation = response.conversation;
 
       console.log(`📞 Loaded conversation with ${conversation.calls.length} calls and ${conversation.smsMessages.length} SMS messages`);
@@ -438,16 +437,21 @@ export default function Conversations() {
     }
   }, [displayItems.length, isLoadingContacts]);
 
-  // Reset selected conversation if it's no longer in filtered results
+  // Reset selected conversation only if it's no longer in filtered results.
+  // Match by id OR contactId: contacts use id "contact_*" while loaded conversations use id "conv_*",
+  // so the same conversation can appear as either; we must not reset when they're the same contact.
   useEffect(() => {
-    if (selectedConversation && !displayItems.find(c => c.id === selectedConversation.id)) {
+    const isSelectedInList = selectedConversation && displayItems.some(
+      c => c.id === selectedConversation.id || ('contactId' in selectedConversation && c.id === (selectedConversation as Conversation).contactId)
+    );
+    if (selectedConversation && !isSelectedInList) {
       if (displayItems.length > 0) {
         handleSelectConversation(displayItems[0]);
       } else {
         setSelectedConversation(null);
       }
     }
-  }, [displayItems.length, selectedConversation?.id]);
+  }, [displayItems.length, selectedConversation?.id, selectedConversation?.contactId]);
 
   const handleSelectConversation = async (conversation: Conversation | ContactSummary) => {
     console.log('🎯 Manual conversation selection:', conversation.id);
@@ -462,9 +466,12 @@ export default function Conversations() {
 
     // If it's a contact summary, load the full conversation details
     const contact = conversation as ContactSummary;
-    console.log(`📞 Loading conversation details for contact: ${contact.phoneNumber}`);
+    // For web calls, use technical identity to fetch correct history
+    const participantIdentity = contact.phoneNumber === 'unknown' ? (contact.technicalIdentity || null) : null;
 
-    const fullConversation = await loadConversationDetails(contact.phoneNumber);
+    console.log(`📞 Loading conversation details for contact: ${contact.phoneNumber} (${participantIdentity || 'no identity'})`);
+
+    const fullConversation = await loadConversationDetails(contact.phoneNumber, participantIdentity);
     if (fullConversation) {
       setSelectedConversation({
         ...fullConversation,

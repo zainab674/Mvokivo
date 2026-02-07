@@ -33,6 +33,11 @@ router.get('/', authenticateToken, async (req, res) => {
             query.phone_number = req.query.phoneNumber;
         }
 
+        // Filter by participant identity if provided (useful for web calls with same phone)
+        if (req.query.participantIdentity) {
+            query.participant_identity = req.query.participantIdentity;
+        }
+
         // Use created_at for sorting to be compatible with both Mongoose defaults and Python agent data
         let dbQuery = CallHistory.find(query).sort({ created_at: -1 });
 
@@ -103,7 +108,9 @@ router.get('/', authenticateToken, async (req, res) => {
                 transcript: call.transcription, // Might be object or string, frontend handles it?
                 call_recording: call.recording_url,
                 call_sid: call.call_sid || call.call_id,
-                analysis: call.sentiment ? { sentiment: call.sentiment } : null
+                participant_identity: call.participant_identity,
+                structured_data: call.structured_data,
+                analysis: call.structured_data || (call.sentiment ? { sentiment: call.sentiment } : null)
             };
         });
 

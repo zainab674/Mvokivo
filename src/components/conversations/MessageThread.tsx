@@ -254,34 +254,35 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
 
     // Check if conversation has calls with structured data
     if (conversation.calls && conversation.calls.length > 0) {
+      // Sort to prioritize latest call for name extraction, but check all
       const sortedCalls = [...conversation.calls].sort((a, b) =>
         new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime()
       );
 
-      const latestCall = sortedCalls[0];
+      for (const call of sortedCalls) {
+        let structuredData = null;
+        if (call.analysis && typeof call.analysis === 'object') {
+          structuredData = call.analysis;
+        } else if ((call as any).structured_data && typeof (call as any).structured_data === 'object') {
+          structuredData = (call as any).structured_data;
+        }
 
-      let structuredData = null;
-      if (latestCall.analysis && typeof latestCall.analysis === 'object') {
-        structuredData = latestCall.analysis;
-      } else if ((latestCall as any).structured_data && typeof (latestCall as any).structured_data === 'object') {
-        structuredData = (latestCall as any).structured_data;
-      }
+        if (structuredData) {
+          const extractValue = (field: any): string | undefined => {
+            if (typeof field === 'string') {
+              return field;
+            } else if (field && typeof field === 'object' && field.value) {
+              return field.value;
+            }
+            return undefined;
+          };
 
-      if (structuredData) {
-        const extractValue = (field: any): string | undefined => {
-          if (typeof field === 'string') {
-            return field;
-          } else if (field && typeof field === 'object' && field.value) {
-            return field.value;
-          }
-          return undefined;
-        };
-
-        const customerNameField = structuredData['Customer Name'] || structuredData['name'] || structuredData['full_name'] || structuredData['contact_name'] || structuredData['client_name'];
-        if (customerNameField) {
-          const extractedName = extractValue(customerNameField);
-          if (extractedName && extractedName.trim() !== '') {
-            return extractedName; // Only name, no phone number
+          const customerNameField = structuredData['Customer Name'] || structuredData['name'] || structuredData['full_name'] || structuredData['contact_name'] || structuredData['client_name'];
+          if (customerNameField) {
+            const extractedName = extractValue(customerNameField);
+            if (extractedName && extractedName.trim() !== '') {
+              return extractedName; // Only name, no phone number
+            }
           }
         }
       }

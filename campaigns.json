@@ -1,0 +1,34 @@
+[
+  {
+    "_id": "69877e625913fde96458cd00",
+    "user_id": "23bf4e09-b235-47ed-bcc7-b00c9cd832f3",
+    "assistant_id": "694c438399e5550209b3b7e6",
+    "name": "final campaign",
+    "status": "active",
+    "execution_status": "running",
+    "type": "outbound",
+    "daily_cap": 100,
+    "current_daily_calls": 0,
+    "start_hour": 9,
+    "end_hour": 0,
+    "calling_days": [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday"
+    ],
+    "campaign_prompt": "hi {name} how are you ",
+    "contact_source": "csv_file",
+    "contact_list_id": null,
+    "csv_file_id": "69877c2b6d300c63229eb49f",
+    "total_calls_made": 0,
+    "created_at": "2026-02-07T18:03:14.275Z",
+    "updated_at": "2026-02-07T18:03:14.275Z",
+    "__v": 0,
+    "last_execution_at": "2026-02-07T18:45:35.039Z",
+    "next_call_at": "2026-02-07T18:45:35.039Z"
+  }
+]

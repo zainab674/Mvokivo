@@ -26,9 +26,9 @@ campaignManagementRouter.get('/', async (req, res) => {
 
     // Base query: campaigns belonging to the user
     let query = Campaign.find({ user_id: userId })
-      .populate('assistant', 'name') // Populate assistant name
-      .populate('contact_list', 'name') // Populate contact list name
-      .populate('csv_file', 'name') // Populate csv file name
+      .populate('assistant') // Populate full assistant object
+      .populate('contact_list') // Populate full contact list object
+      .populate('csv_file') // Populate full csv file object
       .sort({ created_at: -1 });
 
     // Apply tenant filter
@@ -37,9 +37,22 @@ campaignManagementRouter.get('/', async (req, res) => {
     const campaigns = await query;
     const total = await Campaign.countDocuments(query.getFilter());
 
+    // Map populated data to flat properties for the frontend
+    const mappedCampaigns = campaigns.map(c => {
+      const obj = c.toJSON();
+      return {
+        ...obj,
+        id: obj._id,
+        assistant_name: obj.assistant?.name || 'Unknown',
+        contact_list_name: obj.contact_list?.name || 'Unknown List',
+        csv_file_name: obj.csv_file?.name || obj.csv_file?.original_filename || obj.csv_file?.filename || 'Unknown CSV'
+      };
+    });
+
+
     res.json({
       success: true,
-      campaigns: campaigns || [],
+      campaigns: mappedCampaigns || [],
       total: total || 0
     });
   } catch (error) {

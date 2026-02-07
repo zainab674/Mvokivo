@@ -35,6 +35,7 @@ export interface ConversationsResponse {
 export interface ContactSummary {
   id: string;
   phoneNumber: string;
+  technicalIdentity?: string;
   displayName: string;
   firstName: string;
   lastName: string;
@@ -151,10 +152,11 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
       smsMessages = data.messages || [];
     }
 
-    // Group calls by phone number
+    // Group calls by phone number or participant identity for web calls
     const contactsMap = new Map<string, {
       phoneNumber: string;
-      participantIdentity: string;
+      technicalIdentity: string; // The technical ID for grouping/filtering
+      displayName: string;       // The human-readable name
       lastActivity: Date;
       calls: any[];
       totalDuration: number;
@@ -163,29 +165,37 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
 
     callHistory.forEach(call => {
       const phoneNumber = call.phone_number;
-      if (!phoneNumber) return;
+      // Use participant_identity if phoneNumber is missing/unknown
+      const identityKey = (phoneNumber && phoneNumber.toLowerCase() !== 'unknown')
+        ? phoneNumber
+        : (call.participant_identity || 'unknown');
 
       const callTime = new Date(call.started_at || call.created_at);
 
       // Determine contact name from structured data or fallback
-      let contactName = formatPhoneNumber(phoneNumber);
+      let contactName = phoneNumber ? formatPhoneNumber(phoneNumber) : 'Web Call';
       let hasStructuredName = false;
 
       // Use backend structured_data if available
       if (call.structured_data && typeof call.structured_data === 'object') {
-        // simplified logic: check 'name' or similar fields
         const sd = call.structured_data;
         const extracted = sd.name || sd.contact_name || sd.Customer_Name || sd['Customer Name'];
         if (extracted && typeof extracted === 'string') {
-          contactName = `${extracted} - ${formatPhoneNumber(phoneNumber)}`;
+          contactName = phoneNumber
+            ? `${extracted} - ${formatPhoneNumber(phoneNumber)}`
+            : extracted;
           hasStructuredName = true;
         }
+      } else if (!phoneNumber && call.participant_identity && call.participant_identity !== 'unknown') {
+        // Use participant identity as name if no structured data but identity exists
+        contactName = call.participant_identity;
       }
 
-      if (!contactsMap.has(phoneNumber)) {
-        contactsMap.set(phoneNumber, {
-          phoneNumber,
-          participantIdentity: contactName,
+      if (!contactsMap.has(identityKey)) {
+        contactsMap.set(identityKey, {
+          phoneNumber: phoneNumber || 'unknown',
+          technicalIdentity: (phoneNumber && phoneNumber.toLowerCase() !== 'unknown') ? '' : (call.participant_identity || ''),
+          displayName: contactName,
           lastActivity: callTime,
           calls: [],
           totalDuration: 0,
@@ -193,7 +203,11 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
         });
       }
 
-      const contact = contactsMap.get(phoneNumber)!;
+      const contact = contactsMap.get(identityKey)!;
+      // Update display name if we found a better one (with structured data)
+      if (hasStructuredName && contact.displayName === formatPhoneNumber(phoneNumber)) {
+        contact.displayName = contactName;
+      }
       contact.calls.push(call);
       // Backend duration is formatted string 'MM:SS' or number? 
       // Backend call-history.js formats duration as string.
@@ -213,9 +227,9 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
       if (callTime > contact.lastActivity) {
         contact.lastActivity = callTime;
         contact.lastCallOutcome = determineCallResolution(call.transcript || call.transcription, call.call_status || call.status, call.call_outcome || call.status);
-        // Update identity if we found a better name
-        if (hasStructuredName) {
-          contact.participantIdentity = contactName;
+        // Update display name if we found a better one
+        if (hasStructuredName && contact.displayName === formatPhoneNumber(phoneNumber)) {
+          contact.displayName = contactName;
         }
       }
     });
@@ -231,7 +245,8 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
       if (!contactsMap.has(phoneNumber)) {
         contactsMap.set(phoneNumber, {
           phoneNumber,
-          participantIdentity: formatPhoneNumber(phoneNumber),
+          technicalIdentity: '', // No technical identity for SMS-only (phone number is used)
+          displayName: formatPhoneNumber(phoneNumber),
           lastActivity: new Date(sms.dateCreated),
           calls: [],
           totalDuration: 0,
@@ -247,14 +262,15 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
     });
 
     // Convert map to array
-    const contacts: ContactSummary[] = Array.from(contactsMap.values())
-      .map((contact, index) => {
-        const displayName = contact.participantIdentity;
+    const contacts: ContactSummary[] = Array.from(contactsMap.entries())
+      .map(([identityKey, contact]) => {
+        const displayName = contact.displayName;
         const nameParts = displayName.split(' ');
 
         return {
-          id: `contact_${contact.phoneNumber}`,
+          id: `contact_${identityKey}`,
           phoneNumber: contact.phoneNumber,
+          technicalIdentity: contact.technicalIdentity, // Need to add this to types
           displayName,
           firstName: nameParts[0] || 'Unknown',
           lastName: nameParts.slice(1).join(' ') || '',
@@ -291,7 +307,8 @@ export const fetchContactList = async (limit: number = 50): Promise<ContactSumma
  */
 export const fetchConversationDetails = async (
   phoneNumber: string,
-  days: number | null = null
+  days: number | null = null,
+  participantIdentity: string | null = null
 ): Promise<ConversationDetailsResponse> => {
   try {
     const token = await getAccessToken();
@@ -299,15 +316,21 @@ export const fetchConversationDetails = async (
 
     // Fetch calls for phone number
     const callsUrl = new URL(`${BACKEND_URL}/api/v1/call-history`);
-    callsUrl.searchParams.append('phoneNumber', phoneNumber);
+    if (phoneNumber && phoneNumber !== 'unknown') {
+      callsUrl.searchParams.append('phoneNumber', phoneNumber);
+    }
+
+    if (participantIdentity) {
+      callsUrl.searchParams.append('participantIdentity', participantIdentity);
+    }
     if (days) {
       // Backend might not support days filter yet, but we can filter client side or add it.
       // For now, fetching all calls for number (usually not that many)
     }
 
     // Fetch SMS for phone number (conversation)
-    // We use conversationId convention 'conv_+1234567890'
-    const conversationId = `conv_${phoneNumber}`;
+    // We use conversationId convention 'conv_+1234567890' or 'conv_identity'
+    const conversationId = `conv_${phoneNumber !== 'unknown' ? phoneNumber : (participantIdentity || 'unknown')}`;
     const smsUrl = `${BACKEND_URL}/api/v1/twilio/sms/conversation/${conversationId}`;
 
     const [callsResponse, smsResponse] = await Promise.all([
@@ -327,9 +350,14 @@ export const fetchConversationDetails = async (
       smsMessages = data.data || [];
     }
 
-    // Merge and create Conversation object
-    // Map calls to CallData format
-    const processedCalls = calls.map((call: any) => ({
+    // Fetch recording URLs in parallel for all calls that have call_sid (same as fetchCalls)
+    const recordingPromises = calls.map((call: any) =>
+      call.call_sid ? fetchRecordingUrlCached(call.call_sid) : Promise.resolve(null)
+    );
+    const recordingResults = await Promise.all(recordingPromises);
+
+    // Merge and create Conversation object; use resolved recording URL when available
+    const processedCalls = calls.map((call: any, i: number) => ({
       id: call.call_id || call._id || call.id,
       name: call.first_name ? `${call.first_name} ${call.last_name || ''}` : formatPhoneNumber(call.phone_number || phoneNumber),
       phoneNumber: call.phone_number || phoneNumber,
@@ -337,11 +365,12 @@ export const fetchConversationDetails = async (
       time: format(new Date(call.started_at || call.created_at || Date.now()), 'HH:mm'),
       duration: typeof call.duration === 'string' ? call.duration : formatDuration(call.call_duration || call.duration || 0),
       direction: 'inbound' as const,
-      channel: 'voice' as const, // Added missing property
-      tags: [], // Added missing property
+      channel: 'voice' as const,
+      tags: [],
       status: call.status || call.call_status,
       resolution: determineCallResolution(call.transcript || call.transcription, call.status || call.call_status),
-      call_recording: call.call_recording || call.recording_url || '',
+      call_recording: recordingResults[i]?.recordingUrl || call.call_recording || call.recording_url || '',
+      call_sid: call.call_sid || call.call_id,
       summary: call.summary || call.call_summary,
       transcript: (() => {
         const rawTranscript = call.transcript || call.transcription;
@@ -363,13 +392,37 @@ export const fetchConversationDetails = async (
       assistant_id: call.assistant_id
     }));
 
+    // Determine display name from calls or fallback
+    let displayName = phoneNumber !== 'unknown' ? formatPhoneNumber(phoneNumber) : (participantIdentity || 'Web Call');
+
+    // Try to find a better name from structured data in ANY call
+    if (processedCalls.length > 0) {
+      // Sort to prioritize latest call for name extraction, but check all
+      const sorted = [...processedCalls].sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      for (const call of sorted) {
+        if (call.analysis) {
+          const sd = call.analysis;
+          const extracted = sd.name || sd.contact_name || sd.Customer_Name || sd['Customer Name'];
+          if (extracted && typeof extracted === 'string') {
+            displayName = phoneNumber !== 'unknown'
+              ? `${extracted} - ${formatPhoneNumber(phoneNumber)}`
+              : extracted;
+            break; // Found a name, we can stop
+          }
+        }
+      }
+    }
+
     const conversation: Conversation = {
       id: conversationId,
-      contactId: `contact_${phoneNumber}`,
+      contactId: `contact_${phoneNumber !== 'unknown' ? phoneNumber : (participantIdentity || 'unknown')}`,
       phoneNumber: phoneNumber,
       firstName: 'Unknown',
       lastName: '',
-      displayName: formatPhoneNumber(phoneNumber),
+      displayName,
       totalCalls: processedCalls.length,
       totalSMS: smsMessages.length,
       lastActivityDate: '',
