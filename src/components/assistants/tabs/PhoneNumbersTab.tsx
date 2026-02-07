@@ -47,11 +47,13 @@ function PhoneNumberCard({
   phoneNumber,
   assistants,
   onAssign,
+  onUnassign,
   loading
 }: {
   phoneNumber: PhoneNumber;
   assistants: Array<{ id: string; name: string }>;
   onAssign: (phoneNumber: PhoneNumber, inboundAssistant: string, outboundAssistant?: string) => void;
+  onUnassign: (phoneNumber: PhoneNumber) => void;
   loading: boolean;
 }) {
   const { toast } = useToast();
@@ -221,13 +223,29 @@ function PhoneNumberCard({
             </Select>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsEditOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? "Assigning..." : "Save Changes"}
-          </Button>
+        <DialogFooter className="flex justify-between items-center sm:justify-between w-full">
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (window.confirm("Are you sure you want to unassign this phone number? This will disconnect it from Twilio and LiveKit.")) {
+                  onUnassign(phoneNumber);
+                  setIsEditOpen(false);
+                }
+              }}
+              disabled={loading}
+            >
+              Unassign Number
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              {loading ? "Assigning..." : "Save Changes"}
+            </Button>
+          </div>
         </DialogFooter>
       </ThemedDialogContent>
     </ThemedDialog>
@@ -556,6 +574,93 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
     }
   }
 
+  async function handleUnassign(phoneNumber: PhoneNumber) {
+    try {
+      setLoading(true);
+
+      const token = await getAccessToken();
+      if (!token) throw new Error('Authentication required');
+
+      // Step 1: Detach PN from the user's Twilio trunk
+      const detachResp = await fetch(`${base}/api/v1/twilio/user/trunk/detach`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user?.id || '',
+        },
+        body: JSON.stringify({ phoneSid: phoneNumber.id }),
+      });
+      const detachJson = await detachResp.json();
+      if (!detachResp.ok || !detachJson.success) {
+        throw new Error(detachJson.message || "Failed to detach number from Twilio trunk");
+      }
+
+      // Step 2: Unassign number in LiveKit (deletes trunks and rules)
+      // We need the outbound trunk ID if it was mapped
+      // For now, loadAllNumbersFromTwilio doesn't fetch detailed mapping info like outboundTrunkId
+      // But database unmapping will handle the DB side.
+      // If we don't have outboundTrunkId in local state, the backend will still try to find and delete inbound trunk.
+      // Let's fetch the mapping first to get outboundTrunkId if possible, OR just call unassign-number.
+
+      const livekitResp = await fetch(`${base}/api/v1/livekit/unassign-number`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user?.id || ''
+        },
+        body: JSON.stringify({
+          assistantId: phoneNumber.inboundAssistant,
+          phoneNumber: phoneNumber.number,
+          // outboundTrunkId could be added here if we had it in state
+        }),
+      });
+      const livekitJson = await livekitResp.json();
+      if (!livekitResp.ok || !livekitJson.success) {
+        console.warn('LiveKit unassignment failed:', livekitJson.message);
+      }
+
+      // Step 3: Unmap phone number in database
+      const unmapResp = await fetch(`${base}/api/v1/twilio/unmap`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          'Authorization': `Bearer ${token}`,
+          'x-user-id': user?.id || '',
+        },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber.number,
+        }),
+      });
+      const unmapJson = await unmapResp.json();
+      if (!unmapResp.ok || !unmapJson.success) {
+        throw new Error(unmapJson.message || "Failed to unmap phone number in database");
+      }
+
+      // Update the local state
+      setPhoneNumbers((prev) => prev.map((n) =>
+        n.id === phoneNumber.id
+          ? {
+            ...n,
+            inboundAssistant: undefined,
+            outboundAssistant: undefined,
+            status: "inactive" as const
+          }
+          : n
+      ));
+
+      toast({
+        title: "Unassigned",
+        description: `Phone number ${phoneNumber.number} unassigned and resources cleaned up.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Failed to unassign", description: e?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const handleImport = (numbers: Array<{
     sid: string;
     phoneNumber: string;
@@ -659,6 +764,7 @@ export function PhoneNumbersTab({ tabChangeTrigger = 0 }: PhoneNumbersTabProps) 
                 phoneNumber={phoneNumber}
                 assistants={assistants}
                 onAssign={handleAssign}
+                onUnassign={handleUnassign}
                 loading={loading}
               />
             ))

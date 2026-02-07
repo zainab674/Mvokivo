@@ -1,10 +1,8 @@
-// server/livekit-per-assistant-trunk.js
-// Per-assistant trunks: one trunk per assistant, plus a single catch-all rule per trunk.
-
 import express from 'express';
 // import crypto from 'crypto'; // Unused
 import { SipClient } from 'livekit-server-sdk';
 import { getSipConfigForLiveKit } from './twilio-trunk-service.js';
+import { PhoneNumber } from './models/index.js';
 
 export const livekitPerAssistantTrunkRouter = express.Router();
 
@@ -57,18 +55,19 @@ function logErr(ctx, msg, err) {
 
 async function deleteDispatchRule(ctx, id) {
   try {
-    await lk.deleteSipDispatchRule({ sipDispatchRuleId: id });
-    log(ctx, 'deleteSipDispatchRule OK (camelCase)', { id });
+    // According to latest SDK d.ts, it's positional
+    await lk.deleteSipDispatchRule(id);
+    log(ctx, 'deleteSipDispatchRule OK', { id });
     return;
   } catch (e1) {
-    logErr(ctx, 'delete camelCase failed, trying positional', e1);
+    logErr(ctx, 'delete positional failed, trying object', e1);
   }
   try {
-    await lk.deleteSipDispatchRule(id);
-    log(ctx, 'deleteSipDispatchRule OK (positional)', { id });
+    await lk.deleteSipDispatchRule({ sipDispatchRuleId: id });
+    log(ctx, 'deleteSipDispatchRule OK (object)', { id });
     return;
   } catch (e2) {
-    logErr(ctx, 'delete positional failed, trying snake_case', e2);
+    logErr(ctx, 'delete object failed, trying snake_case', e2);
   }
   try {
     await lk.deleteSipDispatchRule({ sip_dispatch_rule_id: id });
@@ -263,20 +262,12 @@ async function deleteAssistantTrunk(ctx, { trunkId, outboundTrunkId }) {
   // Delete inbound trunk
   let inboundDeleted = false;
   try {
-    await lk.deleteSipInboundTrunk(trunkId);
-    log(ctx, 'deleteSipInboundTrunk OK (positional)', { trunkId });
+    // Correct method: deleteSipTrunk
+    await lk.deleteSipTrunk(trunkId);
+    log(ctx, 'deleteSipTrunk (inbound) OK', { trunkId });
     inboundDeleted = true;
   } catch (e1) {
-    logErr(ctx, 'delete trunk positional failed, trying object', e1);
-  }
-  if (!inboundDeleted) {
-    try {
-      await lk.deleteSipInboundTrunk({ sipTrunkId: trunkId });
-      log(ctx, 'deleteSipInboundTrunk OK (object)', { trunkId });
-      inboundDeleted = true;
-    } catch (e2) {
-      logErr(ctx, 'delete inbound trunk failed', e2);
-    }
+    logErr(ctx, 'deleteSipTrunk (inbound) failed', e1);
   }
 
   // Delete outbound trunk if provided
@@ -284,20 +275,12 @@ async function deleteAssistantTrunk(ctx, { trunkId, outboundTrunkId }) {
   if (outboundTrunkId) {
     outboundDeleted = false;
     try {
-      await lk.deleteSipOutboundTrunk(outboundTrunkId);
-      log(ctx, 'deleteSipOutboundTrunk OK (positional)', { outboundTrunkId });
+      // Correct method: deleteSipTrunk
+      await lk.deleteSipTrunk(outboundTrunkId);
+      log(ctx, 'deleteSipTrunk (outbound) OK', { outboundTrunkId });
       outboundDeleted = true;
     } catch (e1) {
-      logErr(ctx, 'delete outbound trunk positional failed, trying object', e1);
-    }
-    if (!outboundDeleted) {
-      try {
-        await lk.deleteSipOutboundTrunk({ sipTrunkId: outboundTrunkId });
-        log(ctx, 'deleteSipOutboundTrunk OK (object)', { outboundTrunkId });
-        outboundDeleted = true;
-      } catch (e2) {
-        logErr(ctx, 'delete outbound trunk failed', e2);
-      }
+      logErr(ctx, 'deleteSipTrunk (outbound) failed', e1);
     }
   }
 
@@ -386,6 +369,53 @@ livekitPerAssistantTrunkRouter.get('/assistant-trunk/:assistantId/:phoneNumber',
   } catch (err) {
     logErr(ctx, 'get assistant trunk info failed', err);
     res.status(500).json({ success: false, message: err?.message || 'Failed to get assistant trunk info' });
+  }
+});
+
+/**
+ * POST /api/v1/livekit/unassign-number
+ * Body: { assistantId, phoneNumber, outboundTrunkId }
+ * Deletes both inbound and outbound trunks and associated rules.
+ */
+livekitPerAssistantTrunkRouter.post('/unassign-number', async (req, res) => {
+  const ctx = { route: 'POST /unassign-number', rid: rid() };
+  try {
+    const { assistantId, phoneNumber, outboundTrunkId: bodyOutboundTrunkId } = req.body || {};
+    if (!assistantId || !phoneNumber) {
+      return res.status(400).json({ success: false, message: 'assistantId and phoneNumber are required' });
+    }
+
+    let outboundTrunkId = bodyOutboundTrunkId;
+
+    // If outboundTrunkId is missing, try to find it in the database
+    if (!outboundTrunkId) {
+      const mapping = await PhoneNumber.findOne({ number: toE164(phoneNumber) });
+      if (mapping?.outbound_trunk_id) {
+        outboundTrunkId = mapping.outbound_trunk_id;
+        log(ctx, 'found outboundTrunkId in database', { outboundTrunkId });
+      }
+    }
+
+    // 1. Find inbound trunk
+    const trunkInfo = await findAssistantTrunk(ctx, { assistantId, phoneNumber });
+    if (!trunkInfo) {
+      log(ctx, 'no inbound trunk found to delete', { phoneNumber });
+    }
+
+    // 2. Delete trunks
+    const ok = await deleteAssistantTrunk(ctx, {
+      trunkId: trunkInfo?.trunkId,
+      outboundTrunkId
+    });
+
+    if (ok) {
+      res.json({ success: true, message: 'LiveKit trunks and rules deleted' });
+    } else {
+      res.status(500).json({ success: false, message: 'Failed to delete some LiveKit resources' });
+    }
+  } catch (err) {
+    logErr(ctx, 'unassign-number error', err);
+    res.status(500).json({ success: false, message: err?.message || 'Failed to unassign number in LiveKit' });
   }
 });
 

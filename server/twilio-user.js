@@ -333,6 +333,42 @@ twilioUserRouter.post('/trunk/attach', async (req, res) => {
 });
 
 /**
+ * Detach phone number from trunk
+ * POST /api/v1/twilio/user/trunk/detach
+ */
+twilioUserRouter.post('/trunk/detach', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { phoneSid } = req.body;
+
+    if (!phoneSid) {
+      return res.status(400).json({ success: false, message: 'Phone SID required' });
+    }
+
+    // Get user's active credentials
+    const credentials = await UserTwilioCredential.findOne({ user_id: userId, is_active: true });
+    if (!credentials) {
+      return res.status(404).json({ success: false, message: 'No Twilio credentials found' });
+    }
+
+    // Create Twilio client with user's credentials
+    const twilio = Twilio(credentials.account_sid, credentials.auth_token);
+
+    // Detach phone number by clearing trunkSid and setting dummy voiceUrl
+    await twilio.incomingPhoneNumbers(phoneSid).update({
+      trunkSid: '',
+      voiceUrl: 'https://demo.twilio.com/welcome/voice/',
+      smsUrl: ''
+    });
+
+    res.json({ success: true, message: 'Phone number detached from trunk' });
+  } catch (error) {
+    console.error('Error detaching phone from trunk:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to detach phone from trunk' });
+  }
+});
+
+/**
  * Create main trunk for user (auto-generated)
  * POST /api/v1/twilio/user/create-main-trunk
  */

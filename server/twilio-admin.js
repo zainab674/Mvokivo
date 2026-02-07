@@ -421,3 +421,47 @@ twilioAdminRouter.get('/phone-numbers/lookup', async (req, res) => {
     }
 });
 
+/**
+ * POST /api/v1/twilio/unmap
+ * body: { phoneNumber: "+1..." }
+ * Clears assistant and trunk mapping in database.
+ */
+twilioAdminRouter.post('/unmap', async (req, res) => {
+    try {
+        const userId = req.headers['x-user-id'];
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'User ID required' });
+        }
+
+        const { phoneNumber } = req.body || {};
+        if (!phoneNumber) {
+            return res.status(400).json({ success: false, message: 'phoneNumber is required' });
+        }
+
+        console.log(`Unmapping phone ${phoneNumber} for user ${userId}`);
+
+        const result = await PhoneNumber.findOneAndUpdate(
+            { number: phoneNumber, user_id: userId },
+            {
+                inbound_assistant_id: null,
+                outbound_trunk_id: null,
+                outbound_trunk_name: null,
+                trunk_sid: null,
+                status: 'inactive',
+                webhook_status: 'unconfigured',
+                updated_at: new Date()
+            },
+            { new: true }
+        );
+
+        if (!result) {
+            return res.status(404).json({ success: false, message: 'Phone number mapping not found' });
+        }
+
+        res.json({ success: true, message: 'Phone number unmapped successfully' });
+    } catch (e) {
+        console.error('twilio/unmap error', e);
+        res.status(500).json({ success: false, message: e.message || 'Unmap failed' });
+    }
+});
+
