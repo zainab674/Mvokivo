@@ -72,7 +72,7 @@ const CreateAssistant = () => {
       knowledgeBase: "None",
       calendar: "None",
       conversationStart: "assistant-first",
-      voice: "rachel-elevenlabs",
+      voice: "Rowan",
       temperature: 0.3,
       maxTokens: 250,
       firstMessage: "",
@@ -89,7 +89,7 @@ const CreateAssistant = () => {
       silenceTimeoutSeconds: 10
     },
     voice: {
-      provider: "Cartesia",
+      provider: "UnrealSpeech",
       voice: "41468051-3a85-4b68-92ad-64add250d369",
       model: "sonic-3",
       backgroundSound: "none",
@@ -233,7 +233,7 @@ const CreateAssistant = () => {
               knowledgeBase: data.knowledge_base_id || "None",
               calendar: data.calendar || "None",
               conversationStart: "assistant-first",
-              voice: "41468051-3a85-4b68-92ad-64add250d369",
+              voice: data.voice_provider_setting === "UnrealSpeech" ? (data.voice_name_setting || "Rowan") : "Rowan",
               temperature: data.temperature_setting || 0.3,
               maxTokens: data.max_token_setting || 250,
               language: data.language_setting || "en",
@@ -370,7 +370,7 @@ const CreateAssistant = () => {
       prompt: formData.model.systemPrompt || null,
       voice_provider_setting: formData.voice.provider,
       voice_model_setting: formData.voice.model,
-      voice_name_setting: formData.voice.voice,
+      voice_name_setting: formData.voice.provider === "UnrealSpeech" ? formData.model.voice : (formData.voice.voice || formData.model.voice),
       background_sound_setting: formData.voice.backgroundSound,
       input_min_characters: formData.voice.inputMinCharacters,
       voice_stability: formData.voice.stability,
@@ -568,7 +568,15 @@ const CreateAssistant = () => {
                     >
                       {activeTab === "details" && (
                         <div className="space-y-6 sm:space-y-8">
-                          <ModelTab data={formData.model} onChange={(data) => handleFormDataChange('model', data)} />
+                          <ModelTab
+                            data={formData.model}
+                            onChange={(data) => {
+                              handleFormDataChange('model', data);
+                              if (data.voice) {
+                                handleFormDataChange('voice', { provider: 'UnrealSpeech' });
+                              }
+                            }}
+                          />
                           <VoiceTab data={formData.voice} onChange={(data) => handleFormDataChange('voice', data)} />
                         </div>
                       )}

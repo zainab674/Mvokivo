@@ -95,7 +95,7 @@ class KokoruTTS(tts.TTS):
         if voice not in SUPPORTED_VOICES:
             # Fallback to Rowan if voice not found
             logger.warning(f"Voice {voice} not supported for Kokoru, falling back to Rowan")
-            voice = "Amelia"
+            voice = "Rowan"
 
         self._voice = voice
         self._speed = max(1.0, min(2.0, speed))

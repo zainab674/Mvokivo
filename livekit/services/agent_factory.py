@@ -157,9 +157,9 @@ class AgentFactory:
         # Create LLM fallback chain
         prewarmed_llm = self._create_llm(llm_provider, llm_model, temperature, max_tokens, config, provider_config)
 
-        tts_provider = config.get("tts_provider_setting", "auto")
-        tts_model = config.get("tts_model_setting", "")
-        tts_voice = config.get("tts_voice_setting", "nova")
+        tts_provider = config.get("voice_provider_setting", "auto")
+        tts_model = config.get("voice_model_setting", "")
+        tts_voice = config.get("voice_name_setting", "nova")
 
         prewarmed_tts = self._create_tts(tts_provider, tts_model, tts_voice, config, provider_config)
         prewarmed_vad = self._prewarmed_vad
@@ -403,7 +403,23 @@ Return a JSON object with two arrays. You must respond with valid JSON format on
             CARTESIA_AVAILABLE, lk_cartesia, lk_rime, lk_elevenlabs, lk_hume
         )
 
+        # Normalize provider name
+        if provider == "UnrealSpeech":
+            provider = "kokoru_tts"
+
+        # If a specific provider is requested, put it at the front of the fallbacks
+        if provider != "auto" and provider in fallbacks:
+            fallbacks.remove(provider)
+            fallbacks.insert(0, provider)
+        elif provider != "auto":
+            # If not in fallbacks but specifically requested, put it at the start anyway
+            fallbacks.insert(0, provider)
+
         for fb in fallbacks:
+            # Check if this fallback matches the requested provider (if not 'auto')
+            if provider != "auto" and provider.lower() == fb.lower():
+                logger.info(f"TTS_PROVIDER_MATCH | Using requested provider: {provider}")
+
             if fb == 'raya_tts' and raya_api_key:
                 try:
                     # Forced to English voice regardless of setting to satisfy "all languages to speak english"
@@ -416,10 +432,12 @@ Return a JSON object with two arrays. You must respond with valid JSON format on
             
             elif fb == 'kokoru_tts' and unreal_api_key:
                 try:
-                    # Forced to English voice regardless of setting to satisfy "all languages to speak english"
-                    kokoru_voice = "Rowan"
+                    # Use the configured voice if it's supported by Kokoro, otherwise fallback to Rowan
+                    from integrations.kokoro_tts import SUPPORTED_VOICES
+                    kokoru_voice = voice_name if voice_name in SUPPORTED_VOICES else "Rowan"
+                    
                     tts_chain.append(KokoruTTS(api_key=unreal_api_key, voice=kokoru_voice))
-                    logger.info(f"TTS_CHAIN | Added Kokoru")
+                    logger.info(f"TTS_CHAIN | Added Kokoru with voice: {kokoru_voice}")
                 except Exception as e:
                     logger.error(f"TTS_CHAIN_ERROR | Kokoru: {e}")
             
