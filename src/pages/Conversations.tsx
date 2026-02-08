@@ -552,125 +552,125 @@ export default function Conversations() {
 
   return (
     <DashboardLayout>
-      <div className="chat-page-zoom-wrapper">
-      <div className={`chat-premium-container ${selectedConversation ? 'sidebar-hidden' : ''}`}>
-        {/* Left Sidebar - Chat List */}
-        <div className="chat-sidebar">
-          <div className="chat-sidebar-header">
-            <h1 className="chat-sidebar-title">Chats</h1>
-            <div className="flex items-center gap-2">
-              <button className="chat-search-trigger p-2 hover:bg-white/5 rounded-full transition-colors">
-                <Search className="w-5 h-5" />
-              </button>
-              <button className="chat-search-trigger p-2 hover:bg-white/5 rounded-full transition-colors">
-                <MoreHorizontal className="w-5 h-5" />
-              </button>
+      <div className="h-full w-full pt-6">
+        <div className={`chat-premium-container ${selectedConversation ? 'sidebar-hidden' : ''}`}>
+          {/* Left Sidebar - Chat List */}
+          <div className="chat-sidebar">
+            <div className="chat-sidebar-header">
+              <h1 className="chat-sidebar-title">Chats</h1>
+              <div className="flex items-center gap-2">
+                <button className="chat-search-trigger p-2 hover:bg-white/5 rounded-full transition-colors">
+                  <Search className="w-5 h-5" />
+                </button>
+                <button className="chat-search-trigger p-2 hover:bg-white/5 rounded-full transition-colors">
+                  <MoreHorizontal className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Sidebar Search Bar */}
+            <div className="chat-sidebar-search">
+              <div className="search-input-wrapper">
+                <Search className="w-4 h-4 text-white/20" />
+                <input
+                  type="text"
+                  className="sidebar-search-input"
+                  placeholder="Search messages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Sidebar Category Filters */}
+            <div className="chat-filters custom-scrollbar">
+              <div
+                className={`filter-tab ${messageFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setMessageFilter('all')}
+              >
+                All
+              </div>
+              <div
+                className={`filter-tab ${messageFilter === 'calls' ? 'active' : ''}`}
+                onClick={() => setMessageFilter('calls')}
+              >
+                Calls
+              </div>
+              <div
+                className={`filter-tab ${messageFilter === 'sms' ? 'active' : ''}`}
+                onClick={() => setMessageFilter('sms')}
+              >
+                SMS
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
+              {/* Conversations List Section */}
+              <div className="chat-list-section">
+                <div className="chat-list-section-header">
+                  <span>Recent Conversations</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                {displayItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleSelectConversation(item)}
+                    className={`chat-item ${selectedConversation?.id === item.id ? 'active' : ''}`}
+                  >
+                    <div className="chat-item-avatar">
+                      {(item as any).avatarUrl ? (
+                        <img src={(item as any).avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-bold">{getDisplayName(item).charAt(0).toUpperCase()}</span>
+                      )}
+                      {(item as any).hasNewMessages && <div className="status-indicator status-unread" />}
+                      {(item as any).isOnline && <div className="status-indicator status-online" />}
+                    </div>
+                    <div className="chat-item-info">
+                      <div className="chat-item-name">{getDisplayName(item)}</div>
+
+                    </div>
+                  </div>
+                ))}
+
+                {displayItems.length === 0 && (
+                  <div className="p-8 text-center opacity-30">
+                    <p className="text-sm">No conversations found</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Sidebar Search Bar */}
-          <div className="chat-sidebar-search">
-            <div className="search-input-wrapper">
-              <Search className="w-4 h-4 text-white/20" />
-              <input
-                type="text"
-                className="sidebar-search-input"
-                placeholder="Search messages..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+          {/* Right Area - Conversation View */}
+          <div className="chat-main">
+            {selectedConversation ? (
+              <MessageThread
+                key={selectedConversation.id}
+                conversation={selectedConversation}
+                messageFilter={messageFilter}
+                onMessageFilterChange={setMessageFilter}
+                onBack={() => {
+                  setSelectedConversation(null);
+                  hasManualSelectionRef.current = false;
+                }}
               />
-            </div>
-          </div>
-
-          {/* Sidebar Category Filters */}
-          <div className="chat-filters custom-scrollbar">
-            <div
-              className={`filter-tab ${messageFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setMessageFilter('all')}
-            >
-              All
-            </div>
-            <div
-              className={`filter-tab ${messageFilter === 'calls' ? 'active' : ''}`}
-              onClick={() => setMessageFilter('calls')}
-            >
-              Calls
-            </div>
-            <div
-              className={`filter-tab ${messageFilter === 'sms' ? 'active' : ''}`}
-              onClick={() => setMessageFilter('sms')}
-            >
-              SMS
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {/* Conversations List Section */}
-            <div className="chat-list-section">
-              <div className="chat-list-section-header">
-                <span>Recent Conversations</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+                <div className="w-24 h-24 mb-6 relative">
+                  <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl animate-pulse" />
+                  <svg className="w-full h-full text-blue-500 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Select a Chat</h2>
+                <p className="text-sm">Choose a conversation from the sidebar to start</p>
               </div>
-              {displayItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleSelectConversation(item)}
-                  className={`chat-item ${selectedConversation?.id === item.id ? 'active' : ''}`}
-                >
-                  <div className="chat-item-avatar">
-                    {(item as any).avatarUrl ? (
-                      <img src={(item as any).avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      <span className="text-sm font-bold">{getDisplayName(item).charAt(0).toUpperCase()}</span>
-                    )}
-                    {(item as any).hasNewMessages && <div className="status-indicator status-unread" />}
-                    {(item as any).isOnline && <div className="status-indicator status-online" />}
-                  </div>
-                  <div className="chat-item-info">
-                    <div className="chat-item-name">{getDisplayName(item)}</div>
-
-                  </div>
-                </div>
-              ))}
-
-              {displayItems.length === 0 && (
-                <div className="p-8 text-center opacity-30">
-                  <p className="text-sm">No conversations found</p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
-
-        {/* Right Area - Conversation View */}
-        <div className="chat-main">
-          {selectedConversation ? (
-            <MessageThread
-              key={selectedConversation.id}
-              conversation={selectedConversation}
-              messageFilter={messageFilter}
-              onMessageFilterChange={setMessageFilter}
-              onBack={() => {
-                setSelectedConversation(null);
-                hasManualSelectionRef.current = false;
-              }}
-            />
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center opacity-40">
-              <div className="w-24 h-24 mb-6 relative">
-                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl animate-pulse" />
-                <svg className="w-full h-full text-blue-500 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Select a Chat</h2>
-              <p className="text-sm">Choose a conversation from the sidebar to start</p>
-            </div>
-          )}
-        </div>
-      </div>
       </div>
     </DashboardLayout>
   );

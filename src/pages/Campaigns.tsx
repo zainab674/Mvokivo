@@ -246,14 +246,10 @@ export default function Campaigns() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="campaign-page-zoom-wrapper h-full w-full">
-          <div className="campaign-page-zoom-inner flex flex-col h-screen bg-background">
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4"></div>
-              <p className="text-foreground">Loading campaigns...</p>
-            </div>
-          </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-muted-foreground">
+            <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4"></div>
+            <p className="text-foreground">Loading campaigns...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -263,58 +259,53 @@ export default function Campaigns() {
   if (campaigns.length === 0) {
     return (
       <DashboardLayout>
-        <div className="campaign-page-zoom-wrapper h-full w-full">
-          <div className="campaign-page-zoom-inner flex flex-col h-full bg-background overflow-hidden">
-          <div className="flex-1 flex items-center justify-center p-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center max-w-2xl mx-auto"
+        <div className="flex-1 flex items-center justify-center p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-center max-w-2xl mx-auto"
+          >
+            <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-6 bg-muted/50 rounded-2xl flex items-center justify-center border border-border">
+              <BarChart3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
+            </div>
+            <h1 className="text-xl sm:text-3xl font-semibold text-foreground mb-3">
+              Create And Launch Your First Campaign
+            </h1>
+            <p className="text-sm sm:text-lg text-muted-foreground mb-8 leading-relaxed">
+              Launch your AI agents and start creating amazing campaigns that will help you connect with your customers in a meaningful way.
+            </p>
+
+            <Button
+              onClick={handleNewCampaign}
+              size="lg"
+              className="w-full sm:w-auto px-8 py-3 text-base sm:text-lg font-medium"
             >
-              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-6 bg-muted/50 rounded-2xl flex items-center justify-center border border-border">
-                <BarChart3 className="w-8 h-8 sm:w-10 sm:h-10 text-primary" />
-              </div>
-              <h1 className="text-xl sm:text-3xl font-semibold text-foreground mb-3">
-                Create And Launch Your First Campaign
-              </h1>
-              <p className="text-sm sm:text-lg text-muted-foreground mb-8 leading-relaxed">
-                Launch your AI agents and start creating amazing campaigns that will help you connect with your customers in a meaningful way.
-              </p>
-
-              <Button
-                onClick={handleNewCampaign}
-                size="lg"
-                className="w-full sm:w-auto px-8 py-3 text-base sm:text-lg font-medium"
-              >
-                Launch a campaign
-              </Button>
-            </motion.div>
-          </div>
-
-          <TermsOfUseDialog
-            open={termsOpen}
-            onOpenChange={setTermsOpen}
-            onAccepted={handleTermsAccepted}
-          />
-
-          <CampaignSettingsDialog
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            onSave={handleCampaignCreated}
-          />
-          </div>
+              Launch a campaign
+            </Button>
+          </motion.div>
         </div>
+
+        <TermsOfUseDialog
+          open={termsOpen}
+          onOpenChange={setTermsOpen}
+          onAccepted={handleTermsAccepted}
+        />
+
+        <CampaignSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onSave={handleCampaignCreated}
+        />
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="campaign-page-zoom-wrapper h-full w-full">
-        <div className="campaign-page-zoom-inner flex flex-col h-full bg-background overflow-hidden">
+      <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
         {/* Top Header Bar */}
-        <div className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
+        <div className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40 pt-10">
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -492,8 +483,6 @@ export default function Campaigns() {
         isRunning={campaigns.find(c => c.id === selectedCampaignId)?.execution_status === 'running'}
         loading={deleting}
       />
-      </div>
-    
     </DashboardLayout>
   );
 }
