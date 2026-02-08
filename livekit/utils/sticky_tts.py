@@ -12,7 +12,9 @@ class StickyFallbackTTS(tts.TTS):
             raise ValueError("StickyFallbackTTS requires at least one provider")
             
         super().__init__(
-            streaming_supported=all(p.streaming_supported for p in providers),
+            capabilities=tts.TTSCapabilities(
+                streaming=all(p.capabilities.streaming for p in providers),
+            ),
             sample_rate=providers[0].sample_rate,
             num_channels=providers[0].num_channels,
         )
