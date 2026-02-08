@@ -75,4 +75,8 @@ Environment variables used by the app
 - TWILIO_AUTH_TOKEN: Twilio auth token
 - TWILIO_PHONE_NUMBER: Twilio phone number
 
+# Email API (Vercel) – when main app runs on a host that blocks SMTP (e.g. DigitalOcean)
+- EMAIL_API_URL: Base URL of the Vercel-deployed email API (e.g. https://your-email-api.vercel.app). When set, all outbound email is sent via this API instead of local SMTP.
+- EMAIL_API_SECRET: **Required when the email-api has it set.** Use the same value in this app’s .env and in the email-api project (e.g. on Vercel). If they don’t match (or this app has it missing), you’ll see “Check-emails API error: 401” in logs.
+
 

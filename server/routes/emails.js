@@ -155,7 +155,8 @@ router.get('/:id', requireAuth, async (req, res) => {
             from: msg.direction === 'outbound' ? 'assistant' : 'user',
             content: msg.body,
             timestamp: msg.created_at,
-            senderEmail: msg.from
+            senderEmail: msg.from,
+            status: msg.status
         }));
 
         res.json({ success: true, messages: formattedMessages });

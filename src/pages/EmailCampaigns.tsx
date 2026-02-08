@@ -93,6 +93,8 @@ export default function EmailCampaigns() {
 
     return (
         <DashboardLayout>
+            <div className="campaign-page-zoom-wrapper campaign-page-zoom-wrapper--scrollable h-full w-full">
+                <div className="campaign-page-zoom-inner">
             <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div>
@@ -228,6 +230,8 @@ export default function EmailCampaigns() {
                         </div>
                     </ThemeCard>
                 )}
+            </div>
+                </div>
             </div>
 
             <EmailCampaignSettingsDialog

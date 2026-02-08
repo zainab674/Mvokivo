@@ -12,6 +12,7 @@ export default function Emails() {
     const [searchQuery, setSearchQuery] = useState("");
     const [loadingThreads, setLoadingThreads] = useState(false);
     const [loadingMessages, setLoadingMessages] = useState(false);
+    const messagesScrollRef = React.useRef<HTMLDivElement>(null);
 
     // Fetch Threads
     useEffect(() => {
@@ -57,6 +58,15 @@ export default function Emails() {
         loadMessages();
     }, [selectedThread]);
 
+    // Scroll to latest message when thread is opened or messages finish loading
+    useEffect(() => {
+        if (!loadingMessages && messages.length > 0 && messagesScrollRef.current) {
+            const el = messagesScrollRef.current;
+            const scrollToBottom = () => { el.scrollTop = el.scrollHeight; };
+            requestAnimationFrame(scrollToBottom);
+        }
+    }, [selectedThread?.id, loadingMessages, messages.length]);
+
     const handleSync = async () => {
         setLoadingThreads(true);
         try {
@@ -73,22 +83,40 @@ export default function Emails() {
 
     const cleanupEmailBody = (body: string) => {
         if (!body) return "";
-        const lines = body.split('\n');
+        // Hide "On ... wrote:" quoted block (one-line or two-line form) and everything after
+        const withoutQuoted = body
+            .replace(/\n\s*On [^\n]+\n\s*wrote:[\s\S]*/gi, "")  // "On ... <email>\nwrote:"
+            .replace(/\n\s*On .+wrote:[\s\S]*/gi, "");          // "On ... wrote:" on one line
+        const lines = withoutQuoted.split('\n');
         const cleanLines: string[] = [];
         for (const line of lines) {
             const trimmed = line.trim();
-            if (trimmed.startsWith('On ') && trimmed.endsWith('wrote:')) break;
-            if (trimmed.startsWith('From: ')) break;
-            if (trimmed.startsWith('>')) break;
-            if (trimmed === '________________________________') break;
+            if (trimmed.startsWith("On ") && /wrote:\s*$/i.test(trimmed)) break;
+            if (trimmed.startsWith("On ") && /@/.test(trimmed)) break; // "On Mon, ... <email>" before "wrote:" line
+            if (trimmed === "wrote:") break;
+            if (trimmed.startsWith("From: ")) break;
+            if (trimmed.startsWith(">")) break;
+            if (trimmed === "________________________________") break;
             cleanLines.push(line);
         }
-        return cleanLines.join('\n').trim();
+        return cleanLines.join("\n").trim();
     };
+
+    const zoomScale = 0.60; // zoom out so more content fits (75% size)
+    const zoomSize = `${(100 / zoomScale).toFixed(2)}%`;
 
     return (
         <DashboardLayout>
             <div className="flex flex-col lg:flex-row h-[calc(100dvh-180px)] lg:h-[calc(100dvh-140px)] gap-4 lg:gap-6 overflow-hidden relative">
+                <div
+                    className="absolute inset-0 flex flex-col lg:flex-row gap-4 lg:gap-6 overflow-hidden"
+                    style={{
+                        transform: `scale(${zoomScale})`,
+                        transformOrigin: 'top left',
+                        width: zoomSize,
+                        minHeight: zoomSize,
+                    }}
+                >
                 {/* Left Column: Email List */}
                 <Card className={`
                     absolute inset-0 z-20 lg:relative lg:inset-auto lg:flex
@@ -189,7 +217,10 @@ export default function Emails() {
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8 custom-scrollbar">
+                            <div
+                                ref={messagesScrollRef}
+                                className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 sm:space-y-8 custom-scrollbar"
+                            >
                                 {loadingMessages ? (
                                     <div className="flex flex-col items-center justify-center p-12 text-muted-foreground italic text-sm">
                                         <Loader2 className="animate-spin text-primary mb-2" />
@@ -209,7 +240,7 @@ export default function Emails() {
                                             >
                                                 <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{cleanupEmailBody(message.content)}</p>
                                             </div>
-                                            <div className="flex items-center gap-2 mt-2 sm:mt-3 px-1 opacity-60">
+                                            <div className="flex items-center gap-2 mt-2 sm:mt-3 px-1 opacity-60 flex-wrap">
                                                 <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground">
                                                     {message.from === 'assistant' ? 'Manan AI' : message.senderEmail}
                                                 </span>
@@ -217,6 +248,9 @@ export default function Emails() {
                                                 <span className="text-[9px] text-muted-foreground">
                                                     {message.timestamp ? new Date(message.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                                                 </span>
+                                                {message.from === 'assistant' && message.status === 'failed' && (
+                                                    <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">• Failed to send (recipient did not receive)</span>
+                                                )}
                                             </div>
                                         </div>
                                     ))
@@ -247,6 +281,7 @@ export default function Emails() {
                         </div>
                     )}
                 </Card>
+                </div>
             </div>
         </DashboardLayout>
     );

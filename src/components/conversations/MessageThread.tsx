@@ -13,7 +13,7 @@ import { ModernMessageInput } from "./ModernMessageInput";
 import { SMSMessage } from "@/lib/api/sms/smsService";
 import { fetchAssistants, Assistant } from "@/lib/api/assistants/fetchAssistants";
 import { fetchPhoneNumberMappings, PhoneNumberMapping } from "@/lib/api/phoneNumbers/fetchPhoneNumberMappings";
-import { formatPhoneNumber } from "@/utils/formatUtils";
+import { formatPhoneNumber, normalizePhoneForComparison } from "@/utils/formatUtils";
 import {
   Select,
   SelectContent,
@@ -298,9 +298,11 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
 
 
 
-  // Helper function to get assistant ID for a phone number
+  // Helper function to get assistant ID for a phone number (normalize so +1... and 1... match)
   const getAssistantIdForPhoneNumber = (phoneNumber: string): string | null => {
-    const mapping = phoneMappings.find(m => m.number === phoneNumber);
+    const normalized = normalizePhoneForComparison(phoneNumber);
+    if (!normalized) return null;
+    const mapping = phoneMappings.find(m => normalizePhoneForComparison(m.number) === normalized);
     return mapping?.inbound_assistant_id || null;
   };
 
@@ -319,7 +321,7 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
   // Convert calls to messages with proper grouping using created_at timestamp
 
   const callMessages = conversation.calls.map(call => {
-    const assistant = assistants.find(a => a.id === call.assistant_id);
+    const assistant = assistants.find(a => (a.id || (a as any)._id?.toString?.()) === call.assistant_id);
     return {
       id: call.id,
       type: 'call' as const,
@@ -390,7 +392,11 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
       // For call messages, check if the call was handled by the selected agent
       if (message.type === 'call') {
         const call = conversation.calls.find(c => c.id === message.id);
-        return call?.assistant_id === selectedAgentId;
+        if (!call?.assistant_id) return false;
+        const selectedAssistant = assistants.find(a => (a.id || (a as any)._id?.toString?.()) === selectedAgentId);
+        if (!selectedAssistant) return false;
+        const aid = selectedAssistant.id || (selectedAssistant as any)._id?.toString?.();
+        return aid === call.assistant_id;
       }
       // For SMS messages, check if the phone number is mapped to the selected agent
       if (message.type === 'sms' && message.smsData) {

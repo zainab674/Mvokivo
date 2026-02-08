@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import connectDB from './lib/db.js';
 
 // Import Routes
@@ -26,6 +26,7 @@ import integrationRouter from './routes/integration.js';
 import callEmailRouter from './routes/call-email.js';
 import recordingsRouter from './routes/recordings.js';
 import aiRoutes from './routes/ai.js';
+import ttsRoutes from './routes/tts.js';
 import { emailWorker } from './workers/email-worker.js';
 
 // Import Campaign Router (named export)
@@ -44,10 +45,11 @@ import lemonSqueezyCheckoutRouter from './routes/lemonsqueezy-checkout.js';
 import lemonSqueezyConfigRouter from './routes/lemonsqueezy-config.js';
 import { campaignEngine } from './campaign-execution-engine.js';
 
-dotenv.config();
+
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
 
 // Middleware
 app.use(cors());
@@ -118,6 +120,7 @@ app.use('/api/v1/integrations', integrationRouter);
 app.use('/api/v1/calls', callEmailRouter);
 app.use('/api/v1/calls', recordingsRouter);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/tts', ttsRoutes);
 
 // import facebookRouter from './routes/facebook.js';
 

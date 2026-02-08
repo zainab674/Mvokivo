@@ -1,5 +1,6 @@
 import express from 'express';
-import { EmailCampaign, User, Contact, CsvContact, UserEmailCredential } from '../models/index.js';
+import mongoose from 'mongoose';
+import { EmailCampaign, User, Contact, CsvContact, UserEmailCredential, Assistant } from '../models/index.js';
 import { authenticateToken as requireAuth } from '../utils/auth.js';
 import multer from 'multer';
 import fs from 'fs';
@@ -23,15 +24,33 @@ const upload = multer({
 router.get('/', requireAuth, async (req, res) => {
     try {
         const campaigns = await EmailCampaign.find({ userId: req.user.id })
-            .populate('assistantId', 'name')
             .sort({ created_at: -1 });
 
         const credentials = await UserEmailCredential.find({ user_id: req.user.id });
 
+        // Resolve assistant names (assistantId is stored as string, not a ref)
+        const assistantIds = [...new Set(campaigns.map(c => c.assistantId).filter(Boolean))];
+        const byObjectId = assistantIds.filter(id => mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id);
+        const assistants = await Assistant.find({
+            $or: [
+                { _id: { $in: byObjectId.map(id => new mongoose.Types.ObjectId(id)) } },
+                { id: { $in: assistantIds } }
+            ]
+        }).select('_id id name').lean();
+        const assistantByName = new Map();
+        assistants.forEach(a => {
+            const info = { _id: a._id?.toString(), name: a.name };
+            if (a._id) assistantByName.set(a._id.toString(), info);
+            if (a.id) assistantByName.set(a.id, info);
+        });
+
         const enhancedCampaigns = campaigns.map(camp => {
             const integration = credentials.find(i => i._id.toString() === camp.emailIntegrationId?.toString());
+            const raw = camp.toObject();
+            const assistantInfo = raw.assistantId ? assistantByName.get(raw.assistantId) : null;
             return {
-                ...camp.toObject(),
+                ...raw,
+                assistantId: assistantInfo ? { _id: assistantInfo._id, name: assistantInfo.name } : (raw.assistantId ? { _id: raw.assistantId, name: 'AI Agent' } : raw.assistantId),
                 senderEmail: integration ? integration.email : 'Unknown'
             };
         });

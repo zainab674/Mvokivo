@@ -246,12 +246,14 @@ export default function Campaigns() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="h-screen flex flex-col bg-background">
+        <div className="campaign-page-zoom-wrapper h-full w-full">
+          <div className="campaign-page-zoom-inner flex flex-col h-screen bg-background">
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-muted-foreground">
               <div className="animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mx-auto mb-4"></div>
               <p className="text-foreground">Loading campaigns...</p>
             </div>
+          </div>
           </div>
         </div>
       </DashboardLayout>
@@ -261,7 +263,8 @@ export default function Campaigns() {
   if (campaigns.length === 0) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col h-full bg-background overflow-hidden">
+        <div className="campaign-page-zoom-wrapper h-full w-full">
+          <div className="campaign-page-zoom-inner flex flex-col h-full bg-background overflow-hidden">
           <div className="flex-1 flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -300,6 +303,7 @@ export default function Campaigns() {
             onOpenChange={setSettingsOpen}
             onSave={handleCampaignCreated}
           />
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -307,7 +311,8 @@ export default function Campaigns() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col h-full bg-background overflow-hidden">
+      <div className="campaign-page-zoom-wrapper h-full w-full">
+        <div className="campaign-page-zoom-inner flex flex-col h-full bg-background overflow-hidden">
         {/* Top Header Bar */}
         <div className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 sticky top-0 z-40">
           <div className="container mx-auto px-4 sm:px-6 py-4">
@@ -487,6 +492,8 @@ export default function Campaigns() {
         isRunning={campaigns.find(c => c.id === selectedCampaignId)?.execution_status === 'running'}
         loading={deleting}
       />
+      </div>
+    
     </DashboardLayout>
   );
 }

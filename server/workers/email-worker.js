@@ -4,7 +4,7 @@ import emailService from '../services/email-service.js';
 class EmailWorker {
     constructor() {
         this.isProcessing = false;
-        this.interval = 10000; // Check every 10 seconds
+        this.interval = 5000; // Check every 5 seconds
     }
 
     start() {
@@ -28,26 +28,29 @@ class EmailWorker {
 
             console.log(`[EmailWorker] Checking inboxes for ${credentials.length} credentials`);
 
-            for (const integration of credentials) {
-                try {
-                    const user = await User.findOne({ id: integration.user_id });
-                    if (!user) continue;
+            // Process all credentials in parallel so one slow inbox doesn't delay others (avoids ~5 min delay)
+            const results = await Promise.allSettled(credentials.map(async (integration) => {
+                const user = await User.findOne({ id: integration.user_id });
+                if (!user) return;
 
-                    // Check emails for this integration
-                    const newEmails = await emailService.checkEmails({
-                        email: integration.email,
-                        smtpPass: integration.smtpPass, // Using smtpPass as the master secret for now
-                        imapHost: integration.imapHost || 'imap.gmail.com',
-                        imapPort: integration.imapPort || 993
-                    });
+                const newEmails = await emailService.checkEmails({
+                    email: integration.email,
+                    smtpPass: integration.smtpPass,
+                    imapHost: integration.imapHost || 'imap.gmail.com',
+                    imapPort: integration.imapPort || 993
+                });
 
-                    if (newEmails.length > 0) {
-                        await this.saveSyncedEmails(user, integration, newEmails);
-                    }
-                } catch (err) {
-                    console.error(`[EmailWorker] Error processing integration ${integration.email}:`, err.message);
+                if (newEmails.length > 0) {
+                    console.log(`[EmailWorker] Found ${newEmails.length} emails for ${integration.email}`);
+                    await this.saveSyncedEmails(user, integration, newEmails);
                 }
-            }
+            }));
+
+            results.forEach((result, i) => {
+                if (result.status === 'rejected') {
+                    console.error(`[EmailWorker] Error processing integration ${credentials[i]?.email}:`, result.reason?.message || result.reason);
+                }
+            });
 
         } catch (error) {
             console.error('[EmailWorker] Global error:', error);
@@ -65,15 +68,16 @@ class EmailWorker {
                 let assistantId = null;
                 let campaignId = null;
 
-                if (email.inReplyTo || (email.references && email.references.length > 0)) {
-                    const refs = Array.isArray(email.references) ? email.references : [email.references];
-
-                    const parentLog = await EmailLog.findOne({
-                        $or: [
-                            { messageId: email.inReplyTo },
-                            { messageId: { $in: refs } }
-                        ]
-                    });
+                // Build list of reference IDs (In-Reply-To can be string or array; References is array or single)
+                const refIds = [];
+                if (email.inReplyTo) {
+                    refIds.push(...(Array.isArray(email.inReplyTo) ? email.inReplyTo : [email.inReplyTo]));
+                }
+                if (email.references && (Array.isArray(email.references) ? email.references.length : 1)) {
+                    refIds.push(...(Array.isArray(email.references) ? email.references : [email.references]));
+                }
+                if (refIds.length > 0) {
+                    const parentLog = await EmailLog.findOne({ messageId: { $in: refIds } });
                     if (parentLog) {
                         threadId = parentLog.threadId || parentLog._id.toString();
                         assistantId = parentLog.assistantId;
@@ -95,9 +99,9 @@ class EmailWorker {
                     }
                 }
 
-                const existing = await EmailLog.findOne({ messageId: email.messageId });
-                if (existing) {
-                    continue;
+                if (email.messageId) {
+                    const existing = await EmailLog.findOne({ messageId: email.messageId });
+                    if (existing) continue;
                 }
 
                 const newLog = await EmailLog.create({
@@ -122,18 +126,46 @@ class EmailWorker {
                     await newLog.save();
                 }
 
-                console.log(`[EmailWorker] Saved ${direction} email: ${newLog._id} (Thread: ${newLog.threadId})`);
+                console.log(`[EmailWorker] Saved ${direction} email: ${newLog._id} (Thread: ${newLog.threadId}, Assistant: ${assistantId || 'none'})`);
 
                 if (campaignId && direction === 'inbound') {
-                    await EmailCampaign.findByIdAndUpdate(campaignId, { $inc: { 'stats.replies': 1 } });
-                    console.log(`[EmailWorker] Incremented reply count for Campaign ${campaignId}`);
+                    const fromRaw = email.from && (typeof email.from === 'object' ? email.from.text : email.from);
+                    const replierEmail = (typeof fromRaw === 'string' ? fromRaw : '')
+                        .trim()
+                        .replace(/^.*<([^>]+)>.*$/, (_, addr) => addr)
+                        .toLowerCase();
+                    if (replierEmail) {
+                        await EmailCampaign.updateOne(
+                            { _id: campaignId },
+                            [
+                                {
+                                    $set: {
+                                        replierEmails: {
+                                            $setUnion: [
+                                                { $ifNull: ['$replierEmails', []] },
+                                                [replierEmail]
+                                            ]
+                                        }
+                                    }
+                                },
+                                { $set: { 'stats.replies': { $size: '$replierEmails' } } }
+                            ]
+                        );
+                        console.log(`[EmailWorker] Updated unique reply count for Campaign ${campaignId} (replier: ${replierEmail})`);
+                    }
                 }
 
+                // Run AI reply in background so polling isn't blocked and next check runs on time
                 if (direction === 'inbound' && assistantId) {
                     const assistant = await Assistant.findById(assistantId);
                     if (assistant) {
-                        await emailService.generateAndSendReply(user, integration, assistant, newLog, email);
+                        console.log(`[EmailWorker] Triggering AI reply for thread ${newLog.threadId} (${assistant.name})`);
+                        emailService.generateAndSendReply(user, integration, assistant, newLog, email).catch((err) => {
+                            console.error('[EmailWorker] AI reply failed:', err.message);
+                        });
                     }
+                } else if (direction === 'inbound' && !assistantId) {
+                    console.log(`[EmailWorker] Inbound from ${email.from} has no linked thread/assistant - skipping auto-reply`);
                 }
 
             } catch (saveError) {

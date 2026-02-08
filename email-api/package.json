@@ -1,0 +1,12 @@
+{
+  "name": "manan-email-api",
+  "version": "1.0.0",
+  "description": "Vercel-deployed email API for sending and fetching emails when main app runs on hosts that block SMTP/IMAP",
+  "type": "module",
+  "main": "api/send.js",
+  "dependencies": {
+    "imap-simple": "^5.1.0",
+    "mailparser": "^3.6.5",
+    "nodemailer": "^6.9.16"
+  }
+}

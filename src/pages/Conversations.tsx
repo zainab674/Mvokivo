@@ -552,6 +552,7 @@ export default function Conversations() {
 
   return (
     <DashboardLayout>
+      <div className="chat-page-zoom-wrapper">
       <div className={`chat-premium-container ${selectedConversation ? 'sidebar-hidden' : ''}`}>
         {/* Left Sidebar - Chat List */}
         <div className="chat-sidebar">
@@ -669,6 +670,7 @@ export default function Conversations() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </DashboardLayout>
   );

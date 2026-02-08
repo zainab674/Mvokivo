@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronRight, Loader2, X, Search, Phone, Calendar, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, X, Search, Phone, Calendar, CheckCircle2, Play, Pause, Volume2 } from "lucide-react";
 import { ModelData } from "./types";
 import { WizardSlider } from "./WizardSlider";
 import { Input } from "@/components/ui/input";
 import { getKnowledgeBases, type KnowledgeBase } from "@/lib/api/knowledgeBase";
 import { CalendarCredentialsService, type UserCalendarCredentials } from "@/lib/calendar-credentials";
 import { CalendarEventTypeService, type CalendarEventType, type CalComEventType, fetchEventTypesFromCalCom } from "@/lib/calendar-event-types";
-// EventTypeSelector removed - using simple event slug input instead
 import { useToast } from "@/hooks/use-toast";
+import { BACKEND_URL } from "@/lib/api-config";
 
 // Predefined idle message options
 const IDLE_MESSAGE_OPTIONS = [
@@ -33,6 +33,19 @@ const IDLE_MESSAGE_OPTIONS = [
   "I'm waiting for your response"
 ];
 
+const KOKORO_VOICES = [
+  { id: "Rowan", name: "Rowan (US Male)", lang: "en" },
+  { id: "Ethan", name: "Ethan (US Male)", lang: "en" },
+  { id: "Amelia", name: "Amelia (US Female)", lang: "en" },
+  { id: "Maddie", name: "Maddie (US Female)", lang: "en" },
+  { id: "Oliver", name: "Oliver (US Male)", lang: "en" },
+  { id: "Charlotte", name: "Charlotte (US Female)", lang: "en" },
+  { id: "Ananya", name: "Ananya (Hindi Female)", lang: "hi" },
+  { id: "Priya", name: "Priya (Hindi Female)", lang: "hi" },
+  { id: "Arjun", name: "Arjun (Hindi Male)", lang: "hi" },
+  { id: "Rohan", name: "Rohan (Hindi Male)", lang: "hi" },
+];
+
 interface ModelTabProps {
   data: ModelData;
   onChange: (data: Partial<ModelData>) => void;
@@ -47,6 +60,8 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
   const [eventTypes, setEventTypes] = useState<CalComEventType[]>([]);
   const [loadingEventTypes, setLoadingEventTypes] = useState(false);
   const [eventTypesError, setEventTypesError] = useState<string | null>(null);
+  const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+  const [audioInstance, setAudioInstance] = useState<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
   // Check if assistant has calendar API key
@@ -126,6 +141,57 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
         calEventTypeId: "",
         calEventTypeSlug: ""
       });
+    }
+  };
+
+  const playVoicePreview = async (voiceId: string) => {
+    if (previewingVoice === voiceId) {
+      audioInstance?.pause();
+      setPreviewingVoice(null);
+      return;
+    }
+
+    // Stop existing audio
+    if (audioInstance) {
+      audioInstance.pause();
+    }
+
+    try {
+      setPreviewingVoice(voiceId);
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${BACKEND_URL}/api/v1/tts/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: "Hi! i am vokivo agent. How are you?",
+          voiceId: voiceId
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch preview');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      setAudioInstance(audio);
+
+      audio.onended = () => {
+        setPreviewingVoice(null);
+        setAudioInstance(null);
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error('Preview error:', error);
+      toast({
+        title: "Preview Failed",
+        description: "Could not play voice preview.",
+        variant: "destructive"
+      });
+      setPreviewingVoice(null);
     }
   };
 
@@ -446,6 +512,41 @@ export const ModelTab: React.FC<ModelTabProps> = ({ data, onChange }) => {
                   <SelectItem value="ar">Arabic</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Voice Dropdown */}
+            <div>
+              <Label className="block text-sm font-medium mb-2">Kokoro Voice</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={data.voice}
+                  onValueChange={(value) => onChange({ voice: value })}
+                >
+                  <SelectTrigger className="h-10 flex-1">
+                    <SelectValue placeholder="Select a voice" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {KOKORO_VOICES.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-10 w-10 shrink-0"
+                  onClick={() => playVoicePreview(data.voice || "Rowan")}
+                  disabled={!data.voice && previewingVoice !== "Rowan"}
+                >
+                  {previewingVoice ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    <Volume2 className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Agent factory for creating and configuring LiveKit agents.
 """
@@ -16,6 +18,7 @@ from integrations.calendar_api import CalComCalendar
 from config.settings import validate_model_names
 from utils.instruction_builder import build_analysis_instructions, build_call_management_instructions, build_workflow_instructions
 from utils.fallback_llm import FallbackLLM
+from utils.sticky_tts import StickyFallbackTTS
 from livekit.plugins import openai, groq as lk_groq
 from livekit.agents.tts import FallbackAdapter
 from integrations.raya_tts import RayaTTS
@@ -471,7 +474,7 @@ Return a JSON object with two arrays. You must respond with valid JSON format on
                  return openai.TTS(model="tts-1", voice="alloy", api_key=openai_api_key)
             raise RuntimeError("No TTS providers available")
 
-        return tts_chain[0] if len(tts_chain) == 1 else FallbackAdapter(tts_chain)
+        return tts_chain[0] if len(tts_chain) == 1 else StickyFallbackTTS(tts_chain)
 
     def _create_llm(self, provider: str, model: str, temperature: float, max_tokens: int, config: Dict[str, Any], provider_config: Optional[Dict[str, Any]] = None):
         """Create a fallback chain of LLMs as requested."""

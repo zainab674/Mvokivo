@@ -469,6 +469,8 @@ const emailCampaignSchema = new mongoose.Schema({
         failed: { type: Number, default: 0 },
         replies: { type: Number, default: 0 }
     },
+    /** Unique replier email addresses (one reply per person) */
+    replierEmails: { type: [String], default: undefined },
     totalRecipients: { type: Number, default: 0 }
 }, {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

@@ -110,7 +110,8 @@ router.get('/', authenticateToken, async (req, res) => {
                 call_sid: call.call_sid || call.call_id,
                 participant_identity: call.participant_identity,
                 structured_data: call.structured_data,
-                analysis: call.structured_data || (call.sentiment ? { sentiment: call.sentiment } : null)
+                analysis: call.structured_data || (call.sentiment ? { sentiment: call.sentiment } : null),
+                assistant_id: call.assistant_id != null ? String(call.assistant_id) : undefined
             };
         });
 

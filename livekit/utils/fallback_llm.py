@@ -22,6 +22,7 @@ class FallbackLLM(llm.LLM):
         if not llms:
             raise ValueError("At least one LLM must be provided")
         self._llms = llms
+        self._locked_index: int | None = None
 
     def chat(
         self,
@@ -38,6 +39,7 @@ class FallbackLLM(llm.LLM):
         return FallbackLLMStream(
             self,
             self._llms,
+            locked_index=self._locked_index,
             chat_ctx=chat_ctx,
             tools=tools or [],
             conn_options=conn_options,
@@ -52,6 +54,7 @@ class FallbackLLMStream(llm.LLMStream):
         llm: FallbackLLM,
         llms: List[llm.LLM],
         *,
+        locked_index: int | None,
         chat_ctx: llm.ChatContext,
         tools: list[llm.Tool],
         conn_options: APIConnectOptions,
@@ -61,11 +64,12 @@ class FallbackLLMStream(llm.LLMStream):
     ):
 
         super().__init__(llm, chat_ctx=chat_ctx, tools=tools, conn_options=conn_options)
+        self._parent = llm
         self._llms = llms
         self._parallel_tool_calls = parallel_tool_calls
         self._tool_choice = tool_choice
         self._extra_kwargs = extra_kwargs
-        self._current_index = 0
+        self._current_index = locked_index if locked_index is not None else 0
 
     async def _run(self) -> None:
         while self._current_index < len(self._llms):
@@ -90,6 +94,10 @@ class FallbackLLMStream(llm.LLMStream):
             except Exception as e:
                 logger.error(f"FALLBACK_LLM_ERROR | provider index {self._current_index} failed: {str(e)}")
                 self._current_index += 1
+                
+                # 🔒 LOCK FALLBACK FOR ENTIRE CALL session
+                self._parent._locked_index = self._current_index
+
                 if self._current_index >= len(self._llms):
                     logger.critical("FALLBACK_LLM_FATAL | all LLM providers failed")
                     raise e

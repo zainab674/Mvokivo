@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import fs from 'fs/promises';
+import path from 'path';
 import { EmailLog, Assistant, User, UserEmailCredential } from '../models/index.js';
 import OpenAI from 'openai';
 
@@ -6,9 +8,25 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
+const EMAIL_API_URL = process.env.EMAIL_API_URL?.replace(/\/$/, '');
+const EMAIL_API_SECRET = (typeof process.env.EMAIL_API_SECRET === 'string' ? process.env.EMAIL_API_SECRET.trim() : '') || undefined;
+
+/** Extract plain email address from "Name <email@x.com>" or return trimmed string */
+function toPlainEmail(maybeAddress) {
+    if (!maybeAddress || typeof maybeAddress !== 'string') return '';
+    const s = maybeAddress.trim();
+    const match = s.match(/<([^>]+)>/);
+    return match ? match[1].trim() : s;
+}
+
+/** Throttle 401 hint so we don't spam logs (log once per 5 min) */
+let last401Hint = 0;
+const EMAIL_API_401_HINT_INTERVAL_MS = 5 * 60 * 1000;
+
 class EmailService {
     /**
-     * Send an email using User's SMTP settings
+     * Send an email using User's SMTP settings.
+     * If EMAIL_API_URL is set, sends via the Vercel email API; otherwise uses local SMTP (nodemailer).
      * @param {Object} userSettings - containing smtpHost, smtpPort, smtpUser, smtpPass
      * @param {Object} emailOptions - { from, to, subject, text, html, attachments }
      * @param {Object} context - { userId, assistantId } for logging
@@ -20,25 +38,28 @@ class EmailService {
             throw new Error('Missing SMTP credentials');
         }
 
-        const transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port: smtpPort || 587,
-            secure: smtpPort === 465, // true for 465, false for other ports
-            auth: {
-                user: smtpUser,
-                pass: smtpPass,
-            },
-        });
-
         try {
-            const info = await transporter.sendMail(emailOptions);
+            let info;
+
+            if (EMAIL_API_URL) {
+                info = await this._sendViaEmailApi(userSettings, emailOptions);
+            } else {
+                info = await this._sendViaLocalSmtp(userSettings, emailOptions);
+            }
+
             console.log('Email sent: %s', info.messageId);
 
             // Attempt to append to Sent folder via IMAP (best effort)
-            if (userSettings.imapHost && userSettings.imapUser && userSettings.imapPass) {
-                this.appendSentMessage(userSettings, emailOptions).catch(err => {
-                    console.error('Failed to append to Sent folder:', err.message);
-                });
+            if (userSettings.imapHost && (userSettings.imapUser || userSettings.email) && userSettings.imapPass) {
+                if (EMAIL_API_URL) {
+                    this._appendSentViaEmailApi(userSettings, emailOptions).catch(err => {
+                        console.error('Failed to append to Sent folder:', err.message);
+                    });
+                } else {
+                    this.appendSentMessage(userSettings, emailOptions).catch(err => {
+                        console.error('Failed to append to Sent folder:', err.message);
+                    });
+                }
             }
 
             // Log success
@@ -59,7 +80,6 @@ class EmailService {
                 });
 
                 if (!logEntry.threadId) {
-                    // Self-assign threadId if new
                     logEntry.threadId = logEntry._id.toString();
                     await logEntry.save();
                 }
@@ -69,7 +89,6 @@ class EmailService {
         } catch (error) {
             console.error('Error sending email:', error);
 
-            // Log failure
             if (context.userId) {
                 const logEntry = await EmailLog.create({
                     userId: context.userId,
@@ -93,6 +112,164 @@ class EmailService {
             }
             throw error;
         }
+    }
+
+    /**
+     * Send via local nodemailer (when EMAIL_API_URL is not set)
+     */
+    async _sendViaLocalSmtp(userSettings, emailOptions) {
+        const { smtpHost, smtpPort, smtpUser, smtpPass } = userSettings;
+        const transporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: smtpPort || 587,
+            secure: smtpPort === 465,
+            auth: { user: smtpUser, pass: smtpPass },
+        });
+        return transporter.sendMail(emailOptions);
+    }
+
+    /**
+     * Send via Vercel-deployed email API (when EMAIL_API_URL is set, e.g. on DigitalOcean where SMTP is blocked)
+     */
+    async _sendViaEmailApi(userSettings, emailOptions) {
+        const attachmentsPayload = [];
+        if (Array.isArray(emailOptions.attachments)) {
+            for (const a of emailOptions.attachments) {
+                const filePath = a.path || a.filename;
+                const filename = a.filename || (typeof filePath === 'string' ? path.basename(filePath) : 'attachment');
+                if (filePath && typeof filePath === 'string') {
+                    try {
+                        const absPath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+                        const buf = await fs.readFile(absPath);
+                        attachmentsPayload.push({ filename: filename, contentBase64: buf.toString('base64') });
+                    } catch (err) {
+                        console.error('[EmailService] Failed to read attachment:', filePath, err.message);
+                    }
+                }
+            }
+        }
+
+        const body = {
+            smtp: {
+                host: userSettings.smtpHost,
+                port: userSettings.smtpPort || 587,
+                user: userSettings.smtpUser,
+                pass: userSettings.smtpPass,
+            },
+            from: emailOptions.from,
+            to: emailOptions.to,
+            subject: emailOptions.subject,
+            text: emailOptions.text ?? '',
+            html: emailOptions.html,
+            headers: emailOptions.headers,
+            attachments: attachmentsPayload.length ? attachmentsPayload : undefined,
+        };
+
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(EMAIL_API_SECRET && { Authorization: `Bearer ${EMAIL_API_SECRET}`, 'X-API-Key': EMAIL_API_SECRET }),
+        };
+
+        const res = await fetch(`${EMAIL_API_URL}/api/send`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+            throw new Error(data.message || `Email API error: ${res.status}`);
+        }
+
+        if (!data.success) {
+            throw new Error(data.message || 'Email API returned failure');
+        }
+
+        const rejected = Array.isArray(data.rejected) ? data.rejected : [];
+        if (rejected.length > 0) {
+            throw new Error(`Recipient did not receive: ${rejected.join(', ')}`);
+        }
+
+        return {
+            messageId: data.messageId,
+            accepted: data.accepted,
+            rejected: data.rejected,
+        };
+    }
+
+    /**
+     * Append sent message to IMAP Sent folder via email API (when EMAIL_API_URL is set)
+     */
+    async _appendSentViaEmailApi(userSettings, emailOptions) {
+        const body = {
+            imap: {
+                user: userSettings.imapUser || userSettings.email,
+                password: userSettings.imapPass,
+                host: userSettings.imapHost,
+                port: userSettings.imapPort || 993,
+            },
+            from: emailOptions.from,
+            to: emailOptions.to,
+            subject: emailOptions.subject,
+            text: emailOptions.text,
+            html: emailOptions.html,
+            headers: emailOptions.headers,
+        };
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(EMAIL_API_SECRET && { Authorization: `Bearer ${EMAIL_API_SECRET}`, 'X-API-Key': EMAIL_API_SECRET }),
+        };
+        const res = await fetch(`${EMAIL_API_URL}/api/append-sent`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            throw new Error(data.message || `Append-sent API error: ${res.status}`);
+        }
+    }
+
+    /**
+     * Fetch emails via email API (when EMAIL_API_URL is set)
+     */
+    async _checkEmailsViaEmailApi(userSettings) {
+        const body = {
+            imap: {
+                user: userSettings.email,
+                password: userSettings.smtpPass,
+                host: userSettings.imapHost || 'imap.gmail.com',
+                port: userSettings.imapPort || 993,
+            },
+        };
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Debug': '1',
+            ...(EMAIL_API_SECRET && { Authorization: `Bearer ${EMAIL_API_SECRET}`, 'X-API-Key': EMAIL_API_SECRET }),
+        };
+        const res = await fetch(`${EMAIL_API_URL}/api/check-emails`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            if (res.status === 401 && Date.now() - last401Hint > EMAIL_API_401_HINT_INTERVAL_MS) {
+                last401Hint = Date.now();
+                const len = EMAIL_API_SECRET ? EMAIL_API_SECRET.length : 0;
+                const hint = data.debug
+                    ? `[EmailService] Check-emails 401: this app secretLen=${len}, email-api received authLen=${data.debug.authLen}, authKind=${data.debug.authKind} (secretLen on API=${data.debug.secretLen}). authKind=none means header was stripped.`
+                    : `[EmailService] Check-emails API 401: EMAIL_API_SECRET must match on both apps (this app length=${len}). Redeploy email-api after changing its env.`;
+                console.warn(hint);
+            }
+            throw new Error(data.message || `Check-emails API error: ${res.status}`);
+        }
+        const emails = data.emails || [];
+        return emails.map(e => ({
+            ...e,
+            date: e.date ? new Date(e.date) : null,
+        }));
     }
 
     /**
@@ -245,30 +422,47 @@ class EmailService {
             prompt += `User just replied: "${incomingEmail.text || ''}"\n`;
             prompt += `\nPlease write a reply to the user. Keep it concise and professional. Do not include subject line in the body.`;
 
-            // Call OpenAI
-            const completion = await openai.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "gpt-4o",
-            });
+            // Call OpenAI with timeout so we don't hang and user gets a chance to retry
+            const openaiTimeoutMs = Math.min(60000, Math.max(10000, parseInt(process.env.OPENAI_REPLY_TIMEOUT_MS || '25000', 10)));
+            const completion = await Promise.race([
+                openai.chat.completions.create({
+                    messages: [{ role: "user", content: prompt }],
+                    model: "gpt-4o",
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error(`OpenAI reply timed out after ${openaiTimeoutMs}ms`)), openaiTimeoutMs)
+                ),
+            ]);
 
             const replyText = completion.choices[0].message.content.trim();
 
-            // Send Reply
-            const recipient = incomingEmail.from && typeof incomingEmail.from === 'object' && incomingEmail.from.text
-                ? incomingEmail.from.text
-                : incomingEmail.from;
+            // Send Reply – use plain email so SMTP/API always get a valid address
+            const fromRaw = incomingEmail.from && (typeof incomingEmail.from === 'object' ? incomingEmail.from.text : incomingEmail.from);
+            const recipient = toPlainEmail(fromRaw || '');
+            if (!recipient) {
+                throw new Error('No reply-to address found for incoming email');
+            }
+
+            const refs = incomingEmail.references
+                ? (Array.isArray(incomingEmail.references) ? incomingEmail.references.join(' ') : String(incomingEmail.references))
+                : '';
+            const refHeader = [refs, incomingEmail.messageId].filter(Boolean).join(' ').trim();
 
             const emailOptions = {
                 from: integration.email,
-                to: recipient, // Reply to sender
-                subject: incomingEmail.subject.startsWith('Re:') ? incomingEmail.subject : `Re: ${incomingEmail.subject}`,
+                to: recipient,
+                subject: (incomingEmail.subject || '').startsWith('Re:') ? incomingEmail.subject : `Re: ${incomingEmail.subject || '(no subject)'}`,
                 text: replyText,
                 html: `<div style="font-family: Arial, sans-serif; pre-wrap: break-word;">${replyText.replace(/\n/g, '<br>')}</div>`,
-                headers: {
-                    'In-Reply-To': incomingEmail.messageId,
-                    'References': `${incomingEmail.references ? incomingEmail.references + ' ' : ''}${incomingEmail.messageId}`
-                }
+                headers: refHeader
+                    ? {
+                        ...(incomingEmail.messageId && { 'In-Reply-To': Array.isArray(incomingEmail.messageId) ? incomingEmail.messageId[0] : incomingEmail.messageId }),
+                        'References': refHeader
+                    }
+                    : undefined
             };
+
+            console.log(`[EmailMonitor] Sending AI reply to ${recipient} (thread: ${inboundLog.threadId})`);
 
             await this.sendEmail(
                 {
@@ -285,7 +479,7 @@ class EmailService {
                 }
             );
 
-            console.log(`[EmailMonitor] Auto-reply sent to ${incomingEmail.from.text}`);
+            console.log(`[EmailMonitor] Auto-reply sent to ${recipient}`);
 
         } catch (error) {
             console.error('[EmailMonitor] Failed to generate/send reply:', error);
@@ -293,11 +487,20 @@ class EmailService {
     }
 
     /**
-     * Check for new emails using IMAP
+     * Check for new emails using IMAP (or email API when EMAIL_API_URL is set)
      * @param {Object} userSettings - containing email, smtpPass (used as imap pass), imapHost, imapPort
      * @returns {Promise<Array>} List of new email objects
      */
     async checkEmails(userSettings) {
+        if (EMAIL_API_URL) {
+            try {
+                return await this._checkEmailsViaEmailApi(userSettings);
+            } catch (error) {
+                console.error('[EmailService] Check-emails API Error:', error);
+                return [];
+            }
+        }
+
         const { email, smtpPass, imapHost, imapPort } = userSettings;
         const imap = (await import('imap-simple'));
         const { simpleParser } = (await import('mailparser'));
@@ -424,11 +627,12 @@ class EmailService {
         const nodemailer = (await import('nodemailer'));
         const snubTransport = nodemailer.createTransport({
             streamTransport: true,
+            buffer: true,
             newline: 'windows'
         });
 
         const info = await snubTransport.sendMail(emailOptions);
-        const rawMessage = info.message.toString();
+        const rawMessage = typeof info.message === 'string' ? info.message : info.message.toString();
 
         const config = {
             imap: {

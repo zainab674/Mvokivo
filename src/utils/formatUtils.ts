@@ -1,6 +1,13 @@
 
 import { format, parseISO } from "date-fns";
 
+/** Normalize phone to E.164-like form for comparison (+digits). */
+export const normalizePhoneForComparison = (phone?: string): string => {
+  if (!phone || typeof phone !== 'string') return '';
+  const cleaned = phone.replace(/[^\d]/g, '');
+  return cleaned ? `+${cleaned}` : '';
+};
+
 export const formatPhoneNumber = (phone?: string): string => {
   // Handle undefined, null or empty phone numbers
   if (!phone || phone.toLowerCase() === 'unknown') return 'Web Call';

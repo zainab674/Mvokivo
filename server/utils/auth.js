@@ -2,9 +2,9 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { User } from '../models/index.js';
 
-dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+const getJwtSecret = () => process.env.JWT_SECRET || 'your-secret-key';
 
 if (!process.env.JWT_SECRET) {
   console.warn('Warning: JWT_SECRET not set in environment variables, using default.');
@@ -14,6 +14,7 @@ if (!process.env.JWT_SECRET) {
  * Generate a JWT token for a user
  */
 export const generateToken = (user) => {
+  const secret = getJwtSecret();
   return jwt.sign(
     {
       id: user.id,
@@ -21,7 +22,7 @@ export const generateToken = (user) => {
       role: user.role,
       tenant: user.tenant || 'main'
     },
-    JWT_SECRET,
+    secret,
     { expiresIn: '7d' }
   );
 };
@@ -41,7 +42,9 @@ export const authenticateToken = async (req, res, next) => {
       });
     }
 
-    jwt.verify(token, JWT_SECRET, async (err, userPayload) => {
+    const secret = getJwtSecret();
+
+    jwt.verify(token, secret, async (err, userPayload) => {
       if (err) {
         console.error('JWT Verification Error:', err.message);
         return res.status(403).json({

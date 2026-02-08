@@ -19,22 +19,7 @@ export const VoiceTab: React.FC<VoiceTabProps> = ({ data, onChange }) => {
   const [advancedTimingOpen, setAdvancedTimingOpen] = useState(false);
   const [advancedInterruptionOpen, setAdvancedInterruptionOpen] = useState(false);
 
-  // Ensure Cartesia is always set as the default provider with sonic-3 model and first voice
-  useEffect(() => {
-    const updates: Partial<VoiceData> = {};
-    if (data.provider !== "Cartesia") {
-      updates.provider = "Cartesia";
-    }
-    if (data.model !== "sonic-3") {
-      updates.model = "sonic-3";
-    }
-    if (data.voice !== "41468051-3a85-4b68-92ad-64add250d369") {
-      updates.voice = "41468051-3a85-4b68-92ad-64add250d369";
-    }
-    if (Object.keys(updates).length > 0) {
-      onChange(updates);
-    }
-  }, [data.provider, data.model, data.voice, onChange]);
+  // No longer hardcoding provider/model/voice to allow Kokoro selection
 
   // Filter voices based on selected provider
   const getFilteredVoices = () => {

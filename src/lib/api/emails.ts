@@ -19,6 +19,7 @@ export interface EmailMessage {
     content: string;
     timestamp: string;
     senderEmail: string;
+    status?: "sent" | "received" | "failed";
 }
 
 export async function fetchEmailThreads(searchQuery: string = "") {
