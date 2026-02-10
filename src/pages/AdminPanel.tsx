@@ -130,6 +130,7 @@ const AdminPanel = () => {
   };
 
   const getUsageStatus = (user: AdminUser) => {
+    if (user.plan && user.plan.toLowerCase() !== 'free' && (!user.minutes_limit || user.minutes_limit === 0)) return 'Payment Pending';
     if (isMainAdminUnlimited(user)) return 'Unlimited';
 
     const used = user.minutes_used || 0;
@@ -146,6 +147,8 @@ const AdminPanel = () => {
 
   const getStatusBadgeClasses = (status: string) => {
     switch (status) {
+      case 'Payment Pending':
+        return 'bg-amber-500/15 text-amber-500 border-amber-500/20';
       case 'Exceeded':
         return 'bg-destructive/15 text-destructive border-destructive/20';
       case 'Critical':
@@ -1439,9 +1442,19 @@ const AdminPanel = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label className="text-sm font-medium">Status</Label>
-                          <Badge variant={selectedUser.is_active ? 'default' : 'destructive'}>
-                            {selectedUser.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
+                          {(() => {
+                            const isPaymentPending = selectedUser.plan && selectedUser.plan.toLowerCase() !== 'free' && (!selectedUser.minutes_limit || selectedUser.minutes_limit === 0);
+
+                            if (!selectedUser.is_active) {
+                              return <Badge variant="destructive">Inactive</Badge>;
+                            }
+
+                            if (isPaymentPending) {
+                              return <Badge variant="outline" className="bg-amber-500/10 text-amber-500 border-amber-500/20">Payment Pending</Badge>;
+                            }
+
+                            return <Badge variant="default">Active</Badge>;
+                          })()}
                         </div>
                         <div>
                           <Label className="text-sm font-medium">Created</Label>

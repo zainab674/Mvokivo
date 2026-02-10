@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import { Contact, ContactList } from '../models/index.js';
 import { authenticateToken } from '../utils/auth.js';
 import { applyTenantFilterFromRequest } from '../utils/applyTenantFilterToQuery.js';
@@ -19,7 +20,18 @@ router.get('/lists', async (req, res) => {
         applyTenantFilterFromRequest(req, query);
 
         const lists = await query;
-        res.json({ success: true, lists });
+
+        // Fetch counts for each list
+        const listsWithCounts = await Promise.all(lists.map(async (list) => {
+            const count = await Contact.countDocuments({ list_id: list._id });
+            return {
+                ...list.toObject(),
+                id: list._id,
+                count
+            };
+        }));
+
+        res.json({ success: true, lists: listsWithCounts });
     } catch (error) {
         console.error('Error fetching contact lists:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch contact lists' });
@@ -106,6 +118,8 @@ router.get('/', async (req, res) => {
         if (search) {
             query.or([
                 { name: { $regex: search, $options: 'i' } },
+                { first_name: { $regex: search, $options: 'i' } },
+                { last_name: { $regex: search, $options: 'i' } },
                 { email: { $regex: search, $options: 'i' } },
                 { phone: { $regex: search, $options: 'i' } }
             ]);
@@ -120,11 +134,28 @@ router.get('/', async (req, res) => {
         const total = await Contact.countDocuments(totalQuery.getFilter());
 
         // Execute query
-        const contacts = await query.sort({ created_at: -1 }).skip(skip).limit(parseInt(limit));
+        const contacts = await query
+            .sort({ created_at: -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .populate('list_id');
+
+        // Map contacts to include list_name for UI
+        const transformedContacts = contacts.map(c => {
+            const obj = c.toObject();
+            return {
+                ...obj,
+                id: obj._id,
+                list_name: obj.list_id && obj.list_id.name ? obj.list_id.name : (obj.list_id ? 'Unknown List' : 'No List'),
+                list_id: obj.list_id && obj.list_id._id ? obj.list_id._id : (obj.list_id || null),
+                first_name: obj.first_name || (obj.name ? obj.name.split(' ')[0] : ''),
+                last_name: obj.last_name || (obj.name ? obj.name.split(' ').slice(1).join(' ') : '')
+            };
+        });
 
         res.json({
             success: true,
-            contacts,
+            contacts: transformedContacts,
             total,
             page: parseInt(page),
             limit: parseInt(limit),
@@ -152,11 +183,15 @@ router.post('/', async (req, res) => {
 
         const newContact = new Contact({
             user_id: userId,
-            name,
+            name: req.body.name || (req.body.first_name + (req.body.last_name ? ` ${req.body.last_name}` : '')),
+            first_name: req.body.first_name || (req.body.name ? req.body.name.split(' ')[0] : ''),
+            last_name: req.body.last_name || (req.body.name ? req.body.name.split(' ').slice(1).join(' ') : ''),
             email,
             phone,
-            list_id: listId || null,
-            tenant: req.tenant, // Contact schema might vary, let's assume it should support tenant if added to model, otherwise ignored
+            list_id: listId && listId !== 'all' ? listId : null,
+            status: req.body.status || 'active',
+            do_not_call: req.body.do_not_call || false,
+            tenant: req.tenant,
             created_at: new Date(),
             updated_at: new Date()
         });
@@ -183,16 +218,26 @@ router.post('/bulk', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Contacts array is required' });
         }
 
-        const contactsToInsert = contacts.map(c => ({
-            user_id: userId,
-            name: c.name || (c.first_name + (c.last_name ? ` ${c.last_name}` : '')),
-            email: c.email,
-            phone: c.phone || c.phone_number,
-            list_id: listId || c.listId || c.list_id || null,
-            tenant: req.tenant,
-            created_at: new Date(),
-            updated_at: new Date()
-        }));
+        const contactsToInsert = contacts.map(c => {
+            const firstName = c.first_name || (c.name ? c.name.split(' ')[0] : '');
+            const lastName = c.last_name || (c.name ? c.name.split(' ').slice(1).join(' ') : '');
+            const name = c.name || (firstName + (lastName ? ` ${lastName}` : ''));
+
+            return {
+                user_id: userId,
+                name: name,
+                first_name: firstName,
+                last_name: lastName,
+                email: c.email,
+                phone: c.phone || c.phone_number,
+                list_id: listId || c.listId || c.list_id || null,
+                status: c.status || 'active',
+                do_not_call: c.do_not_call || false,
+                tenant: req.tenant,
+                created_at: new Date(),
+                updated_at: new Date()
+            };
+        });
 
         const result = await Contact.insertMany(contactsToInsert);
 
@@ -216,6 +261,10 @@ router.put('/:id', async (req, res) => {
         const { id } = req.params;
         const updates = req.body;
 
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid contact ID format' });
+        }
+
         let query = Contact.findOne({ _id: id });
         applyTenantFilterFromRequest(req, query);
         const contact = await query;
@@ -226,9 +275,14 @@ router.put('/:id', async (req, res) => {
 
         // Allowed updates
         if (updates.name !== undefined) contact.name = updates.name;
+        if (updates.first_name !== undefined) contact.first_name = updates.first_name;
+        if (updates.last_name !== undefined) contact.last_name = updates.last_name;
         if (updates.email !== undefined) contact.email = updates.email;
         if (updates.phone !== undefined) contact.phone = updates.phone;
-        if (updates.listId !== undefined) contact.list_id = updates.listId;
+        if (updates.listId !== undefined) contact.list_id = (updates.listId === 'all' || !updates.listId) ? null : updates.listId;
+        if (updates.status !== undefined) contact.status = updates.status;
+        if (updates.do_not_call !== undefined) contact.do_not_call = updates.do_not_call;
+        if (updates.doNotCall !== undefined) contact.do_not_call = updates.doNotCall;
 
         contact.updated_at = new Date();
         await contact.save();
@@ -247,6 +301,10 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: 'Invalid contact ID format' });
+        }
 
         let query = Contact.findOne({ _id: id });
         applyTenantFilterFromRequest(req, query);

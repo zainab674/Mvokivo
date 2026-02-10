@@ -51,7 +51,8 @@ export const fetchContacts = async (listId?: string): Promise<ContactsResponse> 
     return {
       contacts: data.contacts.map((c: any) => ({
         ...c,
-        list_name: c.list_name || 'Unknown List' // Backend might need to populate this or we handle it
+        id: c.id || c._id, // Ensure id is available
+        list_name: c.list_name || 'Unknown List'
       })),
       total: data.total
     };

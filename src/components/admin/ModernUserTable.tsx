@@ -157,11 +157,17 @@ export const ModernUserTable: React.FC<ModernUserTableProps> = ({
                                             <Badge
                                                 variant={user.is_active ? 'default' : 'destructive'}
                                                 className={user.is_active
-                                                    ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                                    ? (user.plan && user.plan.toLowerCase() !== 'free' && !user.minutes_limit)
+                                                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                                        : 'bg-green-500/10 text-green-400 border-green-500/20'
                                                     : 'bg-red-500/10 text-red-400 border-red-500/20'
                                                 }
                                             >
-                                                {user.is_active ? 'Active' : 'Inactive'}
+                                                {user.is_active
+                                                    ? (user.plan && user.plan.toLowerCase() !== 'free' && !user.minutes_limit)
+                                                        ? 'Payment Pending'
+                                                        : 'Active'
+                                                    : 'Inactive'}
                                             </Badge>
                                         </div>
                                     </td>

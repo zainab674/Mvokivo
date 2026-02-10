@@ -30,6 +30,7 @@ export default function Conversations() {
   const hasInitiallySelectedRef = useRef(false);
   const hasManualSelectionRef = useRef(false);
   const [messageFilter, setMessageFilter] = useState<'all' | 'calls' | 'sms'>('all');
+  const [selectionToken, setSelectionToken] = useState(0);
 
   const [progressiveFunctions, setProgressiveFunctions] = useState<{
     getConversationDetails: (phoneNumber: string, days?: number | null, participantIdentity?: string | null) => Promise<any>;
@@ -455,6 +456,7 @@ export default function Conversations() {
 
   const handleSelectConversation = async (conversation: Conversation | ContactSummary) => {
     console.log('🎯 Manual conversation selection:', conversation.id);
+    setSelectionToken(prev => prev + 1);
     hasInitiallySelectedRef.current = true; // Mark that we've made a selection
     hasManualSelectionRef.current = true; // Mark that we've made a manual selection
 
@@ -552,8 +554,8 @@ export default function Conversations() {
 
   return (
     <DashboardLayout>
-      <div className="h-full w-full pt-6">
-        <div className={`chat-premium-container ${selectedConversation ? 'sidebar-hidden' : ''}`}>
+      <div className="w-full h-[calc(100vh-170px)] min-h-[600px] pt-6">
+        <div className={`chat-premium-container ${selectedConversation ? 'sidebar-hidden' : ''} h-full`}>
           {/* Left Sidebar - Chat List */}
           <div className="chat-sidebar">
             <div className="chat-sidebar-header">
@@ -650,6 +652,7 @@ export default function Conversations() {
               <MessageThread
                 key={selectedConversation.id}
                 conversation={selectedConversation}
+                selectionToken={selectionToken}
                 messageFilter={messageFilter}
                 onMessageFilterChange={setMessageFilter}
                 onBack={() => {

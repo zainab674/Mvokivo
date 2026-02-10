@@ -373,9 +373,13 @@ export const DocumentText = mongoose.model('DocumentText', documentTextSchema);
 const contactSchema = new mongoose.Schema({
     user_id: { type: String, required: true },
     name: String,
+    first_name: String,
+    last_name: String,
     email: String,
     phone: String,
-    list_id: String, // Or use a separate List model and reference it
+    list_id: { type: mongoose.Schema.Types.ObjectId, ref: 'ContactList' },
+    status: { type: String, enum: ['active', 'inactive', 'do-not-call'], default: 'active' },
+    do_not_call: { type: Boolean, default: false },
     tenant: String,
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
@@ -400,6 +404,7 @@ const csvFileSchema = new mongoose.Schema({
     original_filename: String,
     status: { type: String, default: 'pending' },
     row_count: { type: Number, default: 0 },
+    file_size: { type: Number, default: 0 },
     headers: [String],
     file_path: String,
     tenant: String,

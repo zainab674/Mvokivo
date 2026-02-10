@@ -31,9 +31,10 @@ interface MessageThreadProps {
   messageFilter: 'all' | 'calls' | 'sms';
   onMessageFilterChange: (filter: 'all' | 'calls' | 'sms') => void;
   onBack?: () => void;
+  selectionToken?: number;
 }
 
-export function MessageThread({ conversation, messageFilter, onMessageFilterChange, onBack }: MessageThreadProps) {
+export function MessageThread({ conversation, messageFilter, onMessageFilterChange, onBack, selectionToken }: MessageThreadProps) {
 
   // Debug: Log when conversation prop changes
   useEffect(() => {
@@ -123,25 +124,21 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
   // Preserve scroll position when conversation data updates
   useEffect(() => {
     if (shouldPreserveScroll && scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        setTimeout(() => {
-          scrollContainer.scrollTop = scrollPosition;
-          setShouldPreserveScroll(false);
-          console.log('📱 Restored scroll position to:', scrollPosition);
-        }, 100);
-      }
+      const scrollContainer = scrollAreaRef.current;
+      setTimeout(() => {
+        scrollContainer.scrollTop = scrollPosition;
+        setShouldPreserveScroll(false);
+        console.log('📱 Restored scroll position to:', scrollPosition);
+      }, 100);
     }
   }, [conversation, shouldPreserveScroll, scrollPosition]);
 
   // Check if user is near bottom of scroll area
   const isNearBottom = () => {
     if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-        return scrollHeight - scrollTop - clientHeight < 100; // 100px threshold
-      }
+      const scrollContainer = scrollAreaRef.current;
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      return scrollHeight - scrollTop - clientHeight < 100; // 100px threshold
     }
     return false;
   };
@@ -158,14 +155,12 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
         });
 
         if (wasAtBottomRef.current && scrollAreaRef.current) {
-          const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-          if (scrollContainer) {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            console.log('📱 Auto-scrolled to bottom for new messages');
-          }
+          const scrollContainer = scrollAreaRef.current;
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          console.log('📱 Auto-scrolled to bottom for new messages');
         } else if (!wasAtBottomRef.current && lastScrollPositionRef.current > 0) {
           // Restore previous scroll position
-          const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+          const scrollContainer = scrollAreaRef.current;
           if (scrollContainer) {
             scrollContainer.scrollTop = lastScrollPositionRef.current;
             console.log('📱 Restored scroll position to:', lastScrollPositionRef.current);
@@ -178,15 +173,13 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
   // Helper function to scroll to bottom
   const scrollToBottom = () => {
     if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        console.log('📱 Scrolled to bottom');
+      const scrollContainer = scrollAreaRef.current;
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      console.log('📱 Scrolled to bottom');
 
-        // Update scroll tracking state
-        wasAtBottomRef.current = true;
-        lastScrollPositionRef.current = scrollContainer.scrollHeight;
-      }
+      // Update scroll tracking state
+      wasAtBottomRef.current = true;
+      lastScrollPositionRef.current = scrollContainer.scrollHeight;
     }
   };
 
@@ -195,9 +188,9 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
     // Use a timeout to ensure the DOM has updated with new messages
     setTimeout(() => {
       scrollToBottom();
-      console.log('📱 Auto-scrolled to bottom for new conversation selection');
+      console.log('📱 Auto-scrolled to bottom for selection change');
     }, 300); // Slightly longer timeout to ensure all messages are rendered
-  }, [conversation.id]); // Trigger when conversation ID changes
+  }, [conversation.id, selectionToken]); // Trigger when conversation ID or selection token changes
 
   // Auto-scroll to bottom when message filter changes (to show latest messages)
   useEffect(() => {
@@ -211,23 +204,21 @@ export function MessageThread({ conversation, messageFilter, onMessageFilterChan
   // Save scroll position when user scrolls
   const handleScroll = () => {
     if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        const currentScrollTop = scrollContainer.scrollTop;
-        const { scrollHeight, clientHeight } = scrollContainer;
-        const isAtBottom = scrollHeight - currentScrollTop - clientHeight < 100;
+      const scrollContainer = scrollAreaRef.current;
+      const currentScrollTop = scrollContainer.scrollTop;
+      const { scrollHeight, clientHeight } = scrollContainer;
+      const isAtBottom = scrollHeight - currentScrollTop - clientHeight < 100;
 
-        setScrollPosition(currentScrollTop);
-        lastScrollPositionRef.current = currentScrollTop;
-        wasAtBottomRef.current = isAtBottom;
+      setScrollPosition(currentScrollTop);
+      lastScrollPositionRef.current = currentScrollTop;
+      wasAtBottomRef.current = isAtBottom;
 
-        console.log('📱 Scroll position updated:', {
-          scrollTop: currentScrollTop,
-          isAtBottom,
-          scrollHeight,
-          clientHeight
-        });
-      }
+      console.log('📱 Scroll position updated:', {
+        scrollTop: currentScrollTop,
+        isAtBottom,
+        scrollHeight,
+        clientHeight
+      });
     }
   };
 

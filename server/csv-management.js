@@ -43,7 +43,7 @@ csvManagementRouter.post('/', async (req, res) => {
       user_id: userId,
       filename: name, // map name to filename
       original_filename: name,
-      row_count: rowCount,
+      row_count: 0,
       file_size: fileSize, // Note: schema says file_size is missing in snippet but maybe exists? 
       // Checking snippet again:
       // headers: [String], file_path: String, row_count, status.

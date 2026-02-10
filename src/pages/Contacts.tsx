@@ -26,6 +26,8 @@ import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { fetchContacts } from "@/lib/api/contacts/fetchContacts";
 import { fetchContactLists } from "@/lib/api/contacts/fetchContactLists";
 import { useToast } from "@/hooks/use-toast";
+import { createContact } from "@/lib/api/contacts/createContact";
+import { createContactList } from "@/lib/api/contacts/createContactList";
 
 // Mock data structures
 interface ContactList {
@@ -148,8 +150,45 @@ export default function Contacts() {
   });
 
   const handleCreateList = async (name: string) => {
-    // Refresh data after creating list
-    await loadContacts();
+    if (!user?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create contact lists.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const result = await createContactList({
+        name,
+        user_id: user.id,
+      });
+
+      if (!result.success || !result.contactList) {
+        toast({
+          title: "Failed to create list",
+          description: result.error || "An unknown error occurred while creating the contact list.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "List created",
+        description: `Successfully created list "${result.contactList.name}".`,
+      });
+
+      // Reload lists and contacts to reflect the new list and updated counts
+      await loadContacts();
+    } catch (error) {
+      console.error("Error creating contact list:", error);
+      toast({
+        title: "Error",
+        description: "Error creating contact list. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleCreateContact = async (contactData: {
@@ -161,8 +200,51 @@ export default function Contacts() {
     status: 'active' | 'inactive' | 'do-not-call';
     doNotCall: boolean;
   }) => {
-    // Refresh data after creating contact
-    await loadContacts();
+    if (!user?.id) {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to create contacts.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const result = await createContact({
+        first_name: contactData.firstName,
+        last_name: contactData.lastName,
+        phone: contactData.phone,
+        email: contactData.email,
+        list_id: contactData.listId,
+        status: contactData.status,
+        do_not_call: contactData.doNotCall,
+        user_id: user.id,
+      });
+
+      if (!result.success) {
+        toast({
+          title: "Failed to create contact",
+          description: result.error || "An unknown error occurred while creating the contact.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Contact created",
+        description: `Successfully added ${contactData.firstName} ${contactData.lastName || ""}`.trim(),
+      });
+
+      // Refresh data after creating contact
+      await loadContacts();
+    } catch (error) {
+      console.error("Error creating contact:", error);
+      toast({
+        title: "Error",
+        description: "Error creating contact. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleEditContact = (contact: Contact) => {

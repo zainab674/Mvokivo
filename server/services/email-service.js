@@ -238,7 +238,7 @@ class EmailService {
         const body = {
             imap: {
                 user: userSettings.email,
-                password: userSettings.smtpPass,
+                password: userSettings.imapPass || userSettings.smtpPass, // Use imapPass if available
                 host: userSettings.imapHost || 'imap.gmail.com',
                 port: userSettings.imapPort || 993,
             },
@@ -501,7 +501,7 @@ class EmailService {
             }
         }
 
-        const { email, smtpPass, imapHost, imapPort } = userSettings;
+        const { email, smtpPass, imapPass, imapHost, imapPort } = userSettings;
         const imap = (await import('imap-simple'));
         const { simpleParser } = (await import('mailparser'));
 
@@ -510,7 +510,7 @@ class EmailService {
         const config = {
             imap: {
                 user: email,
-                password: smtpPass,
+                password: imapPass || smtpPass, // Use imapPass if available
                 host: imapHost || 'imap.gmail.com',
                 port: imapPort || 993,
                 tls: true,

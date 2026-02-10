@@ -20,6 +20,15 @@ interface AdvancedTabProps {
 
 export const AdvancedTab: React.FC<AdvancedTabProps> = ({ data, onChange }) => {
   const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [idleMessagesInput, setIdleMessagesInput] = useState(data.idleMessages.join(', '));
+
+  // Sync if data.idleMessages changes externally (e.g. initial load)
+  React.useEffect(() => {
+    const currentParsed = idleMessagesInput.split(',').map(m => m.trim()).filter(m => m);
+    if (JSON.stringify(currentParsed) !== JSON.stringify(data.idleMessages)) {
+      setIdleMessagesInput(data.idleMessages.join(', '));
+    }
+  }, [data.idleMessages]);
 
   const countries = [
     { code: "+1", flag: "🇺🇸", name: "United States" },
@@ -61,6 +70,90 @@ export const AdvancedTab: React.FC<AdvancedTabProps> = ({ data, onChange }) => {
   return (
     <div className="max-w-4xl space-y-[var(--space-2xl)]">
 
+      {/* Voice Interaction */}
+      <Card variant="default">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <h3 className="text-lg font-medium">Voice Interaction</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Fine-tune how the assistant interacts and handles interruptions
+            </p>
+          </div>
+          <Mic className="h-5 w-5 text-muted-foreground" />
+        </CardHeader>
+        <CardContent className="space-y-[var(--space-xl)]">
+          <div className="grid grid-cols-2 gap-[var(--space-lg)]">
+            <div className="space-y-[var(--space-md)]">
+              <Label className="text-sm font-medium">Words to Interrupt</Label>
+              <p className="text-xs text-muted-foreground">Number of words before assistant stops talking</p>
+              <Input
+                type="number"
+                min="1"
+                max="10"
+                value={data.numWordsToInterruptAssistant}
+                onChange={(e) => onChange({ numWordsToInterruptAssistant: parseInt(e.target.value) || 2 })}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-[var(--space-md)]">
+              <Label className="text-sm font-medium">Response Delay (sec)</Label>
+              <p className="text-xs text-muted-foreground">Artificial delay before assistant responds</p>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                value={data.responseDelaySeconds}
+                onChange={(e) => onChange({ responseDelaySeconds: parseFloat(e.target.value) || 0 })}
+                className="w-full"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Voice Timing & Endpointing */}
+      <Card variant="default">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <h3 className="text-lg font-medium">Voice Timing & Endpointing</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Adjust how quickly the assistant responds based on speech patterns
+            </p>
+          </div>
+          <Music className="h-5 w-5 text-muted-foreground" />
+        </CardHeader>
+        <CardContent className="space-y-[var(--space-xl)]">
+          <div className="grid grid-cols-2 gap-[var(--space-lg)]">
+            <div className="space-y-[var(--space-md)]">
+              <Label className="text-sm font-medium">Punctuation Delay (sec)</Label>
+              <p className="text-xs text-muted-foreground">Delay after a sentence ends (.?!) before responding</p>
+              <Input
+                type="number"
+                step="0.05"
+                min="0.05"
+                max="1.0"
+                value={data.punctuationDelaySeconds}
+                onChange={(e) => onChange({ punctuationDelaySeconds: parseFloat(e.target.value) || 0.1 })}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-[var(--space-md)]">
+              <Label className="text-sm font-medium">Non-Punctuation Delay (sec)</Label>
+              <p className="text-xs text-muted-foreground">Delay when no punctuation is detected (mid-sentence)</p>
+              <Input
+                type="number"
+                step="0.1"
+                min="0.5"
+                max="3.0"
+                value={data.noPunctuationDelaySeconds}
+                onChange={(e) => onChange({ noPunctuationDelaySeconds: parseFloat(e.target.value) || 1.5 })}
+                className="w-full"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Call Transfer */}
       <Card variant="default">
@@ -220,8 +313,13 @@ export const AdvancedTab: React.FC<AdvancedTabProps> = ({ data, onChange }) => {
             </p>
             <Textarea
               placeholder="Are you still there?, I'm still here if you need anything, Did you have any other questions?"
-              value={data.idleMessages.join(', ')}
-              onChange={(e) => onChange({ idleMessages: e.target.value.split(',').map(msg => msg.trim()).filter(msg => msg) })}
+              value={idleMessagesInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                setIdleMessagesInput(val);
+                const parsed = val.split(',').map(m => m.trim()).filter(m => m);
+                onChange({ idleMessages: parsed });
+              }}
               rows={3}
               className="w-full"
             />

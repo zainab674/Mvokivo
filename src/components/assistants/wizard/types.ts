@@ -103,6 +103,8 @@ export interface AdvancedData {
   llmRequestDelaySeconds: number;
   numWordsToInterruptAssistant: number;
   maxDurationSeconds: number;
+  punctuationDelaySeconds: number; // Added
+  noPunctuationDelaySeconds: number; // Added
   backgroundSound: string;
   voicemailDetectionEnabled: boolean;
   voicemailMessage?: string;

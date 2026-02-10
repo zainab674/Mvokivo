@@ -438,16 +438,20 @@ class CallHandler:
                         logger.error(f"MAX_DURATION_END_MESSAGE_ERROR | error={str(message_error)}")
                         # Continue to hangup even if message failed
                 
-                logger.info("MAX_DURATION_HANGUP | hanging up call by deleting room")
+                logger.info("MAX_DURATION_HANGUP | hanging up call")
                 try:
-                    # Use delete_room API to properly hang up the call for all participants
-                    # This is the recommended way per LiveKit telephony docs
-                    await ctx.api.room.delete_room(
-                        api.DeleteRoomRequest(
-                            room=ctx.room.name,
+                    # Use LiveKitAPI to delete the room (proper hangup for telephony)
+                    lkapi = api.LiveKitAPI()
+                    try:
+                        await lkapi.room.delete_room(
+                            api.DeleteRoomRequest(
+                                room=ctx.room.name,
+                            )
                         )
-                    )
-                    logger.info("MAX_DURATION_HANGUP_SUCCESS | room deleted successfully")
+                        logger.info("MAX_DURATION_HANGUP_SUCCESS | room deleted successfully via LiveKitAPI")
+                    finally:
+                        await lkapi.aclose()
+                        
                 except Exception as delete_error:
                     logger.error(f"MAX_DURATION_HANGUP_FAILED | error={str(delete_error)}")
                     # Fallback to disconnect if delete_room fails
@@ -899,6 +903,11 @@ class CallHandler:
             # Merge analysis results
             analysis_results.update(analysis_data)
             
+            # Ensure call_summary is populated if missing but we have reasoning
+            if not analysis_results.get("call_summary") and analysis_results.get("outcome_reasoning"):
+                # logger.info(f"FALLBACK_SUMMARY_FROM_REASONING | using reasoning as summary")
+                analysis_results["call_summary"] = analysis_results["outcome_reasoning"]
+            
             # logger.info(f"POST_CALL_ANALYSIS_COMPLETE | summary={bool(analysis_results['call_summary'])} | success={analysis_results['call_success']} | outcome={analysis_results['call_outcome']} | data_fields={len(analysis_results['structured_data'])}")
 
         except Exception as e:
@@ -1180,8 +1189,8 @@ class CallHandler:
         try:
             # logger.info(f"PROCESS_CALL_ANALYSIS_START | assistant_id={assistant_id} | transcription_items={len(transcription)}")
             
-            # Generate call summary if configured
-            call_summary_prompt = assistant_config.get("analysis_summary_prompt")
+            # Generate call summary if configured or use default
+            call_summary_prompt = assistant_config.get("analysis_summary_prompt") or "Please provide a concise but comprehensive summary of this phone call conversation. Focus on the caller's main reason for calling, any specific details they provided, and the final outcome or next steps discussed."
             if call_summary_prompt:
                 try:
                     analysis_data["call_summary"] = await self._generate_call_summary_with_llm(
@@ -1817,19 +1826,6 @@ class CallHandler:
         logger.info(f"OPENAI_TTS_CONFIGURED | voice={mapped_voice}")
         return tts
 
-    async def _safe_db_insert(self, table: str, payload: dict, timeout: int = 5):
-        """Safely insert data into database with timeout protection."""
-        try:
-            return await asyncio.wait_for(
-                asyncio.to_thread(lambda: self.base.client.table(table).insert(payload).execute()),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            # logger.error(f"DATABASE_INSERT_TIMEOUT | table={table} | timeout={timeout}s")
-            raise
-        except Exception as e:
-            # logger.error(f"DATABASE_INSERT_ERROR | table={table} | error={str(e)}")
-            raise
 
 
 def prewarm(proc: agents.JobProcess):

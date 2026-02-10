@@ -26,9 +26,11 @@ class EmailWorker {
                 isActive: true
             });
 
-            console.log(`[EmailWorker] Checking inboxes for ${credentials.length} credentials`);
+            if (credentials.length > 0) {
+                console.log(`[EmailWorker] Checking inboxes for ${credentials.length} credentials`);
+            }
 
-            // Process all credentials in parallel so one slow inbox doesn't delay others (avoids ~5 min delay)
+            // Process all credentials in parallel so one slow inbox doesn't delay others
             const results = await Promise.allSettled(credentials.map(async (integration) => {
                 const user = await User.findOne({ id: integration.user_id });
                 if (!user) return;
@@ -36,6 +38,7 @@ class EmailWorker {
                 const newEmails = await emailService.checkEmails({
                     email: integration.email,
                     smtpPass: integration.smtpPass,
+                    imapPass: integration.imapPass, // Pass imapPass if present
                     imapHost: integration.imapHost || 'imap.gmail.com',
                     imapPort: integration.imapPort || 993
                 });
@@ -68,6 +71,9 @@ class EmailWorker {
                 let assistantId = null;
                 let campaignId = null;
 
+                // Helper to sanitize message IDs for comparison
+                const sanitizeId = (id) => (typeof id === 'string' ? id.trim().toLowerCase().replace(/[<>]/g, '') : null);
+
                 // Build list of reference IDs (In-Reply-To can be string or array; References is array or single)
                 const refIds = [];
                 if (email.inReplyTo) {
@@ -76,8 +82,19 @@ class EmailWorker {
                 if (email.references && (Array.isArray(email.references) ? email.references.length : 1)) {
                     refIds.push(...(Array.isArray(email.references) ? email.references : [email.references]));
                 }
+
                 if (refIds.length > 0) {
-                    const parentLog = await EmailLog.findOne({ messageId: { $in: refIds } });
+                    const cleanRefIds = refIds.map(sanitizeId).filter(Boolean);
+
+                    // Search for parent log using both exact and sanitized match if possible
+                    // Note: messageId in DB might have brackets or not depending on the provider/API
+                    const parentLog = await EmailLog.findOne({
+                        $or: [
+                            { messageId: { $in: refIds } },
+                            { messageId: { $in: cleanRefIds } } // Fallback for stripped IDs
+                        ]
+                    });
+
                     if (parentLog) {
                         threadId = parentLog.threadId || parentLog._id.toString();
                         assistantId = parentLog.assistantId;
@@ -87,12 +104,27 @@ class EmailWorker {
 
                 if (!threadId && email.subject) {
                     const cleanSubject = email.subject.replace(/^(Re:|Fwd:)\s*/i, '').trim();
+                    // Escape special regex characters in subject
+                    const escapedSubject = cleanSubject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
                     const relatedLog = await EmailLog.findOne({
                         userId: user.id || user._id,
-                        subject: { $regex: new RegExp(cleanSubject, 'i') }
+                        subject: { $regex: new RegExp(`^${escapedSubject}$`, 'i') } // Use exact match for stability
                     }).sort({ created_at: -1 });
 
-                    if (relatedLog) {
+                    if (!relatedLog) {
+                        // Loose match if exact fails
+                        const looseMatch = await EmailLog.findOne({
+                            userId: user.id || user._id,
+                            subject: { $regex: new RegExp(escapedSubject, 'i') }
+                        }).sort({ created_at: -1 });
+
+                        if (looseMatch) {
+                            threadId = looseMatch.threadId || looseMatch._id.toString();
+                            assistantId = looseMatch.assistantId;
+                            campaignId = looseMatch.campaignId;
+                        }
+                    } else {
                         threadId = relatedLog.threadId || relatedLog._id.toString();
                         if (!assistantId) assistantId = relatedLog.assistantId;
                         if (!campaignId) campaignId = relatedLog.campaignId;
@@ -113,7 +145,7 @@ class EmailWorker {
                     direction: direction,
                     status: direction === 'inbound' ? 'received' : 'sent',
                     messageId: email.messageId,
-                    inReplyTo: email.inReplyTo,
+                    inReplyTo: Array.isArray(email.inReplyTo) ? email.inReplyTo[0] : email.inReplyTo,
                     hasAttachments: false,
                     threadId: threadId,
                     assistantId: assistantId,
@@ -155,7 +187,7 @@ class EmailWorker {
                     }
                 }
 
-                // Run AI reply in background so polling isn't blocked and next check runs on time
+                // Run AI reply in background
                 if (direction === 'inbound' && assistantId) {
                     const assistant = await Assistant.findById(assistantId);
                     if (assistant) {
@@ -165,7 +197,7 @@ class EmailWorker {
                         });
                     }
                 } else if (direction === 'inbound' && !assistantId) {
-                    console.log(`[EmailWorker] Inbound from ${email.from} has no linked thread/assistant - skipping auto-reply`);
+                    console.log(`[EmailWorker] Inbound from ${email.from} has no linked thread/assistant - skipping auto-reply (Subject: ${email.subject})`);
                 }
 
             } catch (saveError) {
