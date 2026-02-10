@@ -79,7 +79,8 @@ export async function POST(request) {
             const fetchFromBox = async (boxName, folderType) => {
                 await connection.openBox(boxName);
                 const lookback = new Date();
-                lookback.setDate(lookback.getDate() - 7);
+                // Reduce lookback window to last 2 days to avoid syncing too many emails
+                lookback.setDate(lookback.getDate() - 2);
                 const searchCriteria = [['SINCE', lookback]];
                 const fetchOptions = {
                     bodies: ['HEADER', 'TEXT', ''],
