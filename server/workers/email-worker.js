@@ -181,7 +181,8 @@ class EmailWorker {
                                     }
                                 },
                                 { $set: { 'stats.replies': { $size: '$replierEmails' } } }
-                            ]
+                            ],
+                            { updatePipeline: true }
                         );
                         console.log(`[EmailWorker] Updated unique reply count for Campaign ${campaignId} (replier: ${replierEmail})`);
                     }
