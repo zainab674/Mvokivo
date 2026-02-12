@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { OnboardingWelcome } from "./steps/OnboardingWelcome";
-import { BusinessProfileStep } from "./steps/BusinessProfileStep";
+
 import { UseCaseSelectionStep } from "./steps/UseCaseSelectionStep";
 import { PreferencesStep } from "./steps/PreferencesStep";
 import { PricingPlanStep } from "./steps/PricingPlanStep";
@@ -15,7 +15,7 @@ import { ArrowLeft } from "lucide-react";
 
 const steps = [
   { component: OnboardingWelcome, title: "Welcome" },
-  { component: BusinessProfileStep, title: "Business Profile" },
+
   { component: UseCaseSelectionStep, title: "Use Case" },
   { component: PreferencesStep, title: "Preferences" },
   { component: PricingPlanStep, title: "Pricing" },
@@ -46,12 +46,12 @@ export function OnboardingLayout() {
 
     // If authenticated and already completed onboarding, redirect to dashboard
     if (isAuthenticated) {
-      const dbCompleted = Boolean(profile?.onboarding_completed);
+      const dbCompleted = Boolean(profile?.onboardingCompleted);
       if (dbCompleted || isCompleted) {
         navigate("/dashboard");
       }
     }
-  }, [isAuthenticated, isLoading, isProfileLoading, navigate, isCompleted, profile?.onboarding_completed]);
+  }, [isAuthenticated, isLoading, isProfileLoading, navigate, isCompleted, profile?.onboardingCompleted]);
 
   const CurrentStepComponent = steps[currentStep]?.component;
   const progress = getProgress();

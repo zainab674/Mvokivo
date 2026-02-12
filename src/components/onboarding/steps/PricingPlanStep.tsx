@@ -129,7 +129,7 @@ export function PricingPlanStep() {
 
             <div className="mt-[var(--space-md)] space-y-1">
               <div className="text-[var(--text-xs)] text-theme-secondary">
-                Includes 7-day free trial
+                Includes 7-day free trial + 25 free minutes
               </div>
             </div>
           </button>

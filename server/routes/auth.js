@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { User } from '../models/index.js';
 import { generateToken, authenticateToken } from '../utils/auth.js';
 import { v4 as uuidv4 } from 'uuid';
+import { getFirebaseAdmin } from '../lib/firebase-admin.js';
 
 const router = express.Router();
 
@@ -130,6 +131,70 @@ router.post('/login', async (req, res) => {
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+/**
+ * Google Login
+ * POST /api/auth/google
+ */
+router.post('/google', async (req, res) => {
+    try {
+        const { idToken } = req.body;
+
+        if (!idToken) {
+            return res.status(400).json({ success: false, message: 'ID Token is required' });
+        }
+
+        const firebaseAdmin = getFirebaseAdmin();
+        if (!firebaseAdmin) {
+            return res.status(500).json({ success: false, message: 'Firebase not configured on server' });
+        }
+
+        // Verify the ID token
+        const decodedToken = await firebaseAdmin.auth().verifyIdToken(idToken);
+        const { email, name, picture, uid } = decodedToken;
+
+        // Check if user exists
+        let user = await User.findOne({ email });
+        let isNewUser = false;
+
+        if (!user) {
+            isNewUser = true;
+            // Create a new user if they don't exist
+            user = new User({
+                id: uuidv4(),
+                email,
+                name: name || email.split('@')[0],
+                tenant: 'main',
+                role: 'user',
+                // Google users don't have a local password unless they set one later
+                is_active: true,
+                onboarding_completed: false
+            });
+            await user.save();
+            console.log(`New user created via Google Login: ${email}`);
+        }
+
+        // Generate system token
+        const token = generateToken(user);
+
+        res.json({
+            success: true,
+            token,
+            isNewUser,
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                tenant: user.tenant,
+                onboardingCompleted: user.onboarding_completed
+            }
+        });
+
+    } catch (error) {
+        console.error('Google Login verification error:', error);
+        res.status(401).json({ success: false, message: 'Invalid Google token' });
     }
 });
 

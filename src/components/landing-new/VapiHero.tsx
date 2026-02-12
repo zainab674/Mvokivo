@@ -14,6 +14,7 @@ import {
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
 import { VoiceVisualizer } from "@/components/voice/VoiceVisualizer";
+import { BookingModal } from "./BookingModal";
 
 
 const RobotHead = ({ delay, isTalking, tilt = 0, zIndex = 0, xOffset = 0 }: { delay: number; isTalking?: boolean; tilt?: number; zIndex?: number; xOffset?: number }) => {
@@ -322,21 +323,38 @@ export const VapiHero = () => {
                                 <span className="text-white/20">VOICE AI AGENTS</span>
                             </h1>
 
-                            <motion.button
-                                onClick={handleStartTalk}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="group relative mt-4"
-                            >
-                                <div className="absolute -inset-4 bg-pink-500/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition duration-500" />
-                                <div className="relative px-14 py-7 bg-white rounded-full leading-none flex items-center shadow-[0_0_40px_rgba(255,255,255,0.1)] transition-all duration-300 group-hover:bg-pink-500">
-                                    <span className="text-black group-hover:text-white font-mono text-xl md:text-2xl font-bold tracking-[0.2em]">TALK TO AI</span>
-                                </div>
-                            </motion.button>
+                            <div className="flex flex-col md:flex-row items-center gap-6 mt-4">
+                                <motion.button
+                                    onClick={handleStartTalk}
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    className="group relative"
+                                >
+                                    <div className="absolute -inset-4 bg-pink-500/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition duration-500" />
+                                    <div className="relative px-14 py-7 bg-white rounded-full leading-none flex items-center shadow-[0_0_40px_rgba(255,255,255,0.1)] transition-all duration-300 group-hover:bg-pink-500">
+                                        <span className="text-black group-hover:text-white font-mono text-xl md:text-2xl font-bold tracking-[0.2em]">TALK TO AI</span>
+                                    </div>
+                                </motion.button>
+
+                                <BookingModal
+                                    trigger={
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            className="group relative"
+                                        >
+                                            <div className="absolute -inset-4 bg-white/5 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition duration-500" />
+                                            <div className="relative px-14 py-7 bg-transparent border-2 border-white/20 rounded-full leading-none flex items-center shadow-[0_0_40px_rgba(255,255,255,0.05)] transition-all duration-300 group-hover:border-white/40 group-hover:bg-white/5">
+                                                <span className="text-white font-mono text-xl md:text-2xl font-bold tracking-[0.2em]">BOOK A FREE DEMO</span>
+                                            </div>
+                                        </motion.button>
+                                    }
+                                />
+                            </div>
 
                             <p className="mt-12 text-white/30 font-mono text-xs tracking-widest max-w-lg leading-relaxed uppercase">
                                 Experience the future of human-AI interaction.<br />
-                                Click above to start a live voice session.
+                                Click above to start a live voice session or book a detailed walkthrough.
                             </p>
                         </motion.div>
                     )}

@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWebsiteSettings } from "@/contexts/WebsiteSettingsContext";
 import { extractTenantFromHostname } from "@/lib/tenant-utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/SupportAccessAuthContext";
 
 const signUpSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -54,6 +55,7 @@ export const FullScreenSignup = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { websiteSettings } = useWebsiteSettings();
+  const { signInWithGoogle } = useAuth();
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
   const [selectedCountry, setSelectedCountry] = React.useState<{ code: string; country: string; flag: string } | null>(countryCodes[0]);
@@ -97,6 +99,40 @@ export const FullScreenSignup = () => {
       toast({
         title: "Registration Failed",
         description: error?.message || "Internal system error.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setIsLoading(true);
+    try {
+      const result = await signInWithGoogle();
+      if (result.success) {
+        toast({
+          title: "Neural Registration Complete",
+          description: "Google identity established.",
+        });
+
+        // Use result.isNewUser for redirection
+        if (result.isNewUser) {
+          navigate("/onboarding");
+        } else {
+          navigate("/dashboard");
+        }
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: result.message || "Google registration failed.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "System Error",
+        description: error?.message || "Google bridge failed.",
         variant: "destructive",
       });
     } finally {
@@ -165,20 +201,14 @@ export const FullScreenSignup = () => {
             <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
-                className="flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all group"
+                onClick={handleGoogleSignup}
+                disabled={isLoading}
+                className="flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all group disabled:opacity-50"
               >
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" />
                 <span className="text-[10px] font-mono font-bold text-white/40 group-hover:text-white tracking-widest uppercase">Google Join</span>
               </button>
-              <button
-                type="button"
-                className="flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all group"
-              >
-                <div className="w-5 h-5 bg-[#1877f2]/20 rounded-lg flex items-center justify-center border border-[#1877f2]/40">
-                  <span className="text-white text-[10px] font-bold">f</span>
-                </div>
-                <span className="text-[10px] font-mono font-bold text-white/40 group-hover:text-white tracking-widest uppercase">Meta Join</span>
-              </button>
+
             </div>
 
             <div className="relative flex items-center">

@@ -26,7 +26,7 @@ interface PlanChangeDialogProps {
 interface Plan {
     key: string;
     name: string;
-    price: number;
+    price: number | string;
     minutes?: number;
     payAsYouGo?: boolean;
     features: string[];
@@ -106,31 +106,28 @@ export function PlanChangeDialog({
             }
 
             const backendUrl = import.meta.env.VITE_BACKEND_URL || "";
-            const response = await fetch(`${backendUrl}/api/v1/user/change-plan`, {
+            // Use checkouts endpoint instead of direct plan change to initiate payment
+            const response = await fetch(`${backendUrl}/api/v1/checkouts`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({ newPlan: selectedPlan }),
+                body: JSON.stringify({ planKey: selectedPlan }),
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || "Failed to change plan");
+                throw new Error(data.error || data.message || "Failed to initiate plan change");
             }
 
-            toast({
-                title: "Plan changed successfully! 🎉",
-                description: `You are now on the ${plans.find((p) => p.key === selectedPlan)?.name
-                    } plan with ${data.minutesAssigned || 0} minutes.`,
-            });
-
-            onPlanChanged();
-            onOpenChange(false);
-            setStep("warning");
-            setSelectedPlan(null);
+            if (data.url) {
+                // Redirect user to Lemon Squeezy checkout
+                window.location.href = data.url;
+            } else {
+                throw new Error("No checkout URL returned");
+            }
         } catch (error: any) {
             console.error("Error changing plan:", error);
             toast({
@@ -211,8 +208,8 @@ export function PlanChangeDialog({
                                         type="button"
                                         onClick={() => setSelectedPlan(plan.key)}
                                         className={`w-full p-4 text-left rounded-lg border-2 transition-all ${selectedPlan === plan.key
-                                                ? "border-primary bg-primary/5"
-                                                : "border-border hover:border-primary/50"
+                                            ? "border-primary bg-primary/5"
+                                            : "border-border hover:border-primary/50"
                                             }`}
                                     >
                                         <div className="flex items-start justify-between mb-2">

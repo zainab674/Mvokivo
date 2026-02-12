@@ -21,10 +21,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Building2, Target, CreditCard, ArrowRight, Star, Check } from "lucide-react";
 
 const schema = z.object({
-    companyName: z.string().min(1, "Company name is required"),
-    industry: z.string().min(1, "Please select an industry"),
-    teamSize: z.string().min(1, "Please select team size"),
-    role: z.string().min(1, "Please select your role"),
     useCase: z.string().min(1, "Please select a use case"),
     theme: z.string(),
     notifications: z.boolean(),
@@ -34,22 +30,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const industries = [
-    "Technology", "Healthcare", "Finance", "Real Estate", "Education",
-    "E-commerce", "Manufacturing", "Consulting", "Marketing", "Legal",
-    "Non-profit", "Government", "Other"
-];
 
-const teamSizes = [
-    "Just me", "2-10 people", "11-50 people", "51-200 people",
-    "201-1000 people", "1000+ people"
-];
-
-const roles = [
-    "CEO/Founder", "Sales Manager", "Marketing Manager", "Operations Manager",
-    "Customer Success", "Business Development", "Account Manager", "Team Lead",
-    "Individual Contributor", "Other"
-];
 
 const goalOptions = [
     { id: "improve_conversion", label: "Improve conversion rates" },
@@ -62,7 +43,7 @@ const goalOptions = [
 
 export function SinglePageOnboarding() {
     const { data, updateData, complete } = useOnboarding();
-    const { user, loading: isLoading } = useAuth();
+    const { user, loading: isLoading, refreshProfile } = useAuth();
     const { setUseCase } = useBusinessUseCase();
     const { setUIStyle } = useTheme();
     const navigate = useNavigate();
@@ -80,10 +61,6 @@ export function SinglePageOnboarding() {
     const form = useForm<FormData>({
         resolver: zodResolver(schema),
         defaultValues: {
-            companyName: data.companyName || "",
-            industry: data.industry || "",
-            teamSize: data.teamSize || "",
-            role: data.role || "",
             useCase: data.useCase || "appointment-setting",
             theme: data.theme || "glass",
             notifications: data.notifications ?? true,
@@ -140,7 +117,7 @@ export function SinglePageOnboarding() {
         }
 
         if (user) {
-            const dbCompleted = Boolean(user.onboarding_completed);
+            const dbCompleted = Boolean(user.onboardingCompleted);
             if (dbCompleted) {
                 navigate("/dashboard");
             }
@@ -153,10 +130,6 @@ export function SinglePageOnboarding() {
 
             // Update all onboarding data
             updateData({
-                companyName: values.companyName,
-                industry: values.industry,
-                teamSize: values.teamSize,
-                role: values.role,
                 useCase: values.useCase,
                 theme: values.theme,
                 notifications: values.notifications,
@@ -171,7 +144,7 @@ export function SinglePageOnboarding() {
             // Get signup data from localStorage
             const signupDataStr = localStorage.getItem("signup-data");
 
-            let currentToken = localStorage.getItem("token");
+            let currentToken = localStorage.getItem("auth_token");
             let currentUser = user;
 
             if (!signupDataStr && !currentUser?.id) {
@@ -193,7 +166,8 @@ export function SinglePageOnboarding() {
             }
 
             // 1. SIGNUP (if needed)
-            if (signupData) {
+            // Skip signup if we already have a user from auth context (e.g. Google Login)
+            if (signupData && !currentUser) {
                 const signupTenant = signupData.tenant || null;
 
                 const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/auth/signup`, {
@@ -214,13 +188,17 @@ export function SinglePageOnboarding() {
                 }
 
                 // Save token and user
-                localStorage.setItem('token', authResult.token);
+                localStorage.setItem('auth_token', authResult.token);
                 currentToken = authResult.token;
                 userId = authResult.user.id;
                 currentUser = authResult.user;
                 isNewUser = true;
 
                 // Clear signup data
+                localStorage.removeItem("signup-data");
+            } else if (signupData && currentUser) {
+                // If we have both, it means the user was already created (e.g. via Google)
+                // Just clear the signup data
                 localStorage.removeItem("signup-data");
             }
 
@@ -237,10 +215,6 @@ export function SinglePageOnboarding() {
 
             const onboardingPayload = {
                 name: signupData?.name || currentUser?.fullName || "",
-                company: values.companyName,
-                industry: values.industry,
-                team_size: values.teamSize,
-                role: values.role || "user",
                 use_case: values.useCase,
                 theme: values.theme,
                 notifications: values.notifications,
@@ -271,6 +245,7 @@ export function SinglePageOnboarding() {
 
             // Mark local complete
             complete();
+            await refreshProfile(); // Refresh profile to get trial status
             localStorage.removeItem("onboarding-state");
 
             toast({
@@ -294,48 +269,8 @@ export function SinglePageOnboarding() {
             const allPlanConfigs = await getPlanConfigs(tenantSlug);
             const planConfig = allPlanConfigs[values.plan];
 
-            const hasPrice = planConfig && (Number(planConfig.price) > 0 || planConfig.price === 'Custom');
-            const hasVariantId = !!(planConfig && planConfig.variantId && planConfig.variantId.trim());
-
-            if (hasPrice && hasVariantId) {
-                // Redirect to Lemon Squeezy Checkout
-                toast({
-                    title: "Redirecting to Payment",
-                    description: "Please complete your subscription payment.",
-                });
-
-                // Use backend to create checkout session
-                const checkoutResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL || ''}/api/v1/checkouts`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${currentToken}`
-                    },
-                    body: JSON.stringify({
-                        planKey: values.plan,
-                        variantId: planConfig.variantId
-                    })
-                });
-
-                if (!checkoutResponse.ok) {
-                    const error = await checkoutResponse.json();
-                    throw new Error(error.error || "Failed to create checkout session");
-                }
-
-                const checkoutResult = await checkoutResponse.json();
-
-                if (checkoutResult.url) {
-                    // Redirect
-                    setTimeout(() => {
-                        window.location.href = checkoutResult.url;
-                    }, 1000);
-                } else {
-                    throw new Error("No checkout URL returned");
-                }
-            } else {
-                // If no payment needed or no variant ID, navigate to login
-                setTimeout(() => navigate("/login"), 1000);
-            }
+            // Redirect to login (no longer auto-linking to checkout during onboarding)
+            setTimeout(() => navigate("/login"), 1000);
 
         } catch (error: any) {
             console.error("Error submitting onboarding:", error);
@@ -398,117 +333,7 @@ export function SinglePageOnboarding() {
                     {/* Form */}
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                            {/* Business Profile Section */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.1 }}
-                                className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8"
-                            >
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="p-3 bg-white/20 rounded-full">
-                                        <Building2 className="h-6 w-6 text-white" />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-white">Business Profile</h2>
-                                </div>
 
-                                <div className="grid gap-6">
-                                    <FormField
-                                        control={form.control}
-                                        name="companyName"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-white font-medium">Company Name</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        {...field}
-                                                        placeholder="Enter your company name"
-                                                        className="bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-white/40 h-12"
-                                                    />
-                                                </FormControl>
-                                                <FormMessage className="text-red-300" />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <div className="grid md:grid-cols-3 gap-6">
-                                        <FormField
-                                            control={form.control}
-                                            name="industry"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white font-medium">Industry</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="bg-white/10 border-white/20 text-white h-12">
-                                                                <SelectValue placeholder="Select industry" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="bg-purple-900 border-white/20 text-white">
-                                                            {industries.map((industry) => (
-                                                                <SelectItem key={industry} value={industry} className="hover:bg-white/10">
-                                                                    {industry}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-red-300" />
-                                                </FormItem>
-                                            )}
-                                        />
-
-                                        <FormField
-                                            control={form.control}
-                                            name="teamSize"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white font-medium">Team Size</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="bg-white/10 border-white/20 text-white h-12">
-                                                                <SelectValue placeholder="Select team size" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="bg-purple-900 border-white/20 text-white">
-                                                            {teamSizes.map((size) => (
-                                                                <SelectItem key={size} value={size} className="hover:bg-white/10">
-                                                                    {size}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-red-300" />
-                                                </FormItem>
-                                            )}
-                                        />
-
-                                        <FormField
-                                            control={form.control}
-                                            name="role"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white font-medium">Your Role</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                        <FormControl>
-                                                            <SelectTrigger className="bg-white/10 border-white/20 text-white h-12">
-                                                                <SelectValue placeholder="Select your role" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="bg-purple-900 border-white/20 text-white">
-                                                            {roles.map((role) => (
-                                                                <SelectItem key={role} value={role} className="hover:bg-white/10">
-                                                                    {role}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-red-300" />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    </div>
-                                </div>
-                            </motion.div>
 
                             {/* Use Case Section */}
                             <motion.div

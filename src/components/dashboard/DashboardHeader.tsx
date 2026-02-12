@@ -11,7 +11,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-import { Bell, Search, User, CreditCard, LogOut, Settings as SettingsIcon, Menu } from "lucide-react";
+import { Bell, Search, User, CreditCard, LogOut, Settings as SettingsIcon, Menu, Zap } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAccountMinutes } from "@/hooks/useAccountMinutes";
@@ -26,6 +26,30 @@ export default function DashboardHeader() {
     const { websiteSettings } = useWebsiteSettings();
     const { remainingMinutes, percentageUsed, isLoading: minutesLoading } = useAccountMinutes();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+    const getTrialInfo = () => {
+        if (!user?.trialEndsAt) return null;
+        const end = new Date(user.trialEndsAt);
+        const now = new Date();
+        const diff = end.getTime() - now.getTime();
+
+        if (diff <= 0) return { expired: true };
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        return {
+            days,
+            hours,
+            minutes,
+            expired: false
+        };
+    };
+
+    const trialInfo = getTrialInfo();
+    const isTrial = !!user?.trialEndsAt;
+    const planName = user?.plan || 'Free';
 
     return (
         <header className="h-16 w-full border-b border-border bg-background/80 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-40">
@@ -54,13 +78,45 @@ export default function DashboardHeader() {
                 </div>
 
                 {/* Placeholder for future breadcrumbs */}
-                <div className="hidden md:flex items-center relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                        type="text"
-                        placeholder="Search..."
-                        className="h-9 w-64 rounded-full bg-secondary/50 border border-border pl-9 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all"
-                    />
+                <div className="hidden md:flex items-center gap-4">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Search..."
+                            className="h-9 w-64 rounded-full bg-secondary/50 border border-border pl-9 pr-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                        />
+                    </div>
+
+                    {/* Plan/Trial Badge */}
+                    <div className="flex items-center gap-2">
+                        {isTrial ? (
+                            <div className={cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition-all",
+                                trialInfo?.expired
+                                    ? "bg-destructive/10 border-destructive/20 text-destructive"
+                                    : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+                            )}>
+                                <Zap size={14} className={cn(trialInfo?.expired ? "text-destructive" : "text-indigo-400")} />
+                                <span>
+                                    {trialInfo?.expired ? (
+                                        "Trial Expired"
+                                    ) : (
+                                        <>
+                                            Trial: {trialInfo?.days}d {trialInfo?.hours}h {trialInfo?.minutes}m left
+                                            <span className="mx-2 opacity-30">|</span>
+                                            {remainingMinutes.toLocaleString()} mins
+                                        </>
+                                    )}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                                <CreditCard size={14} className="text-emerald-400" />
+                                <span>{planName.charAt(0).toUpperCase() + planName.slice(1)} Plan</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

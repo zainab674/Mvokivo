@@ -31,12 +31,14 @@ export default function Billing() {
   const [loading, setLoading] = useState(true);
   const [usage, setUsage] = useState<UsageItem[]>([]);
   const [currentPlan, setCurrentPlan] = useState<{
+    key: string;
     name: string;
     price: string;
     period: string;
     status: string;
     nextBilling: string | null;
     payAsYouGo?: boolean;
+    variantId?: string;
   } | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [planConfigs, setPlanConfigs] = useState<Record<string, any>>({});
@@ -81,6 +83,7 @@ export default function Billing() {
 
           // Set Plan
           setCurrentPlan({
+            key: plan.key,
             name: plan.name,
             price: `$${plan.price}`,
             period: plan.period,
@@ -115,6 +118,47 @@ export default function Billing() {
       setLoading(false);
     }
   };
+
+  const handlePayForPlan = async () => {
+    try {
+      const token = await getAccessToken();
+      if (!token || !currentPlan) return;
+
+      const response = await fetch(`${BACKEND_URL}/api/v1/checkouts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          planKey: currentPlan.key
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout');
+      }
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+    }
+  };
+
+  const getTrialDaysRemaining = () => {
+    if (!user?.trialEndsAt) return 0;
+    const end = new Date(user.trialEndsAt);
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    return Math.max(Math.ceil(diff / (1000 * 60 * 60 * 24)), 0);
+  };
+
+  const daysRemaining = getTrialDaysRemaining();
+  const isTrial = !!user?.trialEndsAt;
+  const isExpired = user?.trialEndsAt ? new Date(user.trialEndsAt) <= new Date() : false;
 
   useEffect(() => {
     fetchBillingData();
@@ -158,6 +202,31 @@ export default function Billing() {
           <p className="text-muted-foreground text-sm sm:text-base">Manage your subscription, usage, and billing information</p>
         </div>
 
+        {isTrial && (
+          <div className={`mb-8 p-4 ${isExpired ? 'bg-destructive/10 border-destructive/20' : 'bg-primary/10 border-primary/20'} border rounded-xl flex items-center justify-between`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 ${isExpired ? 'bg-destructive/20' : 'bg-primary/20'} rounded-lg`}>
+                <Clock className={`h-5 w-5 ${isExpired ? 'text-destructive' : 'text-primary'}`} />
+              </div>
+              <div>
+                <h4 className="font-semibold text-foreground">
+                  {isExpired ? 'Trial Period Expired' : minutesBalance === 0 ? 'Trial Minutes Exhausted' : 'Trial Period Active'}
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  {isExpired
+                    ? 'Your 7-day free trial has ended. Please pick a plan to continue using our services.'
+                    : minutesBalance === 0
+                      ? 'You have used all your trial minutes. Pay for a plan now to continue.'
+                      : `Your 7-day free trial ends in ${daysRemaining} days. Pay now to ensure uninterrupted service.`}
+                </p>
+              </div>
+            </div>
+            <Button onClick={handlePayForPlan} className={`${isExpired ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'}`}>
+              Pay for Plan
+            </Button>
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Current Plan */}
           <div className="lg:col-span-2">
@@ -177,8 +246,8 @@ export default function Billing() {
                       {currentPlan.price}/{currentPlan.period}
                     </p>
                   </div>
-                  <Badge className="bg-success/10 text-success border-success/20">
-                    {currentPlan?.status?.charAt(0).toUpperCase() + currentPlan?.status?.slice(1)}
+                  <Badge className={isTrial ? (isExpired ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-warning/10 text-warning border-warning/20") : "bg-success/10 text-success border-success/20"}>
+                    {isTrial ? (isExpired ? "Expired" : "Trial") : currentPlan?.status?.charAt(0).toUpperCase() + currentPlan?.status?.slice(1)}
                   </Badge>
                 </div>
 
@@ -191,10 +260,18 @@ export default function Billing() {
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    {isTrial ? (
+                      <Button onClick={handlePayForPlan} className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90">
+                        Pay for Plan
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={() => setIsPlanChangeDialogOpen(true)} className="w-full sm:w-auto">
+                        Upgrade
+                      </Button>
+                    )}
                     <Button variant="outline" onClick={() => setIsPlanChangeDialogOpen(true)} className="w-full sm:w-auto">
                       Change Plan
                     </Button>
-                    <Button variant="outline" className="w-full sm:w-auto">Cancel Subscription</Button>
                   </div>
                 </div>
               </CardContent>

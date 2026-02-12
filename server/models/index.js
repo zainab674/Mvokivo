@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
     stripe_secret_key: String,
     stripe_enabled: { type: Boolean, default: false },
     created_at: { type: Date, default: Date.now },
+    trial_ends_at: Date,
     minutes_limit: { type: Number, default: 0 },
     minutes_used: { type: Number, default: 0 },
     is_active: { type: Boolean, default: true },

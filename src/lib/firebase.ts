@@ -9,16 +9,24 @@ import { getStorage } from 'firebase/storage';
  * Users will need to provide their own Firebase config in the settings
  */
 export const initializeFirebase = () => {
-  // Get Firebase config from localStorage if it exists
-  const savedConfig = localStorage.getItem('firebase_config');
-  const firebaseConfig = savedConfig ? JSON.parse(savedConfig) : {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: '',
+  // Try to get config from environment variables first
+  const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
   };
+
+  // If environment variables are not set, try localStorage as fallback
+  if (!firebaseConfig.apiKey) {
+    const savedConfig = localStorage.getItem('firebase_config');
+    if (savedConfig) {
+      const parsedConfig = JSON.parse(savedConfig);
+      Object.assign(firebaseConfig, parsedConfig);
+    }
+  }
 
   // Only initialize if apiKey exists
   if (firebaseConfig.apiKey) {

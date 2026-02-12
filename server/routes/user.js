@@ -7,6 +7,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { addMinuteCredit } from '../utils/minutes-helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,29 +123,19 @@ router.post('/onboarding', authenticateToken, async (req, res) => {
           is_active: true
         });
 
-        if (planConfig) {
-          // Check if plan is successfully resolved
-          const isFree = planConfig.price === 0;
+        // For the 7-day trial flow, we now assign exactly 25 minutes immediately
+        // Use addMinuteCredit to ensure they show up in balance (via MinutesPurchase records)
+        await addMinuteCredit(userId, 25, {
+          payment_method: 'trial',
+          notes: `Trial minutes (25) assigned during onboarding for ${plan} plan`
+        });
+        console.log(`Assigned 25 trial minutes to user ${userId} for plan ${plan}`);
 
-          if (isFree) {
-            // Assign minutes immediately for free plans
-            if (planConfig.minutes !== undefined && planConfig.minutes !== null) {
-              updates.minutes_limit = Number(planConfig.minutes);
-              console.log(`Assigned ${planConfig.minutes} minutes to user ${userId} for FREE plan ${plan}`);
-            } else if (planConfig.pay_as_you_go) {
-              updates.minutes_limit = 0;
-            } else {
-              updates.minutes_limit = 0;
-            }
-          } else {
-            // Paid plan: Do NOT assign minutes yet. Wait for webhook.
-            console.log(`User ${userId} selected PAID plan ${plan}. Waiting for payment webhook to assign minutes.`);
-            // We do not set updates.minutes_limit here, so it remains 0 (for new users) or current value (for existing).
-          }
+        if (planConfig) {
+          updates.minutes_limit = planConfig.minutes || 0;
         } else {
           console.warn(`Plan configuration not found for plan: ${plan}, tenant: ${planTenant}`);
-          // Default to 0 minutes if plan not found
-          if (!updates.minutes_limit) updates.minutes_limit = 1;
+          if (!updates.minutes_limit) updates.minutes_limit = 25;
         }
       } catch (error) {
         console.error('Error fetching plan configuration:', error);

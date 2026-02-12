@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/SupportAccessAuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { Logo } from "@/components/Logo";
+import { BookingModal } from "./BookingModal";
 
 export const Navbar = () => {
     const { user } = useAuth();
@@ -21,12 +22,24 @@ export const Navbar = () => {
             </div>
 
 
-            <Button
-                onClick={() => navigate(user ? "/dashboard" : "/login")}
-                className="bg-white text-black hover:bg-pink-500 hover:text-white rounded-full px-8 h-11 font-bold font-mono text-base tracking-widest transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)]"
-            >
-                {user ? "DASHBOARD" : "LOGIN"}
-            </Button>
+            <div className="flex items-center gap-4">
+                <BookingModal
+                    trigger={
+                        <Button
+                            variant="ghost"
+                            className="hidden md:flex text-white/70 hover:text-white hover:bg-white/5 rounded-full px-6 h-11 font-bold font-mono text-sm tracking-widest transition-all"
+                        >
+                            BOOK A FREE DEMO
+                        </Button>
+                    }
+                />
+                <Button
+                    onClick={() => navigate(user ? "/dashboard" : "/login")}
+                    className="bg-white text-black hover:bg-pink-500 hover:text-white rounded-full px-8 h-11 font-bold font-mono text-base tracking-widest transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+                >
+                    {user ? "DASHBOARD" : "LOGIN"}
+                </Button>
+            </div>
         </nav>
     );
 };

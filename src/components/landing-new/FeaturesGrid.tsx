@@ -7,13 +7,13 @@ import {
 } from "lucide-react";
 
 const featureItems = [
-    { icon: PhoneCall, label: 'Smart Caller ID' },
+    { icon: PhoneCall, label: 'Email/Call Automation' },
     { icon: Users, label: 'AI Lead Qualification' },
     { icon: BarChart3, label: 'Conversation Intelligence' },
     { icon: Target, label: 'Lead Routing & Assignment' },
     { icon: ListFilter, label: 'Intelligent Call Queues' },
     { icon: MessageSquare, label: 'Automated Messages & Emails' },
-    { icon: Eye, label: 'Live Call Monitoring' },
+    { icon: Eye, label: 'Call Monitoring' },
     { icon: FileText, label: 'Custom Reports & Logs' },
     { icon: Share2, label: ' Tool Integrations' },
 ];

@@ -29,10 +29,10 @@ export const DEFAULT_PLAN_CONFIGS: Record<string, PlanConfig> = {
         key: "free",
         name: "Free Plan",
         price: 0,
-        minutes: 15,
+        minutes: 25,
         agents: 1,
         features: [
-            "✅ 15 voice minutes free",
+            "✅ 25 voice minutes free",
             "1 AI voice agent",
             "1 Email campaign",
             "1 Call campaign",

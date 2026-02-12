@@ -20,12 +20,22 @@ export function isUnlimitedMinutes(user) {
  * @returns {Promise<number>}
  */
 export async function getMinutesBalance(userId) {
-  const activeCredits = await MinutesPurchase.find({
+  const user = await User.findOne({ id: userId }).select('trial_ends_at');
+  const isTrialExpired = user?.trial_ends_at && new Date(user.trial_ends_at) < new Date();
+
+  const query = {
     user_id: userId,
     status: 'completed',
     remaining_minutes: { $gt: 0 },
     expires_at: { $gt: new Date() }
-  });
+  };
+
+  // If trial is expired, exclude trial minutes
+  if (isTrialExpired) {
+    query.payment_method = { $ne: 'trial' };
+  }
+
+  const activeCredits = await MinutesPurchase.find(query);
 
   return activeCredits.reduce((sum, credit) => sum + (credit.remaining_minutes || 0), 0);
 }
@@ -63,14 +73,22 @@ export async function addMinuteCredit(userId, amount, options = {}) {
  */
 export async function consumeMinutes(userId, amount) {
   let remainingToDeduct = amount;
+  const user = await User.findOne({ id: userId }).select('trial_ends_at');
+  const isTrialExpired = user?.trial_ends_at && new Date(user.trial_ends_at) < new Date();
 
-  // Find active, non-expired credits, sorted by oldest first
-  const activeCredits = await MinutesPurchase.find({
+  const query = {
     user_id: userId,
     status: 'completed',
     remaining_minutes: { $gt: 0 },
     expires_at: { $gt: new Date() }
-  }).sort({ created_at: 1 });
+  };
+
+  if (isTrialExpired) {
+    query.payment_method = { $ne: 'trial' };
+  }
+
+  // Find active, non-expired credits, sorted by oldest first
+  const activeCredits = await MinutesPurchase.find(query).sort({ created_at: 1 });
 
   for (const credit of activeCredits) {
     if (remainingToDeduct <= 0) break;
@@ -90,12 +108,21 @@ export async function consumeMinutes(userId, amount) {
  * @param {string} userId 
  */
 export async function getNextExpiration(userId) {
-  const nextCredit = await MinutesPurchase.findOne({
+  const user = await User.findOne({ id: userId }).select('trial_ends_at');
+  const isTrialExpired = user?.trial_ends_at && new Date(user.trial_ends_at) < new Date();
+
+  const query = {
     user_id: userId,
     status: 'completed',
     remaining_minutes: { $gt: 0 },
     expires_at: { $gt: new Date() }
-  }).sort({ expires_at: 1 });
+  };
+
+  if (isTrialExpired) {
+    query.payment_method = { $ne: 'trial' };
+  }
+
+  const nextCredit = await MinutesPurchase.findOne(query).sort({ expires_at: 1 });
 
   return nextCredit ? {
     expiry_date: nextCredit.expires_at,

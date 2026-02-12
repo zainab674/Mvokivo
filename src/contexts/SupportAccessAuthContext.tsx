@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { SupportAccessService } from '@/lib/supportAccessService';
 import { TwilioCredentialsService } from '@/lib/twilio-credentials';
 import { BACKEND_URL } from '@/lib/api-config';
+import { getFirebaseInstance } from '@/lib/firebase';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
 interface User {
   id: string;
@@ -46,6 +48,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
+  signInWithGoogle: () => Promise<{ success: boolean; message: string; isNewUser?: boolean }>;
   signUp: (name: string, email: string, password: string, metadata?: { phone?: string; countryCode?: string }) => Promise<{ success: boolean; message: string }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
@@ -60,6 +63,7 @@ interface AuthContextType {
   activeSupportSession: SupportAccessSession | null;
   validateScopedToken: (token: string) => Promise<boolean>;
   getAccessToken: () => Promise<string | null>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -207,6 +211,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initAuth();
   }, []);
+
+  const signInWithGoogle = async () => {
+    try {
+      const firebase = getFirebaseInstance();
+      if (!firebase.isConfigured) {
+        return { success: false, message: 'Google Sign-In is not configured correctly.' };
+      }
+
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(firebase.auth, provider);
+      const idToken = await result.user.getIdToken();
+
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, message: data.message || 'Google Login failed' };
+      }
+
+      localStorage.setItem('auth_token', data.token);
+
+      // If user is new, we want to ensure onboarding-completed is false
+      if (data.isNewUser) {
+        localStorage.setItem('onboarding-completed', 'false');
+      } else {
+        localStorage.setItem('onboarding-completed', 'true');
+      }
+
+      await loadUserProfile(data.token);
+
+      return { success: true, message: 'Google sign in successful', isNewUser: data.isNewUser };
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        return { success: false, message: 'Sign in popup closed before finishing.' };
+      }
+      return { success: false, message: error.message || 'An error occurred during Google sign in' };
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -442,10 +490,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return res.is_valid;
   };
 
+  const refreshProfile = async () => {
+    const token = await getAccessToken();
+    if (token) {
+      await loadUserProfile(token);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     loading,
     signIn,
+    signInWithGoogle,
     signUp,
     signOut,
     updateProfile,
@@ -458,6 +514,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     activeSupportSession,
     validateScopedToken,
     getAccessToken,
+    refreshProfile,
   };
 
   return (

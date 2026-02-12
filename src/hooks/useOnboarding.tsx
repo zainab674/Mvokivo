@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useContext, createContext } from "react";
 
 export interface OnboardingData {
-  companyName: string;
-  industry: string;
-  teamSize: string;
-  role: string;
   useCase: string;
   theme: string;
   notifications: boolean;
@@ -49,13 +45,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
     const defaultState: OnboardingState = {
       currentStep: 0,
-      totalSteps: 6,
+      totalSteps: 5,
       isCompleted,
       data: {
-        companyName: "",
-        industry: "",
-        teamSize: "",
-        role: "",
         useCase: "appointment-setting",
         theme: "glass",
         notifications: true,
@@ -73,11 +65,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         data: { ...initial.data, plan: "starter" },
       };
     }
-    if (!initial.totalSteps || initial.totalSteps < 6) {
-      initial = { ...initial, totalSteps: 6 };
-    }
-    if (initial.currentStep > initial.totalSteps - 1) {
-      initial = { ...initial, currentStep: initial.totalSteps - 1 };
+    if (!initial.totalSteps || initial.totalSteps < 5) {
+      initial = { ...initial, totalSteps: 5 };
     }
 
     return initial;
@@ -125,13 +114,9 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     localStorage.removeItem(COMPLETED_KEY);
     setState({
       currentStep: 0,
-      totalSteps: 6,
+      totalSteps: 5,
       isCompleted: false,
       data: {
-        companyName: "",
-        industry: "",
-        teamSize: "",
-        role: "",
         useCase: "appointment-setting",
         theme: "glass",
         notifications: true,

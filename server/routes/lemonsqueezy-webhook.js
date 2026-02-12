@@ -74,6 +74,7 @@ router.post('/', async (req, res) => {
                 plan: planKey,
                 is_active: true,
                 subscription_id: data.id,
+                trial_ends_at: null, // Clear trial status on successful payment
             };
 
             await User.findOneAndUpdate({ id: userId }, updateData);

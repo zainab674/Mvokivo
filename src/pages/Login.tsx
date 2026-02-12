@@ -28,7 +28,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const { websiteSettings } = useWebsiteSettings();
   const [showPassword, setShowPassword] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -68,6 +68,40 @@ export default function Login() {
       toast({
         title: "System Error",
         description: error?.message || "Connection failed.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const result = await signInWithGoogle();
+      if (result.success) {
+        toast({
+          title: "Neural Synchronization Successful",
+          description: "Google identity verified.",
+        });
+
+        // Use result.isNewUser for redirection
+        if (result.isNewUser) {
+          navigate("/onboarding");
+        } else {
+          navigate("/dashboard");
+        }
+      } else {
+        toast({
+          title: "Access Denied",
+          description: result.message || "Google Login failed.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "System Error",
+        description: error?.message || "Google bridge failed.",
         variant: "destructive",
       });
     } finally {
@@ -153,21 +187,14 @@ export default function Login() {
             {/* Social Logins */}
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => handleSocialLogin("Google")}
-                className="flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all group"
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                className="flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all group disabled:opacity-50"
               >
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5 opacity-60 group-hover:opacity-100 transition-opacity" />
                 <span className="text-[10px] font-mono font-bold text-white/40 group-hover:text-white tracking-widest uppercase">Google Sync</span>
               </button>
-              <button
-                onClick={() => handleSocialLogin("Facebook")}
-                className="flex items-center justify-center gap-3 px-4 py-3 bg-white/5 border border-white/5 rounded-2xl hover:bg-white/10 transition-all group"
-              >
-                <div className="w-5 h-5 bg-[#1877f2]/20 rounded-lg flex items-center justify-center border border-[#1877f2]/40">
-                  <span className="text-white text-[10px] font-bold">f</span>
-                </div>
-                <span className="text-[10px] font-mono font-bold text-white/40 group-hover:text-white tracking-widest uppercase">Meta Bridge</span>
-              </button>
+
             </div>
 
             <div className="relative flex items-center">

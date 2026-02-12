@@ -19,7 +19,7 @@ export function OnboardingComplete() {
       // Get signup data from localStorage
       const signupDataStr = localStorage.getItem("signup-data");
 
-      let currentToken = localStorage.getItem("token");
+      let currentToken = localStorage.getItem("auth_token");
       let currentUser = user;
 
       if (!signupDataStr && !currentUser?.id) {
@@ -41,7 +41,8 @@ export function OnboardingComplete() {
       }
 
       // 1. SIGNUP (if needed)
-      if (signupData) {
+      // Skip signup if we already have a user from auth context (e.g. Google Login)
+      if (signupData && !currentUser) {
         // Extract tenant from signup data (already determined during signup)
         const signupTenant = signupData.tenant || null;
 
@@ -63,13 +64,17 @@ export function OnboardingComplete() {
         }
 
         // Save token and user
-        localStorage.setItem('token', authResult.token);
+        localStorage.setItem('auth_token', authResult.token);
         currentToken = authResult.token;
         userId = authResult.user.id;
         currentUser = authResult.user;
         isNewUser = true;
 
         // Clear signup data
+        localStorage.removeItem("signup-data");
+      } else if (signupData && currentUser) {
+        // If we have both, it means the user was already created (e.g. via Google)
+        // Just clear the signup data
         localStorage.removeItem("signup-data");
       }
 
@@ -84,15 +89,11 @@ export function OnboardingComplete() {
       // 3. ONBOARDING / PROFILE UPDATE
       // Calculate trial end
       const trialEndsAt = new Date();
-      trialEndsAt.setDate(trialEndsAt.getDate() + 7);
+      trialEndsAt.setDate(trialEndsAt.getDate() + 15);
 
       // Prepare payload - backend will assign minutes based on plan
       const onboardingPayload = {
         name: signupData?.name || currentUser?.fullName || "",
-        company: data.companyName,
-        industry: data.industry,
-        team_size: data.teamSize,
-        role: data.role || "user",
         use_case: data.useCase,
         theme: data.theme,
         notifications: data.notifications,
@@ -150,7 +151,7 @@ export function OnboardingComplete() {
 
 
   const completedSteps = [
-    { title: "Business Profile", description: `${data.companyName} in ${data.industry}` },
+
     { title: "Use Case", description: "Customized dashboard and terminology" },
     { title: "Preferences", description: `${data.theme} UI with notifications ${data.notifications ? 'enabled' : 'disabled'}` },
   ];
